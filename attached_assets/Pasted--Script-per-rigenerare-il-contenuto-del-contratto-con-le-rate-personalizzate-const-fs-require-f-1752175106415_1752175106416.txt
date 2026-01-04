@@ -1,0 +1,74 @@
+// Script per rigenerare il contenuto del contratto con le rate personalizzate
+const fs = require('fs');
+const path = require('path');
+
+// Simuliamo la funzione di generazione del contenuto del contratto
+function generatePaymentPlanHTML(clientData) {
+  const usingCustomInstallments = clientData.rata_list && Array.isArray(clientData.rata_list) && clientData.rata_list.length > 0;
+  
+  if (!usingCustomInstallments) {
+    return '<p>Piano di pagamento non specificato.</p>';
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('it-IT', { 
+        day: '2-digit', 
+        month: 'long', 
+        year: 'numeric' 
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  let html = `
+  <h3 style="color: #555; margin-bottom: 15px;">Piano di Pagamento: Rate Personalizzate (inserimento manuale)</h3>
+  <p style="font-weight: bold; color: #555;">Il servizio sarà corrisposto mediante pagamento che il Cliente/Committente avrà cura di accendere come soluzione personalizzata nel contratto, con conseguente pagamento dell'indicato importo in modalità <strong>Rate Personalizzate</strong>:</p>
+  <ul style="list-style-type: decimal; margin: 15px 0; padding-left: 20px;">`;
+
+  clientData.rata_list.forEach((rata, index) => {
+    html += `
+    <li style="margin: 8px 0;"><strong>Rata ${index + 1}:</strong> ${rata.rata_importo}€ - Scadenza: ${formatDate(rata.rata_scadenza)}</li>`;
+  });
+
+  html += `
+  </ul>
+  <p style="margin-top: 15px;">Resta inteso che, in caso di <strong>inerzia da parte del Cliente</strong>, potrà essere emesso un rimborso entro 30 giorni dalla firma del contratto e avvenuto pagamento.</p>`;
+
+  return html;
+}
+
+// Dati del contratto con le rate personalizzate
+const clientData = {
+  "pec": "fdsfsd@pec.it",
+  "sede": "roma", 
+  "email": "chianettaalessio@gmail.com",
+  "p_iva": "CHNLSS01R09F158D",
+  "nato_a": "venezia",
+  "societa": "Padoin", 
+  "cellulare": "389056654",
+  "indirizzo": "via padoin",
+  "rata_list": [
+    {"rata_importo": 2500, "rata_scadenza": "2025-07-10"},
+    {"rata_importo": 500, "rata_scadenza": "2025-08-10"}
+  ],
+  "bonus_list": [],
+  "residente_a": "Venezia",
+  "cliente_nome": "padoin", 
+  "data_nascita": "2001-01-01",
+  "payment_plan": [],
+  "codice_univoco": "CHNLSS01R09F158D",
+  "indirizzo_residenza": "Via santino 44"
+};
+
+// Genera il contenuto delle rate personalizzate
+const paymentPlanHTML = generatePaymentPlanHTML(clientData);
+console.log("Contenuto generato per le rate personalizzate:");
+console.log(paymentPlanHTML);
+
+// Salva il contenuto in un file
+fs.writeFileSync('payment-plan-content.html', paymentPlanHTML);
+console.log("Contenuto salvato in payment-plan-content.html");

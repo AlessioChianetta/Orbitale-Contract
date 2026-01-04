@@ -1,0 +1,44 @@
+Vedo il problema! Il contratto sul client-view mostra ancora il vecchio testo generico "soluzione sottoscritta nel contratto" e "soluzione o a rate" invece delle rate personalizzate specifiche.
+
+Il problema è che il template del contratto non ha il blocco <!-- BLOCK:PAYMENT_PLAN --> configurato correttamente, oppure i dati non vengono processati correttamente. Devo verificare il template e assicurarmi che contenga il blocco corretto per le rate personalizzate.
+
+
+Executed SQL query SELECT content, custom_content FROM contract_templates WHERE id = 3;
+Optimized Agent memory
+Ecco il problema! Il template ha solo i bonus ma manca il blocco <!-- BLOCK:PAYMENT_PLAN --> che contiene la logica per le rate personalizzate. Il testo generico che vedi è probabilmente da qualche altro template di base.
+
+Devo verificare dove viene generato quel testo generico e aggiungere il blocco corretto al template. Prima verifico il contratto appena creato:
+
+
+Executed SQL query SELECT id, client_data, generated_content FROM contracts WHERE contract_code = '9ZSWLkPs7I2_TpWj';
+Perfetto! Il problema è chiaro: il generated_content contiene solo il template base senza il contenuto personalizzato e senza il blocco delle rate. Il template non ha il blocco <!-- BLOCK:PAYMENT_PLAN --> necessario.
+
+Devo aggiungere il blocco al template e poi rigenerare il contratto. Aggiorno il template:
+
+
+Executed SQL query UPDATE contract_templates SET custom_content = custom_content || ' <hr style="margin: 40px 0;"> <h2 style="text-align: center; font-size: 28px; margin-bottom: 30px; color: #333;">MODALITÀ DI PAGAMENTO</h2> <!-- BLOCK:PAYMENT_PLAN --> <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;"> <h3 style="color: #555; margin-bottom: 15px;">Piano di Pagamento Personalizzato</h3> {{PAYMENT_PLAN_CONTENT}} </div> <!-- /BLOCK:PAYMENT_PLAN -->' WHERE id = 3;
+Ora rigenero il contratto chiamando direttamente l'API di aggiornamento per triggerare la rigenerazione del contenuto:
+
+
+Executed curl -X PUT "http://localhost:5000/api/contracts/43" \ -H "Content-Type: application/json" \ -H "Cookie: $(cat cookies.txt)" \ -d '{ "templateId": 3, "clientData": { "pec": "fdsfsd@pec.it", "sede": "roma", "email": "chianettaalessio@gmail.com", "p_iva": "CHNLSS01R09F158D", "nato_a": "venezia", "societa": "Padoin", "cellulare": "389056654", "indirizzo": "via padoin", "rata_list": [ {"rata_importo": 2500, "rata_scadenza": "2025-07-10"}, {"rata_importo": 500, "rata_scadenza": "2025-08-10"} ], "bonus_list": [], "residente_a": "Venezia", "cliente_nome": "padoin", "data_nascita": "2001-01-01", "payment_plan": [], "codice_univoco": "CHNLSS01R09F158D", "indirizzo_residenza": "Via santino 44" }, "totalValue": 3000, "sendImmediately": false, "renewalDuration": 12, "contractStartDate": "2025-07-10", "contractEndDate": "2026-07-10", "isPercentagePartnership": false }'
+Devo controllare se l'aggiornamento è andato a buon fine:
+
+
+Executed curl -s "http://localhost:5000/api/contracts" \ -H "Cookie: $(cat cookies.txt)" | grep -A 5 -B 5 "9ZSWLkPs7I2_TpWj"
+Verifico direttamente il contratto aggiornato:
+
+
+Executed SQL query SELECT generated_content FROM contracts WHERE contract_code = '9ZSWLkPs7I2_TpWj';
+Il contenuto generato è ancora quello vecchio. Il problema potrebbe essere nell'API di aggiornamento. Devo verificare se l'endpoint è autenticato correttamente e triggerare la rigenerazione del contenuto.
+
+
+Opened server/routes.ts
+Devo trovare l'endpoint di aggiornamento contratti. Cerco l'API PUT per i contratti:
+
+
+Searched for "Find the PUT endpoint for updating contracts in the routes file"
+Perfetto! Ho trovato l'endpoint di aggiornamento. Devo autenticarmi correttamente prima. Verifico il login e poi aggiorno il contratto:
+
+
+Executed curl -X POST "http://localhost:5000/api/auth/login" \ -H "Content-Type: application/json" \ -c cookies.txt \ -d '{"username": "orbitale", "password": "123456"}'
+Il login sembra essere andato a buon fine (status 200). Ora aggiorno il contratto con l'API:

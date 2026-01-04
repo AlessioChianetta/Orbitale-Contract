@@ -1,0 +1,70 @@
+[TWILIO] ✅ Servizio Twilio Verify inizializzato correttamente
+[ROUTES] ✅ Usando Twilio Verify per 3890566421
+Query: insert into "otp_codes" ("id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at") values (default, $1, $2, $3, $4, default, default) returning "id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at" -- params: [47, "3890566421", "TWILIO_VERIFY", "2025-07-10T19:56:16.339Z"]
+[ROUTES] About to send OTP to 3890566421
+[ROUTES] Contact type: phone (SMS)
+[ROUTES] Method: Twilio Verify
+[ROUTES] 📱 Numero modificato dal cliente: 3890566421
+[TWILIO] 🔐 Tentativo di invio OTP via Twilio Verify...
+[TWILIO] 📱 Numero destinatario: 3890566421
+[TWILIO] 📱 Invio codice di verifica a: +393890566421
+[TWILIO] ❌ Errore nell'invio del codice di verifica: RestException [Error]: The phone number is unverified. Trial accounts cannot send messages to unverified numbers; verify it at twilio.com/user/account/phone-numbers/verified
+    at success (/home/runner/workspace/node_modules/twilio/lib/base/Version.js:79:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async TwilioVerifyService.sendVerificationCode (/home/runner/workspace/server/services/twilio-service.ts:47:28)
+    at async sendOTPSMS (/home/runner/workspace/server/services/twilio-service.ts:127:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:530:9) {
+  status: 403,
+  code: 21608,
+  moreInfo: 'https://www.twilio.com/docs/errors/21608',
+  details: undefined
+}
+[TWILIO] ❌ Fallimento nell'invio del codice di verifica: Error: Failed to send verification code: The phone number is unverified. Trial accounts cannot send messages to unverified numbers; verify it at twilio.com/user/account/phone-numbers/verified
+    at TwilioVerifyService.sendVerificationCode (/home/runner/workspace/server/services/twilio-service.ts:60:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async sendOTPSMS (/home/runner/workspace/server/services/twilio-service.ts:127:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:530:9)
+Failed to send OTP: Error: Failed to send verification code: The phone number is unverified. Trial accounts cannot send messages to unverified numbers; verify it at twilio.com/user/account/phone-numbers/verified
+    at TwilioVerifyService.sendVerificationCode (/home/runner/workspace/server/services/twilio-service.ts:60:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async sendOTPSMS (/home/runner/workspace/server/services/twilio-service.ts:127:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:530:9)
+7:46:16 PM [express] POST /api/client/contracts/tJzVsalVnUyeV4lj/send-otp 500 in 722ms :: {"message"…
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."contract_start_date", "contracts"."contract_end_date", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."is_percentage_partnership", "contracts"."partnership_percentage", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["tJzVsalVnUyeV4lj"]
+[ROUTES] ✅ Usando Twilio Verify per 3890566422
+Query: insert into "otp_codes" ("id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at") values (default, $1, $2, $3, $4, default, default) returning "id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at" -- params: [47, "3890566422", "TWILIO_VERIFY", "2025-07-10T19:56:23.425Z"]
+[ROUTES] About to send OTP to 3890566422
+[ROUTES] Contact type: phone (SMS)
+[ROUTES] Method: Twilio Verify
+[ROUTES] 📱 Numero modificato dal cliente: 3890566422
+[TWILIO] 🔐 Tentativo di invio OTP via Twilio Verify...
+[TWILIO] 📱 Numero destinatario: 3890566422
+[TWILIO] 📱 Invio codice di verifica a: +393890566422
+[TWILIO] ✅ Codice di verifica inviato! SID: VEa45c8f1398af206a4d86a72d47f4c1ee
+[TWILIO] 📊 Status: pending
+[TWILIO] ✅ Codice di verifica Twilio inviato con successo!
+[ROUTES] OTP sending completed
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [47, "otp_sent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36", "93.65.253.188", "{\"contact\":\"3890566422\",\"actualPhoneNumber\":\"3890566422\",\"method\":\"sms\",\"twilioVerify\":true,\"hasPhone\":true,\"hasEmail\":true,\"modifiedPhone\":\"3890566422\"}"]
+7:46:23 PM [express] POST /api/client/contracts/tJzVsalVnUyeV4lj/send-otp 200 in 700ms :: {"message"…
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."contract_start_date", "contracts"."contract_end_date", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."is_percentage_partnership", "contracts"."partnership_percentage", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["tJzVsalVnUyeV4lj"]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at" from "otp_codes" where ("otp_codes"."contract_id" = $1 and "otp_codes"."code" = $2 and "otp_codes"."is_used" = $3) -- params: [47, "TWILIO_VERIFY", false]
+[ROUTES] Verifica OTP via Twilio Verify per 3315436339
+[TWILIO] 🔍 Verifica OTP via Twilio Verify...
+[TWILIO] 📱 Numero: 3315436339
+[TWILIO] 🔢 Codice: 171330
+[TWILIO] 🔍 Verifica codice per: +393315436339
+[TWILIO] ❌ Errore nella verifica del codice: RestException [Error]: The requested resource /v2/Services/VA6c0e437afc3f8d21e1d6ce1e87e80126/VerificationCheck was not found
+    at success (/home/runner/workspace/node_modules/twilio/lib/base/Version.js:79:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async TwilioVerifyService.verifyCode (/home/runner/workspace/server/services/twilio-service.ts:74:33)
+    at async verifyOTPSMS (/home/runner/workspace/server/services/twilio-service.ts:147:21)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:593:22) {
+  status: 404,
+  code: 20404,
+  moreInfo: 'https://www.twilio.com/docs/errors/20404',
+  details: undefined
+}
+[TWILIO] ❌ Risultato verifica: NON VALIDO
+[ROUTES] Risultato verifica Twilio: NON VALIDO
+7:46:38 PM [express] POST /api/client/contracts/tJzVsalVnUyeV4lj/sign 400 in 811ms :: {"message":"In…

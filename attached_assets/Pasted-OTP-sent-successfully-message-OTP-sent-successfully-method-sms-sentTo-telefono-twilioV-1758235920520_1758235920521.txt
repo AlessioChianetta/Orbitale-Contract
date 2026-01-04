@@ -1,0 +1,43 @@
+OTP sent successfully: {message: 'OTP sent successfully', method: 'sms', sentTo: 'telefono', twilioVerify: false}
+VM304 eruda.js:2 🖱️ Click su pulsante firma
+VM304 eruda.js:2 🖊️ Inizio processo di firma contratto: OQGpHVMrDWhYNbtU
+VM304 eruda.js:2 ✅ Tutti i requisiti soddisfatti, invio richiesta di firma...
+VM304 eruda.js:2 📋 Dati firma: {otpCode: '376391', consents: {…}, signatures: {…}}
+VM304 eruda.js:2 ✅ Risposta server firma: Response {type: 'basic', url: 'https://cdee796b-3a42-4406-a44c-f9deafdf393c-00-2t…it.dev/api/client/contracts/OQGpHVMrDWhYNbtU/sign', redirected: false, status: 200, ok: true, …}
+VM304 eruda.js:2 🎉 Firma completata con successo!
+VM304 eruda.js:2 📧 Dati risposta: Response {type: 'basic', url: 'https://cdee796b-3a42-4406-a44c-f9deafdf393c-00-2t…it.dev/api/client/contracts/OQGpHVMrDWhYNbtU/sign', redirected: false, status: 200, ok: true, …}
+VM304 eruda.js:2 ❌ Errore nel toast: Error: Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://reactjs.org/link/invalid-hook-call for tips about how to debug and fix this problem.
+    at Object.throwInvalidHookError (VM333 chunk-RPCDYKBN.js:11501:17)
+    at Object.useState (VM331 chunk-QCHXOAYK.js:1066:29)
+    at useToast (VM377 use-toast.ts:108:35)
+    at ClientView.useMutation.onSuccess (VM367 client-view.tsx:656:9)
+    at _a6.execute (VM338 @tanstack_react-query.js:1233:73)
+Mt.forEach.n.<computed> @ VM304 eruda.js:2
+ClientView.useMutation.onSuccess @ VM367 client-view.tsx:669
+execute @ VM338 @tanstack_react-query.js:1233
+await in execute
+mutate @ VM338 @tanstack_react-query.js:2630
+(anonymous) @ VM338 @tanstack_react-query.js:3295
+onClick @ VM367 client-view.tsx:2960
+callCallback2 @ VM333 chunk-RPCDYKBN.js:3674
+invokeGuardedCallbackDev @ VM333 chunk-RPCDYKBN.js:3699
+invokeGuardedCallback @ VM333 chunk-RPCDYKBN.js:3733
+invokeGuardedCallbackAndCatchFirstError @ VM333 chunk-RPCDYKBN.js:3736
+executeDispatch @ VM333 chunk-RPCDYKBN.js:7014
+processDispatchQueueItemsInOrder @ VM333 chunk-RPCDYKBN.js:7034
+processDispatchQueue @ VM333 chunk-RPCDYKBN.js:7043
+dispatchEventsForPlugins @ VM333 chunk-RPCDYKBN.js:7051
+(anonymous) @ VM333 chunk-RPCDYKBN.js:7174
+batchedUpdates$1 @ VM333 chunk-RPCDYKBN.js:18913
+batchedUpdates @ VM333 chunk-RPCDYKBN.js:3579
+dispatchEventForPluginEventSystem @ VM333 chunk-RPCDYKBN.js:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ VM333 chunk-RPCDYKBN.js:5478
+dispatchEvent @ VM333 chunk-RPCDYKBN.js:5472
+dispatchDiscreteEvent @ VM333 chunk-RPCDYKBN.js:5449Understand this error
+workspace_iframe.html?initialPath=%2Fseller&id=%3Aree%3A:32 Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.Understand this error
+VM304 eruda.js:2 🔄 Esecuzione reload pagina (fallback)...
+Console.js:61 [vite] connecting...

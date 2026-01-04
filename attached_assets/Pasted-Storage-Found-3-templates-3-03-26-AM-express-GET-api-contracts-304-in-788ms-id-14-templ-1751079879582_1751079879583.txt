@@ -1,0 +1,36 @@
+Storage: Found 3 templates
+3:03:26 AM [express] GET /api/contracts 304 in 788ms :: [{"id":14,"templateId":1,"sellerId":2,"clien…
+3:03:26 AM [express] GET /api/stats 304 in 890ms :: {"totalContracts":14,"signedContracts":6,"pendin…
+Fetching templates...
+Storage: Found 3 templates
+Templates fetched: 3
+3:04:08 AM [express] GET /api/templates 304 in 1163ms :: [{"id":3,"name":"Turbo e Orbitale","descrip…
+3:04:24 AM [express] GET /api/user 304 in 438ms :: {"id":2,"username":"orbitale","password":"0c66b40…
+3:04:25 AM [express] GET /api/client/contracts/r7UcS-6_o_632L-c 304 in 899ms :: {"id":13,"templateId…
+3:04:25 AM [express] GET /api/user 304 in 446ms :: {"id":2,"username":"orbitale","password":"0c66b40…
+3:04:26 AM [express] GET /api/client/contracts/29ruo5mJ7nbegn7n 304 in 870ms :: {"id":11,"templateId…
+3:04:26 AM [express] GET /api/user 304 in 432ms :: {"id":2,"username":"orbitale","password":"0c66b40…
+3:04:26 AM [express] GET /api/client/contracts/Ud3r-Uq0i5ikZBKL 200 in 865ms :: {"id":14,"templateId…
+🔄 Richiesta invio immediato contratto modificato
+📧 Email di destinazione: chianettaalessio@gmail.com
+📋 ID contratto: 14
+🔗 Codice contratto: Ud3r-Uq0i5ikZBKL
+🔄 Tentativo di invio email...
+📧 Email destinatario: chianettaalessio@gmail.com
+👤 Nome cliente: Sardo
+📋 Codice contratto: Ud3r-Uq0i5ikZBKL
+⚙️ Configurazione SMTP:
+  - SMTP_HOST: undefined
+  - SMTP_PORT: undefined
+  - SMTP_SECURE: undefined
+  - SMTP_USER: ❌ Mancante
+  - SMTP_PASS: ❌ Mancante
+❌ Credenziali SMTP mancanti! Email non può essere inviata.
+❌ ERRORE nell'invio email durante modifica contratto:
+  - Errore: SMTP credentials missing
+  - Stack: Error: SMTP credentials missing
+    at sendContractEmail (/home/runner/workspace/server/services/email-service.ts:36:11)
+    at <anonymous> (/home/runner/workspace/server/routes.ts:227:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+3:04:34 AM [express] PUT /api/contracts/14 200 in 1020ms :: {"id":14,"templateId":1,"sellerId":2,"cl…
+3:04:35 AM [express] GET /api/contracts 200 in 717ms :: [{"id":14,"templateId":1,"sellerId":2,"clien…

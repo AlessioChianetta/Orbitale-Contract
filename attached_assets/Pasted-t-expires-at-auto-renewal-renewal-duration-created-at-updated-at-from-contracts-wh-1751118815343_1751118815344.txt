@@ -1,0 +1,104 @@
+t", "expires_at", "auto_renewal", "renewal_duration", "created_at", "updated_at" from "contracts" where "contracts"."seller_id" = $1 order by "contracts"."created_at" desc -- params: [2]
+Database error in getContracts: error: column "auto_renewal" does not exist
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/node_modules/src/node-postgres/session.ts:104:19)
+    at async DatabaseStorage.getContracts (/home/runner/workspace/server/storage.ts:149:16)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:623:25) {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '190',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3665',
+  routine: 'errorMissingColumn'
+}
+Database error fetching stats: error: column "auto_renewal" does not exist
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/node_modules/src/node-postgres/session.ts:104:19)
+    at async DatabaseStorage.getContracts (/home/runner/workspace/server/storage.ts:149:16)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:623:25) {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '190',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3665',
+  routine: 'errorMissingColumn'
+}
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "template_id", "seller_id", "client_data", "generated_content", "pdf_path", "status", "contract_code", "total_value", "sent_to_email", "signatures", "signed_at", "expires_at", "auto_renewal", "renewal_duration", "created_at", "updated_at" from "contracts" where "contracts"."seller_id" = $1 order by "contracts"."created_at" desc -- params: [2]
+Database error in getContracts: error: column "auto_renewal" does not exist
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/node_modules/src/node-postgres/session.ts:104:19)
+    at async DatabaseStorage.getContracts (/home/runner/workspace/server/storage.ts:149:16)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:155:25) {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '190',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3665',
+  routine: 'errorMissingColumn'
+}
+Database error fetching contracts: error: column "auto_renewal" does not exist
+    at /home/runner/workspace/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/node_modules/src/node-postgres/session.ts:104:19)
+    at async DatabaseStorage.getContracts (/home/runner/workspace/server/storage.ts:149:16)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:155:25) {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '190',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3665',
+  routine: 'errorMissingColumn'
+}
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+1:53:06 PM [express] GET /api/stats 500 in 1184ms :: {"message":"Failed to fetch stats"}
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+1:53:06 PM [express] GET /api/contracts 500 in 1745ms :: {"message":"Failed to fetch contracts"}

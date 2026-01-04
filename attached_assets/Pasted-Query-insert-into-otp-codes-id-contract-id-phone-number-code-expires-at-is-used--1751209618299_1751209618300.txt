@@ -1,0 +1,30 @@
+Query: insert into "otp_codes" ("id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at") values (default, $1, $2, $3, $4, default, default) returning "id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at" -- params: [30, "chianettaalessio@gmail.com", "683718", "2025-06-29T15:15:37.001Z"]
+[ROUTES] About to send OTP 683718 to chianettaalessio@gmail.com
+[EMAIL OTP Service] Sending OTP 683718 to chianettaalessio@gmail.com
+[DEBUG] NODE_ENV: development
+[DEBUG] Checking if development mode...
+🔐 OTP Code for chianettaalessio@gmail.com: 683718
+🔐 [DEVELOPMENT] OTP per chianettaalessio@gmail.com: 683718
+[DEBUG] OTP logged in development mode, returning...
+[ROUTES] OTP sending completed
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [30, "otp_sent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36", "109.116.200.89", "{\"email\":\"chianettaalessio@gmail.com\",\"method\":\"email\"}"]
+3:05:37 PM [express] POST /api/client/contracts/-QUS1vLwqqPBfDyo/send-otp 200 in 964ms :: {"message"…
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["-QUS1vLwqqPBfDyo"]
+3:05:58 PM [express] GET /api/user 401 in 1ms
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "company_name", "address", "city", "postal_code", "tax_id", "vat_id", "unique_code", "pec", "logo_url", "contract_title", "updated_at" from "company_settings" limit $1 -- params: [1]
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [30, "viewed", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36", "109.116.200.89", "{\"accessMethod\":\"direct_link\",\"emailUsed\":null}"]
+3:05:59 PM [express] GET /api/client/contracts/-QUS1vLwqqPBfDyo 304 in 1245ms :: {"id":30,"templateI…
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["-QUS1vLwqqPBfDyo"]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: insert into "otp_codes" ("id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at") values (default, $1, $2, $3, $4, default, default) returning "id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at" -- params: [30, "chianettaalessio@gmail.com", "270220", "2025-06-29T15:16:14.359Z"]
+[ROUTES] About to send OTP 270220 to chianettaalessio@gmail.com
+[EMAIL OTP Service] Sending OTP 270220 to chianettaalessio@gmail.com
+[DEBUG] NODE_ENV: development
+[DEBUG] Checking if development mode...
+🔐 OTP Code for chianettaalessio@gmail.com: 270220
+🔐 [DEVELOPMENT] OTP per chianettaalessio@gmail.com: 270220
+[DEBUG] OTP logged in development mode, returning...
+[ROUTES] OTP sending completed
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [30, "otp_sent", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36", "109.116.200.89", "{\"email\":\"chianettaalessio@gmail.com\",\"method\":\"email\"}"]
+3:06:14 PM [express] POST /api/client/contracts/-QUS1vLwqqPBfDyo/send-otp 200 in 949ms :: {"message"…

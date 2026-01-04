@@ -1,0 +1,70 @@
+[dotenv@17.0.0] injecting env (12) from .env – 🔐 encrypt with dotenvx: https://dotenvx.com
+3:10:16 PM [express] serving on port 5000
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Error deserializing user: ReferenceError: Cannot access 'users2' before initialization
+    at DatabaseStorage.getUser (/home/runner/workspace/server/storage.ts:333:42)
+    at <anonymous> (/home/runner/workspace/server/auth.ts:84:34)
+    at pass (/home/runner/workspace/node_modules/passport/lib/authenticator.js:372:9)
+    at Authenticator.deserializeUser (/home/runner/workspace/node_modules/passport/lib/authenticator.js:377:5)
+    at SessionStrategy.authenticate (/home/runner/workspace/node_modules/passport/lib/strategies/session.js:112:10)
+    at attempt (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:378:16)
+    at authenticate (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:379:7)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/home/runner/workspace/node_modules/express/lib/router/index.js:328:13)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:286:9
+ReferenceError: Cannot access 'users2' before initialization
+    at DatabaseStorage.getUser (/home/runner/workspace/server/storage.ts:333:42)
+    at <anonymous> (/home/runner/workspace/server/auth.ts:84:34)
+    at pass (/home/runner/workspace/node_modules/passport/lib/authenticator.js:372:9)
+    at Authenticator.deserializeUser (/home/runner/workspace/node_modules/passport/lib/authenticator.js:377:5)
+    at SessionStrategy.authenticate (/home/runner/workspace/node_modules/passport/lib/strategies/session.js:112:10)
+    at attempt (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:378:16)
+    at authenticate (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:379:7)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/home/runner/workspace/node_modules/express/lib/router/index.js:328:13)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:286:9
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Error deserializing user: ReferenceError: Cannot access 'users2' before initialization
+    at DatabaseStorage.getUser (/home/runner/workspace/server/storage.ts:333:42)
+    at <anonymous> (/home/runner/workspace/server/auth.ts:84:34)
+    at pass (/home/runner/workspace/node_modules/passport/lib/authenticator.js:372:9)
+    at Authenticator.deserializeUser (/home/runner/workspace/node_modules/passport/lib/authenticator.js:377:5)
+    at SessionStrategy.authenticate (/home/runner/workspace/node_modules/passport/lib/strategies/session.js:112:10)
+    at attempt (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:378:16)
+    at authenticate (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:379:7)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/home/runner/workspace/node_modules/express/lib/router/index.js:328:13)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:286:9
+ReferenceError: Cannot access 'users2' before initialization
+    at DatabaseStorage.getUser (/home/runner/workspace/server/storage.ts:333:42)
+    at <anonymous> (/home/runner/workspace/server/auth.ts:84:34)
+    at pass (/home/runner/workspace/node_modules/passport/lib/authenticator.js:372:9)
+    at Authenticator.deserializeUser (/home/runner/workspace/node_modules/passport/lib/authenticator.js:377:5)
+    at SessionStrategy.authenticate (/home/runner/workspace/node_modules/passport/lib/strategies/session.js:112:10)
+    at attempt (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:378:16)
+    at authenticate (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:379:7)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/home/runner/workspace/node_modules/express/lib/router/index.js:328:13)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:286:9
+Error deserializing user: ReferenceError: Cannot access 'users2' before initialization
+    at DatabaseStorage.getUser (/home/runner/workspace/server/storage.ts:333:42)
+    at <anonymous> (/home/runner/workspace/server/auth.ts:84:34)
+    at pass (/home/runner/workspace/node_modules/passport/lib/authenticator.js:372:9)
+    at Authenticator.deserializeUser (/home/runner/workspace/node_modules/passport/lib/authenticator.js:377:5)
+    at SessionStrategy.authenticate (/home/runner/workspace/node_modules/passport/lib/strategies/session.js:112:10)
+    at attempt (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:378:16)
+    at authenticate (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:379:7)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/home/runner/workspace/node_modules/express/lib/router/index.js:328:13)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:286:9
+ReferenceError: Cannot access 'users2' before initialization
+    at DatabaseStorage.getUser (/home/runner/workspace/server/storage.ts:333:42)
+    at <anonymous> (/home/runner/workspace/server/auth.ts:84:34)
+    at pass (/home/runner/workspace/node_modules/passport/lib/authenticator.js:372:9)
+    at Authenticator.deserializeUser (/home/runner/workspace/node_modules/passport/lib/authenticator.js:377:5)
+    at SessionStrategy.authenticate (/home/runner/workspace/node_modules/passport/lib/strategies/session.js:112:10)
+    at attempt (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:378:16)
+    at authenticate (/home/runner/workspace/node_modules/passport/lib/middleware/authenticate.js:379:7)
+    at Layer.handle [as handle_request] (/home/runner/workspace/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/home/runner/workspace/node_modules/express/lib/router/index.js:328:13)
+    at /home/runner/workspace/node_modules/express/lib/router/index.js:286:9
