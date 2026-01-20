@@ -308,7 +308,7 @@ export class DatabaseStorage implements IStorage {
       return contract || undefined;
   }
 
-  async getContractByCode(contractCode: string): Promise<Contract | undefined> {
+  async getContractByCode(contractCode: string): Promise<any> {
     const contracts = await db.select({
       contract: contractsTable,
       template: contractTemplatesTable,
@@ -321,12 +321,23 @@ export class DatabaseStorage implements IStorage {
     if (contracts.length === 0) return undefined;
 
     const result = contracts[0];
-    // Add company information to the contract
-    const contractWithCompany = {
+    // Add company information and template to the contract
+    const contractWithCompanyAndTemplate = {
       ...result.contract,
-      companyId: result.seller?.companyId
+      companyId: result.seller?.companyId,
+      template: result.template ? {
+        id: result.template.id,
+        name: result.template.name,
+        description: result.template.description,
+        content: result.template.content,
+        customContent: result.template.customContent,
+        paymentText: result.template.paymentText,
+        predefinedBonuses: result.template.predefinedBonuses,
+        paymentOptions: result.template.paymentOptions,
+        isActive: result.template.isActive
+      } : null
     };
-    return contractWithCompany;
+    return contractWithCompanyAndTemplate;
   }
 
   
