@@ -122,7 +122,7 @@ Turbo Contract is a comprehensive web application for creating, managing, and di
 
 ### AI Integration Architecture
 - **AI Service**: server/services/provider-factory.ts using Google AI Studio (@google/genai) with API_KEY from env
-- **Model**: gemini-2.5-flash for all AI operations
+- **Model**: gemini-3-flash-preview for all AI operations
 - **Chat Component**: client/src/components/ai-contract-chat.tsx - message-based conversation with copy/insert functionality
 - **Wizard Component**: client/src/components/ai-contract-wizard.tsx - guided Q&A with progress tracking, legal references, summary generation
 - **AI Routes**: POST /api/ai/chat, /api/ai/wizard/start, /api/ai/wizard/answer, /api/ai/wizard/generate
