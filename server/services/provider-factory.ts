@@ -2,6 +2,14 @@ import { GoogleGenAI } from "@google/genai";
 
 const GEMINI_MODEL = "gemini-3-flash-preview";
 
+const THINKING_LEVEL = "low" as const;
+const THINKING_BUDGETS = {
+  minimal: 1024,
+  low: 4096,
+  medium: 8192,
+  high: 16384,
+} as const;
+
 let aiClient: GoogleGenAI | null = null;
 
 function getClient(): GoogleGenAI {
@@ -13,6 +21,32 @@ function getClient(): GoogleGenAI {
     aiClient = new GoogleGenAI({ apiKey });
   }
   return aiClient;
+}
+
+function getThinkingConfig(level: keyof typeof THINKING_BUDGETS = THINKING_LEVEL) {
+  return {
+    thinkingConfig: {
+      thinkingBudget: THINKING_BUDGETS[level],
+    },
+  };
+}
+
+function extractTextFromResponse(response: any): string {
+  if (response.text) {
+    return response.text;
+  }
+
+  if (response.candidates?.length) {
+    const parts = response.candidates[0]?.content?.parts || [];
+    const textParts = parts
+      .filter((p: any) => p.text && !p.thought)
+      .map((p: any) => p.text);
+    if (textParts.length > 0) {
+      return textParts.join('');
+    }
+  }
+
+  return "";
 }
 
 const SYSTEM_PROMPT_CHAT = `Sei un esperto consulente legale italiano specializzato nella redazione di contratti commerciali, di servizio e di consulenza. 
@@ -164,10 +198,12 @@ export async function chatContratto(
       systemInstruction: SYSTEM_PROMPT_CHAT,
       temperature: 0.7,
       maxOutputTokens: 4096,
+      ...getThinkingConfig("low"),
     },
   });
 
-  return response.text || "Mi dispiace, non sono riuscito a generare una risposta.";
+  const text = extractTextFromResponse(response);
+  return text || "Mi dispiace, non sono riuscito a generare una risposta.";
 }
 
 export async function guidedContractWizard(
@@ -194,10 +230,11 @@ export async function guidedContractWizard(
       temperature: 0.5,
       maxOutputTokens: 4096,
       responseMimeType: "application/json",
+      ...getThinkingConfig("low"),
     },
   });
 
-  const responseText = response.text || "{}";
+  const responseText = extractTextFromResponse(response) || "{}";
 
   let parsedData = null;
   try {
@@ -251,10 +288,11 @@ Rispondi con un JSON valido con questa struttura:
       temperature: 0.3,
       maxOutputTokens: 8192,
       responseMimeType: "application/json",
+      ...getThinkingConfig("medium"),
     },
   });
 
-  const responseText = response.text || "{}";
+  const responseText = extractTextFromResponse(response) || "{}";
 
   try {
     const parsed = JSON.parse(responseText);
