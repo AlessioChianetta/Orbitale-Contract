@@ -791,9 +791,9 @@ export default function ProfessionalContractDocument({
         <aside
           className={`${
             sidebarOpen ? "w-72 xl:w-80" : "w-0"
-          } transition-all duration-300 border-r border-slate-200/60 bg-white/60 backdrop-blur-sm flex-shrink-0 overflow-hidden print:hidden`}
+          } transition-all duration-300 border-r border-slate-200/60 bg-white/60 backdrop-blur-sm flex-shrink-0 overflow-hidden print:hidden sticky top-16 h-[calc(100vh-4rem)]`}
         >
-          <div className="h-[calc(100vh-4rem)] overflow-y-auto">
+          <div className="h-full overflow-y-auto">
             <div className="p-4">
               <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-2">
                 Indice
