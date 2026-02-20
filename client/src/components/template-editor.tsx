@@ -36,6 +36,7 @@ import {
 import BonusManager from "./bonus-manager";
 import AiContractChat from "./ai-contract-chat";
 import AiContractWizard from "./ai-contract-wizard";
+import ProfessionalContractDocument from "@/components/professional-contract-document";
 
 const templateFormSchema = insertContractTemplateSchema.omit({ createdBy: true });
 type TemplateForm = z.infer<typeof templateFormSchema>;
@@ -468,6 +469,13 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         <Gift className="h-3.5 w-3.5 mr-1.5" />
                         Bonus & Pagamento
                       </TabsTrigger>
+                      <TabsTrigger
+                        value="preview"
+                        className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
+                      >
+                        <Eye className="h-3.5 w-3.5 mr-1.5" />
+                        Anteprima
+                      </TabsTrigger>
                     </TabsList>
                   </div>
                 </div>
@@ -622,6 +630,33 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         rows={8}
                         placeholder="Inserisci i termini di pagamento..."
                       />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="preview" className="mt-0 h-full">
+                    <div className="rounded-2xl border border-[#E5E7EB]/60 bg-[#F8FAFC] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] h-full overflow-y-auto">
+                      <div className="flex items-center gap-2 mb-4 px-2">
+                        <Eye className="h-4 w-4 text-[#64748B]" />
+                        <h3 className="text-sm font-semibold text-[#0F172A]">Anteprima Contratto</h3>
+                        <span className="ml-auto text-[10px] text-[#94A3B8] bg-[#F1F5F9] px-2 py-1 rounded-full">Live Preview</span>
+                      </div>
+                      <div className="bg-white rounded-xl border border-[#E5E7EB]/40 overflow-hidden">
+                        <ProfessionalContractDocument
+                          mode="preview"
+                          template={{
+                            name: form.watch("name") || "Nome Template",
+                            content: form.watch("content") || "",
+                            customContent: form.watch("customContent") || "",
+                            paymentText: form.watch("paymentText") || "",
+                            predefinedBonuses: (form.watch("predefinedBonuses") as any[]) || [],
+                          }}
+                          bonusList={
+                            ((form.watch("predefinedBonuses") as any[]) || []).map((bonus: any) => ({
+                              bonus_descrizione: bonus.description + (bonus.value ? ` (${bonus.value}${bonus.type === 'percentage' ? '%' : '€'})` : '')
+                            }))
+                          }
+                        />
+                      </div>
                     </div>
                   </TabsContent>
                 </div>

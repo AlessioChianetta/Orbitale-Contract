@@ -534,6 +534,33 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
         .custom-content-section h1 { font-size: 20px; }
         .custom-content-section h2 { font-size: 18px; }
         .custom-content-section h3 { font-size: 16px; }
+
+        .section-header {
+          font-size: 14pt;
+          font-weight: 700;
+          color: #1e293b;
+          border-left: 4px solid #6366f1;
+          padding-left: 12px;
+          margin: 32px 0 16px 0;
+        }
+
+        .section-header.commercial { border-left-color: #6366f1; }
+        .section-header.legal { border-left-color: #8b5cf6; }
+        .section-header.payment { border-left-color: #3b82f6; }
+        .section-header.bonus { border-left-color: #10b981; }
+        .section-header.validity { border-left-color: #f59e0b; }
+
+        .section-card {
+          padding: 20px;
+          border-radius: 12px;
+          margin: 16px 0 32px 0;
+          page-break-inside: avoid;
+        }
+
+        .section-card.blue { background-color: #eff6ff; border: 1px solid #bfdbfe; }
+        .section-card.amber { background-color: #fffbeb; border: 1px solid #fde68a; }
+        .section-card.green { background-color: #f0fdf4; border: 1px solid #bbf7d0; }
+        .section-card.violet { background-color: #f5f3ff; border: 1px solid #ddd6fe; }
       </style>
     </head>
     <body>
@@ -561,6 +588,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       </div>
 
       <!-- Client Data Table -->
+      <h2 class="section-header commercial">Dati del Cliente / Committente</h2>
       <table class="client-table">
         <tr>
           <td colspan="2" class="client-table-header full-width">
@@ -603,6 +631,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       </table>
 
       <!-- Payment Section - Show partnership model OR payment plan OR template text -->
+      <h2 class="section-header payment">Piano Economico</h2>
       ${contractData.isPercentagePartnership && contractData.partnershipPercentage ? `
       <div class="payment-plan" style="background-color: #fef3c7; border: 3px solid #f59e0b; border-radius: 12px; padding: 24px; margin: 24px 0; page-break-inside: avoid;">
         <div class="title" style="color: #92400e; text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 16px;">
@@ -674,6 +703,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       ` : ''}
 
       <!-- Custom Content Section -->
+      ${contractData.template?.customContent ? '<h2 class="section-header commercial">Contenuto Personalizzato</h2>' : ''}
       ${contractData.template?.customContent ? `
       <div class="custom-content-section">
         ${contractData.template.customContent}
@@ -681,6 +711,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       ` : ''}
 
       <!-- Bonuses -->
+      ${bonusList.length > 0 ? '<h2 class="section-header bonus">Bonus Inclusi</h2>' : ''}
       ${bonusList.length > 0 ? `
       <div class="bonus-section">
         ${bonusList.map((bonus: any, index: number) => `
@@ -693,11 +724,9 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       ` : ''}
 
       <!-- Contract Validity Period -->
-      <div style="margin: 24px 0; padding: 16px; border: 1px solid #3b82f6; border-radius: 8px; background-color: #eff6ff; page-break-inside: avoid;">
-        <div style="font-weight: bold; font-size: 16px; margin-bottom: 8px; text-align: center; color: #1d4ed8;">
-          📅 PERIODO DI VALIDITÀ DEL CONTRATTO
-        </div>
-        <p style="text-align: center; font-size: 14px; color: #1e40af;">
+      <h2 class="section-header validity">Validità del Contratto</h2>
+      <div class="section-card blue" style="text-align: center;">
+        <p style="font-size: 12pt; color: #1e40af; font-weight: 500;">
           ${contractData.contractStartDate && contractData.contractEndDate ? 
             `Il presente contratto ha validità dal ${formatDateSafe(contractData.contractStartDate)} al ${formatDateSafe(contractData.contractEndDate)}` :
             `Il presente contratto ha validità dal ${formatDateSafe(contractData.createdAt || new Date())} al ${formatDateSafe(new Date(new Date(contractData.createdAt || new Date()).getTime() + 365 * 24 * 60 * 60 * 1000))}`
@@ -706,22 +735,21 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       </div>
 
       <!-- Auto Renewal Section - Always Active -->
-      <div style="margin: 32px 0; padding: 20px; border: 2px solid #059669; border-radius: 8px; background-color: #f0fdf4; page-break-inside: avoid;">
-        <div style="font-weight: bold; font-size: 16px; margin-bottom: 12px; text-align: center; color: #059669;">
-          🔄 CLAUSOLA DI AUTORINNOVO
-        </div>
+      <h2 class="section-header legal">Clausola di Autorinnovo</h2>
+      <div class="section-card green">
         <p style="text-align: justify; line-height: 1.6; margin-bottom: 12px;">
           <strong>Il presente contratto si rinnoverà automaticamente per ulteriori ${contractData.renewalDuration || 12} mesi</strong> alle stesse condizioni economiche e contrattuali, salvo disdetta da comunicarsi da una delle parti all'altra con preavviso di almeno 30 (trenta) giorni prima della scadenza mediante raccomandata A/R o PEC.
         </p>
         <p style="text-align: justify; line-height: 1.6; margin-bottom: 12px;">
           In caso di mancata disdetta nei termini sopra indicati, il contratto si intenderà automaticamente rinnovato per un periodo pari a ${contractData.renewalDuration || 12} mesi, alle medesime condizioni del contratto originario.
         </p>
-        <p style="text-align: justify; line-height: 1.6; font-size: 12px; color: #6b7280;">
+        <p style="text-align: justify; line-height: 1.6; font-size: 10pt; color: #6b7280;">
           <em>Questa clausola è stata specificatamente accettata dal Cliente al momento della sottoscrizione del presente contratto.</em>
         </p>
       </div>
 
       <!-- Unica sezione firma -->
+      <h2 class="section-header legal">Dichiarazioni e Firma</h2>
       <div class="privacy-section" style="page-break-before: auto; margin-top: 40px;">
         <div class="privacy-item" style="page-break-inside: avoid;">
           <p class="privacy-title">Consenso per informazioni commerciali e attività promozionali.</p>

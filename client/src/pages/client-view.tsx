@@ -7,31 +7,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import {
   File,
   Clock,
   Eye,
-  Gift,
-  Calendar,
   CheckCircle,
   Shield,
   Signature,
-  Phone,
   PenTool,
   MessageSquare,
   Mail,
   Loader2,
-  FileText,
-  Building2,
-  User,
-  MapPin,
-  Euro,
-  AlertCircle
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import ProfessionalContractDocument from "@/components/professional-contract-document";
 
 // Componente per le aree di firma cliccabili con modalità avanzata
 function SignatureArea({
@@ -649,707 +640,253 @@ export default function ClientView() {
   const StatusIcon = statusConfig.icon;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 py-2 sm:py-8">
-      <div className="max-w-4xl mx-auto px-2 sm:px-4 lg:px-8 animate-in slide-in-from-bottom-4 duration-500">
-        {/* Contract Header */}
-        <Card className="mb-3 sm:mb-6 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="border-b border-gray-200/50 p-3 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-              <div className="flex items-center space-x-3 sm:space-x-4">
-                <div className="p-2 sm:p-3 bg-blue-100 rounded-full">
-                  <File className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg sm:text-2xl font-bold text-gray-900">
-                    Contratto Digitale
-                  </CardTitle>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-1 flex flex-col sm:flex-row sm:items-center">
-                    <span className="mb-1 sm:mb-0 sm:mr-2">Codice:</span>
-                    <code className="px-2 py-1 bg-gray-100 rounded text-xs font-mono tracking-wider">
-                      {contract.contractCode}
-                    </code>
+    <ProfessionalContractDocument
+      mode="sign"
+      companySettings={companySettings}
+      clientData={clientData}
+      template={contract.template}
+      contract={{
+        createdAt: contract.createdAt,
+        signedAt: contract.signedAt,
+        status: contract.status,
+        isPercentagePartnership: contract.isPercentagePartnership,
+        partnershipPercentage: contract.partnershipPercentage,
+        renewalDuration: contract.renewalDuration,
+        contractStartDate: contract.contractStartDate,
+        contractEndDate: contract.contractEndDate,
+      }}
+      paymentPlan={paymentPlan}
+      bonusList={bonusList}
+      usingCustomInstallments={usingCustomInstallments}
+      signatureArea={
+        <SignatureArea
+          signatureId="marketing"
+          onSign={(signature) => setSignatures(prev => ({ ...prev, marketing: signature }))}
+          onGlobalSign={handleGlobalSignature}
+          disabled={contract.status === 'signed'}
+        />
+      }
+      afterDocumentContent={
+        <>
+          {contract.status !== "signed" && !signatures.marketing && (
+            <Card className="border border-orange-200 bg-orange-50 shadow-lg">
+              <CardContent className="pt-6 text-center">
+                <div className="animate-in fade-in duration-500">
+                  <PenTool className="mx-auto h-16 w-16 text-orange-500 mb-4" />
+                  <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                    Firma Richiesta nel Documento
+                  </h3>
+                  <p className="text-lg text-gray-600 mb-6">
+                    Prima di procedere con la firma digitale, è necessario apporre la firma nel documento sopra.
                   </p>
+                  <div className="bg-orange-100 border border-orange-200 rounded-lg p-4 text-sm text-orange-800">
+                    <p className="font-medium mb-2">Come procedere:</p>
+                    <ol className="text-left space-y-1 ml-4">
+                      <li>1. Scorri il documento sopra fino alla sezione firma</li>
+                      <li>2. Clicca sull'area "Clicca qui per firmare"</li>
+                      <li>3. Apponi la tua firma digitale</li>
+                      <li>4. Torna qui per completare il processo di autenticazione</li>
+                    </ol>
+                  </div>
                 </div>
-              </div>
-              <div className="text-center sm:text-right">
-                <Badge className={`${statusConfig.color} flex items-center justify-center px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm font-medium`}>
-                  <StatusIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-5 sm:w-5" />
-                  {statusConfig.label}
-                </Badge>
-                <p className="text-xs text-gray-500 mt-1 sm:mt-2">{statusConfig.description}</p>
-              </div>
-            </div>
-          </CardHeader>
+              </CardContent>
+            </Card>
+          )}
 
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">
-                  Dettagli Cliente
-                </h4>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-gray-900">{clientName}</p>
-                  <p className="text-sm text-gray-600">{clientEmail}</p>
-                  <p className="text-sm text-gray-600">{phoneNumber || 'Numero non specificato'}</p>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">
-                  Dettagli Contratto
-                </h4>
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-900">
-                    {contract.isPercentagePartnership ? 'Modello Partnership: ' : 'Valore Totale: '}
-                    <span className="font-semibold">
-                      {(() => {
-                        // Check if it's a percentage partnership
-                        if (contract.isPercentagePartnership && contract.partnershipPercentage) {
-                          return `${contract.partnershipPercentage}% sul fatturato TOTALE`;
-                        }
-                        // Calculate total value based on payment plan
-                        else if (paymentPlan.length > 0) {
-                          const totalFromPayments = paymentPlan.reduce((sum, payment) =>
-                            sum + parseFloat(payment.rata_importo), 0
-                          );
-                          return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })
-                            .format(totalFromPayments);
-                        } else if (contract.totalValue) {
-                          return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })
-                            .format(contract.totalValue / 100);
-                        } else {
-                          return "Non specificato";
-                        }
-                      })()}
-                    </span>
-                  </p>
-                  {/* Add special highlighting for partnership contracts */}
-                  {contract.isPercentagePartnership && contract.partnershipPercentage && (
-                    <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
-                      <strong>🤝 Partnership:</strong> Compenso basato su percentuale del fatturato mensile
+          {contract.status === "viewed" && !signatures.marketing && (
+            <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4 flex items-center">
+                <Shield className="mr-2 h-5 w-5" />
+                Verifica Identità
+              </h3>
+
+              {!showOtpInput ? (
+                <div className="space-y-4">
+                  {companySettings?.otpMethod === "email" ? (
+                    <div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Per procedere con la firma, riceverai un codice di verifica via email.
+                      </p>
+                      <div>
+                        <Label htmlFor="emailAddress">Email di Verifica</Label>
+                        <Input
+                          id="emailAddress"
+                          type="email"
+                          value={contract.sentToEmail || clientData.email || ""}
+                          readOnly
+                          className="mt-1 bg-gray-100 cursor-not-allowed"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Il codice OTP verrà inviato a questa email
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleSendOtp}
+                        disabled={isLoadingOtp}
+                        className="w-full"
+                      >
+                        {isLoadingOtp ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Invio in corso...
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="mr-2 h-4 w-4" />
+                            Invia Codice OTP via Email
+                          </>
+                        )}
+                      </Button>
                     </div>
-                  )}
-                  <p className="text-sm text-gray-600">
-                    Data Creazione: {new Date(contract.createdAt).toLocaleDateString('it-IT')}
-                  </p>
-                  {contract.signedAt && (
-                    <p className="text-sm text-gray-600">
-                      Data Firma: {new Date(contract.signedAt).toLocaleDateString('it-IT')}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Separatore Sezione Documento */}
-        <div className="flex items-center justify-center my-8">
-          <div className="flex-grow border-t-2 border-gray-200"></div>
-          <div className="mx-6 bg-white px-4 py-2 rounded-full border-2 border-blue-200 shadow-md">
-            <div className="flex items-center text-blue-700 font-semibold">
-              <File className="mr-2 h-5 w-5" />
-              <span className="text-sm uppercase tracking-wide">Documento da Firmare</span>
-            </div>
-          </div>
-          <div className="flex-grow border-t-2 border-gray-200"></div>
-        </div>
-
-        {/* Document Viewer - Professional Layout */}
-        <Card className="mb-8 shadow-xl border-2 border-blue-200 bg-gradient-to-br from-white to-blue-50">
-          <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-b">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center">
-                <File className="mr-3 h-6 w-6 text-white" />
-                <div>
-                  <div className="text-lg font-bold">📄 Documento Contratto</div>
-                  <div className="text-sm font-normal text-blue-100">Visualizzazione sicura e protetta • Scorri per leggere tutto</div>
-                </div>
-              </div>
-              <Badge variant="outline" className="bg-white text-green-700 border-green-200">
-                <Shield className="mr-1 h-3 w-3" />
-                Documento Verificato
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="bg-white border-gray-200 p-3 sm:p-8 text-sm max-h-[800px] overflow-y-auto">
-              {/* Header with Logo and Company Info */}
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-6 sm:mb-8 space-y-4 sm:space-y-0">
-                <div className="flex justify-center sm:justify-start">
-                  {companySettings?.logoUrl ? (
-                    <img
-                      src={companySettings.logoUrl}
-                      alt="Logo"
-                      className="max-w-[80px] sm:max-w-[120px] max-h-[50px] sm:max-h-[80px] object-contain"
-                    />
                   ) : (
-                    <div className="bg-black text-white p-2 sm:p-4 font-bold text-lg sm:text-2xl" style={{width: '80px', height: '50px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center'}}>
-                      <div className="text-xs sm:text-sm">CODICE</div>
-                      <div className="text-xl sm:text-4xl">1%</div>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Per procedere con la firma, è necessario verificare la tua identità tramite SMS.
+                      </p>
+                      <div>
+                        <Label htmlFor="phoneNumber">Numero di Telefono</Label>
+                        <Input
+                          id="phoneNumber"
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          placeholder="+39 XXX XXX XXXX"
+                          className="mt-1"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Inserisci il tuo numero di telefono per ricevere il codice OTP via SMS
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleSendOtp}
+                        disabled={!phoneNumber.trim() || isLoadingOtp}
+                        className="w-full"
+                      >
+                        {isLoadingOtp ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Invio in corso...
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            Invia Codice OTP via SMS
+                          </>
+                        )}
+                      </Button>
                     </div>
                   )}
                 </div>
-                <div className="text-center sm:text-right text-xs sm:text-xs leading-tight space-y-1">
-                  <div className="font-bold text-sm sm:text-base">{companySettings?.companyName || 'Nome Azienda'}</div>
-                  <div>{companySettings?.address || 'Indirizzo'} Cap {companySettings?.postalCode || 'CAP'} {companySettings?.city || 'Città'} ({companySettings?.city ? 'MI' : 'Provincia'})</div>
-                  <div>C.F. e P.I. {companySettings?.taxId || 'Codice Fiscale/P.IVA'}</div>
-                  <div>Codice univoco: {companySettings?.uniqueCode || 'Codice Univoco'}</div>
-                  <div>Pec: {companySettings?.pec || 'email@pec.it'}</div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="otpCode">Codice OTP</Label>
+                    <Input
+                      id="otpCode"
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="Inserisci il codice a 6 cifre"
+                      className="mt-1 text-center text-lg tracking-widest"
+                      maxLength={6}
+                    />
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      {companySettings?.otpMethod === "email"
+                        ? "Inserisci il codice ricevuto via email"
+                        : "Inserisci il codice ricevuto via SMS"
+                      }</p>
+                  </div>
+                  {error && <p className="text-sm text-red-500">{error}</p>}
+                  {successMessage && <p className="text-sm text-green-500">{successMessage}</p>}
                 </div>
-              </div>
+              )}
+            </div>
+          )}
 
-              {/* Contract Title */}
-              <div className="font-bold text-base sm:text-lg mb-4 sm:mb-6 text-center sm:text-left">
-                {contract.template?.name || companySettings?.contractTitle || 'Titolo Contratto'}
-              </div>
-
-              {/* Client Data - Responsive Layout */}
-              <div className="border border-gray-300 mb-4 sm:mb-6 rounded-lg overflow-hidden">
-                <div className="bg-gray-100 border-b border-gray-300 p-3 sm:p-4 font-bold text-sm sm:text-base">
-                  Dati del cliente/committente
-                </div>
-
-                {/* Mobile: Vertical Cards, Desktop: Table */}
-                <div className="block sm:hidden p-3 space-y-3">
-                  {/* Mobile Card Layout */}
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-xs text-gray-600 mb-1">SOCIETÀ</div>
-                    <div className="font-bold text-sm">{clientData.societa || 'Non specificato'}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-xs text-gray-600 mb-1">SEDE</div>
-                    <div className="font-bold text-sm">{clientData.sede || 'Non specificato'}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-xs text-gray-600 mb-1">INDIRIZZO</div>
-                    <div className="font-bold text-sm">{clientData.indirizzo || 'Non specificato'}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-xs text-gray-600 mb-1">CODICE FISCALE/P.IVA</div>
-                    <div className="font-bold text-sm">{clientData.p_iva || 'Non specificato'}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-xs text-gray-600 mb-1">PEC</div>
-                    <div className="font-bold text-sm">{clientData.pec || 'Non specificato'}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-xs text-gray-600 mb-1">EMAIL</div>
-                    <div className="font-bold text-sm">{clientData.email || 'Non specificato'}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-xs text-gray-600 mb-1">CELLULARE</div>
-                    <div className="font-bold text-sm">{clientData.cellulare || 'Non specificato'}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-xs text-gray-600 mb-1">CODICE UNIVOCO</div>
-                    <div className="font-bold text-sm">{clientData.codice_univoco || 'Non specificato'}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-xs text-gray-600 mb-1">REGISTRO IMPRESE/REA</div>
-                    <div className="font-bold text-sm">{clientData.rea || 'Non specificato'}</div>
-                  </div>
-                  <div className="bg-blue-50 p-3 rounded border border-blue-200">
-                    <div className="font-semibold text-xs text-blue-700 mb-2">LEGALE RAPPRESENTANTE</div>
-                    <div className="space-y-2">
-                      <div>
-                        <span className="font-semibold text-xs text-gray-600">Nome: </span>
-                        <span className="text-sm">{clientData.cliente_nome || 'Non specificato'}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-xs text-gray-600">Nato a: </span>
-                        <span className="text-sm">{clientData.nato_a || 'Non specificato'}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-xs text-gray-600">Data nascita: </span>
-                        <span className="text-sm">{clientData.data_nascita ? new Date(clientData.data_nascita).toLocaleDateString('it-IT') : 'Non specificato'}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-xs text-gray-600">Residente a: </span>
-                        <span className="text-sm">{clientData.residente_a || 'Non specificato'}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-xs text-gray-600">Indirizzo residenza: </span>
-                        <span className="text-sm">{clientData.indirizzo_residenza || 'Non specificato'}</span>
-                      </div>
+          {contract.status !== "signed" && signatures.marketing && (
+            <Card className="border border-gray-300 shadow-lg bg-white">
+              <CardHeader className="bg-gray-50 border-b border-gray-200 p-4 sm:p-6">
+                <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                  <div className="flex items-center">
+                    <div className="bg-gray-100 p-2 rounded-full mr-3">
+                      <Signature className="h-6 w-6 text-gray-600" />
+                    </div>
+                    <div>
+                      <div className="text-xl sm:text-2xl font-bold text-gray-800">Processo di Firma Elettronica</div>
+                      <div className="text-sm font-normal text-gray-600">Sicuro e conforme agli standard europei • Seguire i 3 passaggi</div>
                     </div>
                   </div>
-                </div>
-
-                {/* Desktop: Original Table Layout */}
-                <table className="hidden sm:table w-full text-sm">
-                  <tbody>
-                    <tr className="border-b border-gray-200">
-                      <td className="border-r border-gray-200 p-2 font-bold w-1/2">Società {clientData.societa || ''}</td>
-                      <td className="p-2 font-bold">Con sede in {clientData.sede || ''}</td>
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="border-r border-gray-200 p-2 font-bold">Indirizzo {clientData.indirizzo || ''}</td>
-                      <td className="p-2 font-bold">Codice fiscale/PIVA {clientData.p_iva || ''}</td>
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="border-r border-gray-200 p-2 font-bold">PEC {clientData.pec || ''}</td>
-                      <td className="p-2 font-bold">Email {clientData.email || ''}</td>
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="border-r border-gray-200 p-2 font-bold">Cellulare {clientData.cellulare || ''}</td>
-                      <td className="p-2 font-bold">Codice univoco {clientData.codice_univoco || ''}</td>
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="p-2 font-bold" colSpan={2}>Numero iscrizione al REA o al registro delle imprese {clientData.rea || ''}</td>
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="p-2 font-bold" colSpan={2}>In persona del suo legale rappresentante p.t.</td>
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="border-r border-gray-200 p-2">
-                        <span className="font-bold">Signor./a.</span> {clientData.cliente_nome || ''}
-                      </td>
-                      <td className="p-2">
-                        <span className="font-bold">Nato a</span> {clientData.nato_a || ''}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="border-r border-gray-200 p-2">
-                        <span className="font-bold">Data di nascita</span> {clientData.data_nascita ? new Date(clientData.data_nascita).toLocaleDateString('it-IT') : ''}
-                      </td>
-                      <td className="p-2">
-                        <span className="font-bold">Residente a</span> {clientData.residente_a || ''}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="p-2" colSpan={2}>
-                        <span className="font-bold">Indirizzo di residenza:</span> {clientData.indirizzo_residenza || ''}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Partnership Section - Show if partnership mode */}
-              {contract.isPercentagePartnership && contract.partnershipPercentage && (
-                <div className="border border-gray-300 p-4 sm:p-6 mb-4 sm:mb-6 rounded-lg bg-gray-50">
+                  <Badge className="bg-white text-gray-700 border-2 border-gray-300 px-3 py-2 text-sm font-medium">
+                    <Shield className="mr-2 h-4 w-4" />
+                    eIDAS Compliant
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 sm:pt-8 px-4 sm:px-8 bg-white rounded-b-lg">
+                <div className="mb-8 sm:mb-10 bg-gray-50 p-6 rounded-lg border border-gray-200">
                   <div className="text-center mb-4">
-                    <div className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">
-                      MODELLO DI PARTNERSHIP
-                    </div>
-                    <div className="text-base sm:text-lg font-semibold text-gray-700">
-                      Percentuale: <span className="bg-gray-200 px-3 py-1 rounded font-bold">{contract.partnershipPercentage}%</span> sul fatturato TOTALE
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">Progresso Firma Digitale</h3>
+                    <div className="flex items-center justify-between text-sm text-gray-700 mb-3">
+                      <span className="font-semibold">Passaggio {signContractMutation.isPending ? '3' : (showOtpInput ? '2' : '1')} di 3</span>
+                      <span className="font-semibold">{signContractMutation.isPending ? '100%' : (showOtpInput ? '66%' : '33%')} completato</span>
                     </div>
                   </div>
-
-                  <div className="space-y-4 text-sm sm:text-base">
-                    <div className="bg-white p-4 rounded border border-gray-200">
-                      <h4 className="font-bold text-gray-800 mb-2">DEFINIZIONE DI FATTURATO TOTALE</h4>
-                      <p className="text-gray-700 mb-2">Per "fatturato TOTALE" si intende la somma di tutti i ricavi lordi generati dall'attività, comprensivi di:</p>
-                      <ul className="list-disc list-inside text-gray-700 space-y-1 ml-4">
-                        <li>Vendite di cibo e bevande</li>
-                        <li>Servizi di catering e delivery</li>
-                        <li>Eventi privati e prenotazioni speciali</li>
-                        <li>Qualsiasi altro ricavo direttamente collegato all'attività</li>
-                      </ul>
+                  <div className="w-full bg-gray-200 rounded-full h-3 sm:h-4">
+                    <div
+                      className={`h-3 sm:h-4 rounded-full transition-all duration-700 ease-out ${
+                        signContractMutation.isPending ? 'bg-gray-700' : (showOtpInput ? 'bg-gray-600' : 'bg-gray-500')
+                      }`}
+                      style={{ width: signContractMutation.isPending ? '100%' : (showOtpInput ? '66%' : '33%') }}
+                    ></div>
+                  </div>
+                  {signContractMutation.isPending && (
+                    <div className="text-center text-sm text-gray-700 mt-3 font-semibold">
+                      Finalizzazione firma in corso...
                     </div>
-
-                    <div className="bg-white p-4 rounded border border-gray-200">
-                      <h4 className="font-bold text-gray-800 mb-2">MODALITÀ DI CALCOLO E PAGAMENTO</h4>
-                      <p className="text-gray-700">
-                        Il pagamento della percentuale sarà calcolato mensilmente sul fatturato TOTALE del mese precedente e dovrà essere corrisposto entro il 15 del mese successivo tramite bonifico bancario.
-                      </p>
+                  )}
+                  <div className="flex justify-between mt-4 text-xs text-gray-600">
+                    <div className={`text-center ${!showOtpInput ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
+                      {companySettings?.otpMethod === "email" ? "Verifica Email" : "Verifica Telefono"}
                     </div>
-
-                    <div className="bg-white p-4 rounded border border-gray-200">
-                      <h4 className="font-bold text-gray-800 mb-2">TRASPARENZA E RENDICONTAZIONE</h4>
-                      <p className="text-gray-700 mb-2">Il Cliente si impegna a fornire mensilmente la documentazione contabile necessaria per il calcolo della percentuale dovuta, inclusi:</p>
-                      <ul className="list-disc list-inside text-gray-700 space-y-1 ml-4">
-                        <li>Estratti conto del registratore di cassa o POS</li>
-                        <li>Fatture emesse nel periodo di riferimento</li>
-                        <li>Dichiarazioni IVA periodiche</li>
-                        <li>Report di fatturato certificati dal commercialista</li>
-                      </ul>
+                    <div className={`text-center ${showOtpInput && !signContractMutation.isPending ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
+                      Codice OTP
                     </div>
-
-                    <div className="bg-white p-4 rounded border border-gray-300">
-                      <h4 className="font-bold text-gray-800 mb-2">PENALI PER RITARDATO PAGAMENTO</h4>
-                      <p className="text-gray-700">
-                        In caso di ritardo nel pagamento della percentuale dovuta, saranno applicate penali pari al 2% dell'importo dovuto per ogni mese di ritardo, oltre agli interessi legali.
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-100 p-4 rounded border border-gray-300">
-                      <p className="text-gray-800 font-semibold text-center">
-                        IMPORTANTE: Questo modello di partnership sostituisce qualsiasi piano di pagamento fisso. Il compenso sarà calcolato esclusivamente come percentuale del fatturato totale.
-                      </p>
+                    <div className={`text-center ${signContractMutation.isPending ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
+                      Firma Finale
                     </div>
                   </div>
                 </div>
-              )}
 
-              {/* Payment Plan - Responsive (solo se NON è partnership) */}
-              {!contract.isPercentagePartnership && paymentPlan.length > 0 && (
-                <div className="border border-gray-300 p-3 sm:p-4 mb-4 sm:mb-6 rounded-lg bg-blue-50">
-                  <div className="font-bold mb-3 text-sm sm:text-base text-blue-900">
-                    {usingCustomInstallments && (
-                      <div className="mb-2 text-xs sm:text-sm bg-green-100 text-green-800 px-2 py-1 rounded inline-block">
-                        📝 Rate Personalizzate (inserimento manuale)
+                <div className="max-w-lg mx-auto space-y-6 sm:space-y-8">
+                  <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
+                    <div className="flex items-center mb-4">
+                      <div className="bg-gray-700 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">
+                        1
                       </div>
-                    )}
-                    Il prezzo totale di <span className="bg-yellow-200 px-2 py-1 rounded font-extrabold">{paymentPlan.reduce((sum, payment) => sum + parseFloat(payment.rata_importo), 0).toFixed(2)} EUR</span> + IVA sarà corrisposto con le seguenti modalità:
-                  </div>
-                  <div className="space-y-2 sm:space-y-1">
-                    {paymentPlan.map((payment: any, index: number) => (
-                      <div key={index} className="bg-white p-3 rounded border border-blue-200 text-sm">
-                        <div className="font-semibold text-blue-800">Pagamento {payment.rata_numero || index + 1}</div>
-                        <div className="text-gray-700">
-                          <span className="font-medium">Importo:</span> EUR {payment.rata_importo} + IVA
-                        </div>
-                        <div className="text-gray-700">
-                          <span className="font-medium">Scadenza:</span> {payment.rata_scadenza}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Payment Terms - Custom text from template */}
-              {(contract.template?.paymentText || contract.paymentText) && (
-                <div className="mb-6 text-sm leading-relaxed">
-                  <div
-                    className="text-justify"
-                    dangerouslySetInnerHTML={{ __html: contract.template?.paymentText || contract.paymentText || "" }}
-                  />
-                </div>
-              )}
-
-              {/* Custom Content Section */}
-              {contract.template?.customContent && (
-                <div className="mb-6 p-4 bg-gray-50 border-l-4 border-gray-400 rounded-r-lg">
-                  <div
-                    className="text-sm leading-relaxed text-gray-700"
-                    dangerouslySetInnerHTML={{ __html: contract.template.customContent }}
-                  />
-                </div>
-              )}
-
-              {/* Contract Validity Period */}
-              <div className="mb-6 p-4 border border-gray-300 rounded-lg bg-gray-50">
-                <div className="font-bold text-base mb-2 text-center text-gray-800">
-                  📅 PERIODO DI VALIDITÀ DEL CONTRATTO
-                </div>
-                <p className="text-sm text-center text-gray-700">
-                  Il presente contratto ha validità dal {new Date(contract.createdAt).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })} al {new Date(new Date(contract.createdAt).setFullYear(new Date(contract.createdAt).getFullYear() + 1)).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
-                </p>
-              </div>
-
-              {/* Auto Renewal Section - Always Active */}
-              <div className="mb-6 p-5 border border-gray-300 rounded-lg bg-gray-50">
-                <div className="font-bold text-base mb-3 text-center text-gray-800">
-                  🔄 CLAUSOLA DI AUTORINNOVO
-                </div>
-                <p className="text-sm leading-relaxed mb-3 text-justify">
-                  <strong>Il presente contratto si rinnoverà automaticamente per ulteriori {contract.renewalDuration || 12} mesi</strong> alle stesse condizioni economiche e contrattuali, salvo disdetta da comunicarsi da una delle parti all'altra con preavviso di almeno 30 (trenta) giorni prima della scadenza mediante raccomandata A/R o PEC.
-                </p>
-                <p className="text-sm leading-relaxed mb-3 text-justify">
-                  In caso di mancata disdetta nei termini sopra indicati, il contratto si intenderà automaticamente rinnovato per un periodo pari a {contract.renewalDuration || 12} mesi, alle medesime condizioni del contratto originario.
-                </p>
-                <p className="text-xs text-gray-600 italic text-justify">
-                  Questa clausola è stata specificatamente accettata dal Cliente al momento della sottoscrizione del presente contratto.
-                </p>
-              </div>
-
-              {/* Bonuses */}
-              {bonusList.length > 0 && (
-                <div className="mb-6">
-                  {bonusList.map((bonus: any, index: number) => (
-                    <div key={index} className="mb-4 p-4 border-l-4 border-gray-800 bg-gray-50">
-                      <p className="font-bold text-gray-800 mb-2">BONUS #{index + 1}</p>
-                      <p className="text-sm leading-relaxed">{bonus.bonus_descrizione}</p>
+                      <Label className="text-base font-bold text-gray-800">
+                        {companySettings?.otpMethod === "email" ? "Conferma la tua email" : "Conferma il tuo numero di telefono"}
+                      </Label>
                     </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Declaration and Final Signature */}
-              <div className="text-sm mb-6">
-                <p className="font-bold mb-2">Il sottoscritto dichiara:</p>
-                <ul className="list-disc list-inside mb-4">
-                  <li>di aver ricevuto il Fascicolo informativo/ condizioni generali di contratto contenente la nota informativa</li>
-                  <li>le Condizioni generali di contratto, di averle lette ed accettate</li>
-                </ul>
-              </div>
-
-              {/* Unica firma per tutto il contratto */}
-              <div className="mb-6">
-                <p className="font-bold mb-2">Consenso per informazioni commerciali e attività promozionali.</p>
-                <p className="mb-2">Presa visione dell'informativa generale allegata, consento che i miei dati anagrafici siano utilizzati dalle Società e/o comunicati a terzi che svolgono attività commerciali e promozionali per finalità di marketing effettuate anche al telefono, ivi compreso l'invio di materiale illustrativo relativo ai servizi e ai prodotti commercializzati.</p>
-                <p className="font-bold">Consenso</p>
-
-                <div className="mt-4">
-                  <p className="mb-4">Data {new Date().toLocaleDateString('it-IT')} Luogo Milano <span className="font-bold">firma Cliente/Committente</span></p>
-                  <SignatureArea
-                    signatureId="marketing"
-                    onSign={(signature) => setSignatures(prev => ({ ...prev, marketing: signature }))}
-                    onGlobalSign={handleGlobalSignature}
-                    disabled={contract.status === 'signed'}
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Separatore Sezione Firma */}
-        <div className="flex items-center justify-center my-12">
-          <div className="flex-grow border-t-2 border-gray-300"></div>
-          <div className="mx-8 bg-white px-6 py-3 rounded-lg shadow border border-gray-200">
-            <div className="flex items-center text-gray-700 font-semibold">
-              <Signature className="mr-3 h-5 w-5" />
-              <span className="text-base uppercase tracking-wide">Sezione Firma Digitale</span>
-              <Signature className="ml-3 h-5 w-5" />
-            </div>
-          </div>
-          <div className="flex-grow border-t-2 border-gray-300"></div>
-        </div>
-
-        {/* OTP Section - Show only if no signatures yet */}
-        {contract.status === "viewed" && !signatures.marketing && (
-          <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <Shield className="mr-2 h-5 w-5" />
-              Verifica Identità
-            </h3>
-
-            {!showOtpInput ? (
-              <div className="space-y-4">
-                {/* Determine OTP method and show appropriate input */}
-                {companySettings?.otpMethod === "email" ? (
-                  <div>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Per procedere con la firma, riceverai un codice di verifica via email.
-                    </p>
-
-                    <div>
-                      <Label htmlFor="emailAddress">Email di Verifica</Label>
-                      <Input
-                        id="emailAddress"
-                        type="email"
-                        value={contract.sentToEmail || clientData.email || ""}
-                        readOnly
-                        className="mt-1 bg-gray-100 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Il codice OTP verrà inviato a questa email
-                      </p>
-                    </div>
-
-                    <Button
-                      onClick={handleSendOtp}
-                      disabled={isLoadingOtp}
-                      className="w-full"
-                    >
-                      {isLoadingOtp ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Invio in corso...
-                        </>
-                      ) : (
-                        <>
-                          <Mail className="mr-2 h-4 w-4" />
-                          Invia Codice OTP via Email
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Per procedere con la firma, è necessario verificare la tua identità tramite SMS.
-                    </p>
-
-                    <div>
-                      <Label htmlFor="phoneNumber">Numero di Telefono</Label>
-                      <Input
-                        id="phoneNumber"
-                        type="tel"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        placeholder="+39 XXX XXX XXXX"
-                        className="mt-1"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Inserisci il tuo numero di telefono per ricevere il codice OTP via SMS
-                      </p>
-                    </div>
-
-                    <Button
-                      onClick={handleSendOtp}
-                      disabled={!phoneNumber.trim() || isLoadingOtp}
-                      className="w-full"
-                    >
-                      {isLoadingOtp ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Invio in corso...
-                        </>
-                      ) : (
-                        <>
-                          <MessageSquare className="mr-2 h-4 w-4" />
-                          Invia Codice OTP via SMS
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              // OTP Input Section
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="otpCode">Codice OTP</Label>
-                  <Input
-                    id="otpCode"
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="Inserisci il codice a 6 cifre"
-                    className="mt-1 text-center text-lg tracking-widest"
-                    maxLength={6}
-                  />
-                  <p className="text-xs text-gray-500 mt-2 text-center">
-                    {companySettings?.otpMethod === "email"
-                      ? "Inserisci il codice ricevuto via email"
-                      : "Inserisci il codice ricevuto via SMS"
-                    }</p>
-                </div>
-
-                {error && <p className="text-sm text-red-500">{error}</p>}
-                {successMessage && <p className="text-sm text-green-500">{successMessage}</p>}
-              </div>
-            )}
-          </div>
-        )}
-
-
-        {/* Signature Section - Show only if contract signature is present */}
-        {contract.status !== "signed" && signatures.marketing && (
-          <Card className="border border-gray-300 shadow-lg bg-white">
-            <CardHeader className="bg-gray-50 border-b border-gray-200 p-4 sm:p-6">
-              <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-                <div className="flex items-center">
-                  <div className="bg-gray-100 p-2 rounded-full mr-3">
-                    <Signature className="h-6 w-6 text-gray-600" />
-                  </div>
-                  <div>
-                    <div className="text-xl sm:text-2xl font-bold text-gray-800">Processo di Firma Elettronica</div>
-                    <div className="text-sm font-normal text-gray-600">Sicuro e conforme agli standard europei • Seguire i 3 passaggi</div>
-                  </div>
-                </div>
-                <Badge className="bg-white text-gray-700 border-2 border-gray-300 px-3 py-2 text-sm font-medium">
-                  <Shield className="mr-2 h-4 w-4" />
-                  eIDAS Compliant
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6 sm:pt-8 px-4 sm:px-8 bg-white rounded-b-lg">
-              {/* Progress Indicators con design migliorato */}
-              <div className="mb-8 sm:mb-10 bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <div className="text-center mb-4">
-                  <h3 className="text-lg font-bold text-gray-800 mb-2">Progresso Firma Digitale</h3>
-                  <div className="flex items-center justify-between text-sm text-gray-700 mb-3">
-                    <span className="font-semibold">Passaggio {signContractMutation.isPending ? '3' : (showOtpInput ? '2' : '1')} di 3</span>
-                    <span className="font-semibold">{signContractMutation.isPending ? '100%' : (showOtpInput ? '66%' : '33%')} completato</span>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 sm:h-4">
-                  <div
-                    className={`h-3 sm:h-4 rounded-full transition-all duration-700 ease-out ${
-                      signContractMutation.isPending ? 'bg-gray-700' : (showOtpInput ? 'bg-gray-600' : 'bg-gray-500')
-                    }`}
-                    style={{ width: signContractMutation.isPending ? '100%' : (showOtpInput ? '66%' : '33%') }}
-                  ></div>
-                </div>
-                {signContractMutation.isPending && (
-                  <div className="text-center text-sm text-gray-700 mt-3 font-semibold">
-                    Finalizzazione firma in corso...
-                  </div>
-                )}
-
-                {/* Step indicators */}
-                <div className="flex justify-between mt-4 text-xs text-gray-600">
-                  <div className={`text-center ${!showOtpInput ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
-                    {companySettings?.otpMethod === "email" ? "Verifica Email" : "Verifica Telefono"}
-                  </div>
-                  <div className={`text-center ${showOtpInput && !signContractMutation.isPending ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
-                    Codice OTP
-                  </div>
-                  <div className={`text-center ${signContractMutation.isPending ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
-                    Firma Finale
-                  </div>
-                </div>
-              </div>
-
-              <div className="max-w-lg mx-auto space-y-6 sm:space-y-8">
-                {/* Step 1: Contact Verification */}
-                <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
-                  <div className="flex items-center mb-4">
-                    <div className="bg-gray-700 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">
-                      1
-                    </div>
-                    <Label className="text-base font-bold text-gray-800">
-                      {companySettings?.otpMethod === "email" ? "Conferma la tua email" : "Conferma il tuo numero di telefono"}
-                    </Label>
-                  </div>
-                  <div className="space-y-3">
-                    {companySettings?.otpMethod === "email" ? (
-                      <div className="space-y-3">
-                        <div>
-                          <Label htmlFor="emailForOtp">Email di Verifica</Label>
-                          <Input
-                            id="emailForOtp"
-                            type="email"
-                            value={contract.sentToEmail || clientData.email || ""}
-                            readOnly
-                            className="h-12 text-base font-medium bg-gray-100 border border-gray-300 text-gray-800 cursor-not-allowed"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Il codice OTP verrà inviato a questa email
-                          </p>
-                        </div>
-                        <Button
-                          onClick={handleSendOtp}
-                          disabled={isLoadingOtp}
-                          className="w-full h-12 px-6 text-sm sm:text-base bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400"
-                        >
-                          {isLoadingOtp ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Invio...
-                            </>
-                          ) : (
-                            <>
-                              <Mail className="mr-2 h-4 w-4" />
-                              Invia Codice OTP via Email
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
-                          <div className="flex-1 relative">
+                    <div className="space-y-3">
+                      {companySettings?.otpMethod === "email" ? (
+                        <div className="space-y-3">
+                          <div>
+                            <Label htmlFor="emailForOtp">Email di Verifica</Label>
                             <Input
-                              id="phoneNumber"
-                              type="tel"
-                              value={phoneNumber}
-                              onChange={(e) => setPhoneNumber(e.target.value)}
-                              readOnly={showOtpInput}
-                              placeholder="+39 XXX XXX XXXX"
-                              className="h-12 text-base font-medium bg-white border border-gray-300 text-gray-800 focus:border-blue-500"
+                              id="emailForOtp"
+                              type="email"
+                              value={contract.sentToEmail || clientData.email || ""}
+                              readOnly
+                              className="h-12 text-base font-medium bg-gray-100 border border-gray-300 text-gray-800 cursor-not-allowed"
                             />
+                            <p className="text-xs text-gray-500 mt-1">
+                              Il codice OTP verrà inviato a questa email
+                            </p>
                           </div>
                           <Button
                             onClick={handleSendOtp}
-                            disabled={!phoneNumber.trim() || isLoadingOtp}
-                            className="h-12 px-6 text-sm sm:text-base whitespace-nowrap bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400"
+                            disabled={isLoadingOtp}
+                            className="w-full h-12 px-6 text-sm sm:text-base bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400"
                           >
                             {isLoadingOtp ? (
                               <>
@@ -1358,224 +895,224 @@ export default function ClientView() {
                               </>
                             ) : (
                               <>
-                                <MessageSquare className="mr-2 h-4 w-4" />
-                                Invia Codice OTP via SMS
+                                <Mail className="mr-2 h-4 w-4" />
+                                Invia Codice OTP via Email
                               </>
                             )}
                           </Button>
                         </div>
-                      </div>
-                    )}
-                    {error && <p className="text-sm text-red-500">{error}</p>}
-                    {successMessage && <p className="text-sm text-green-500">{successMessage}</p>}
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                            <div className="flex-1 relative">
+                              <Input
+                                id="phoneNumber"
+                                type="tel"
+                                value={phoneNumber}
+                                onChange={(e) => setPhoneNumber(e.target.value)}
+                                readOnly={showOtpInput}
+                                placeholder="+39 XXX XXX XXXX"
+                                className="h-12 text-base font-medium bg-white border border-gray-300 text-gray-800 focus:border-blue-500"
+                              />
+                            </div>
+                            <Button
+                              onClick={handleSendOtp}
+                              disabled={!phoneNumber.trim() || isLoadingOtp}
+                              className="h-12 px-6 text-sm sm:text-base whitespace-nowrap bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400"
+                            >
+                              {isLoadingOtp ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Invio...
+                                </>
+                              ) : (
+                                <>
+                                  <MessageSquare className="mr-2 h-4 w-4" />
+                                  Invia Codice OTP via SMS
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {error && <p className="text-sm text-red-500">{error}</p>}
+                      {successMessage && <p className="text-sm text-green-500">{successMessage}</p>}
+                    </div>
                   </div>
-                </div>
 
-                {/* Step 2: OTP Input */}
-                {showOtpInput && (
+                  {showOtpInput && (
+                    <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
+                      <div className="flex items-center mb-4">
+                        <div className="bg-gray-700 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">
+                          2
+                        </div>
+                        <Label className="text-base font-bold text-gray-800">
+                          Inserisci il codice OTP
+                        </Label>
+                      </div>
+                      <div className="flex justify-center">
+                        <InputOTP
+                          maxLength={6}
+                          value={otpCode}
+                          onChange={setOtpCode}
+                          className="gap-2 sm:gap-3"
+                        >
+                          <InputOTPGroup className="gap-2 sm:gap-3">
+                            <InputOTPSlot index={0} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
+                            <InputOTPSlot index={1} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
+                            <InputOTPSlot index={2} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
+                            <InputOTPSlot index={3} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
+                            <InputOTPSlot index={4} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
+                            <InputOTPSlot index={5} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2 text-center">
+                        {companySettings?.otpMethod === "email"
+                          ? "Inserisci il codice ricevuto via email"
+                          : "Inserisci il codice ricevuto via SMS"
+                        }</p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-center my-6">
+                    <div className="flex-grow border-t border-gray-300"></div>
+                    <div className="mx-4 bg-gray-100 px-3 py-1 rounded">
+                      <span className="text-gray-700 font-semibold text-sm">CONSENSI E FIRMA</span>
+                    </div>
+                    <div className="flex-grow border-t border-gray-300"></div>
+                  </div>
+
                   <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
                     <div className="flex items-center mb-4">
                       <div className="bg-gray-700 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">
-                        2
+                        3
                       </div>
                       <Label className="text-base font-bold text-gray-800">
-                        Inserisci il codice OTP
-                      </Label>
-                    </div>
-                    <div className="flex justify-center">
-                      <InputOTP
-                        maxLength={6}
-                        value={otpCode}
-                        onChange={setOtpCode}
-                        className="gap-2 sm:gap-3"
-                      >
-                        <InputOTPGroup className="gap-2 sm:gap-3">
-                          <InputOTPSlot index={0} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                          <InputOTPSlot index={1} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                          <InputOTPSlot index={2} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                          <InputOTPSlot index={3} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                          <InputOTPSlot index={4} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                          <InputOTPSlot index={5} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                        </InputOTPGroup>
-                      </InputOTP>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2 text-center">
-                      {companySettings?.otpMethod === "email"
-                        ? "Inserisci il codice ricevuto via email"
-                        : "Inserisci il codice ricevuto via SMS"
-                      }</p>
-                  </div>
-                )}
-
-                {/* Separatore tra sezioni */}
-                <div className="flex items-center justify-center my-6">
-                  <div className="flex-grow border-t border-gray-300"></div>
-                  <div className="mx-4 bg-gray-100 px-3 py-1 rounded">
-                    <span className="text-gray-700 font-semibold text-sm">CONSENSI E FIRMA</span>
-                  </div>
-                  <div className="flex-grow border-t border-gray-300"></div>
-                </div>
-
-                {/* Consent Checkboxes */}
-                {/* Step 3: Consensi e Firma */}
-                <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
-                  <div className="flex items-center mb-4">
-                    <div className="bg-gray-700 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">
-                      3
-                    </div>
-                    <Label className="text-base font-bold text-gray-800">
-                      Consensi e Firma Finale
-                    </Label>
-                  </div>
-
-                  <div className="space-y-4 mb-6">
-                    <div className="flex items-start space-x-3 p-4 bg-white rounded-lg border border-gray-200">
-                      <Checkbox
-                        id="privacy"
-                        checked={consents.privacy}
-                        onCheckedChange={(checked) =>
-                          setConsents(prev => ({ ...prev, privacy: !!checked }))
-                        }
-                        className="mt-1 h-5 w-5"
-                      />
-                      <Label htmlFor="privacy" className="text-sm text-gray-700 leading-relaxed cursor-pointer font-medium">
-                        Accetto l'informativa sulla privacy e il trattamento dei dati personali
-                        <span className="text-red-500 ml-1 font-bold">*</span>
+                        Consensi e Firma Finale
                       </Label>
                     </div>
 
-                    <div className="flex items-start space-x-3 p-4 bg-white rounded-lg border border-gray-200">
-                      <Checkbox
-                        id="marketing"
-                        checked={consents.marketing}
-                        onCheckedChange={(checked) =>
-                          setConsents(prev => ({ ...prev, marketing: !!checked }))
-                        }
-                        className="mt-1 h-5 w-5"
-                      />
-                      <Label htmlFor="marketing" className="text-sm text-gray-700 leading-relaxed cursor-pointer font-medium">
-                        Acconsento a ricevere comunicazioni commerciali e promozionali
-                      </Label>
-                    </div>
-                  </div>
-
-                  {/* Sign Button */}
-                  <Button
-                    onClick={() => {
-                      console.log("🖱️ Click su pulsante firma");
-                      signContractMutation.mutate({ otpCode, consents, signatures });
-                    }}
-                    disabled={
-                      !showOtpInput ||
-                      otpCode.length !== 6 ||
-                      !consents.privacy ||
-                      !signatures.marketing ||
-                      signContractMutation.isPending
-                    }
-                    className="w-full bg-gray-800 hover:bg-gray-900 text-white py-5 text-lg font-bold min-h-[60px] rounded-lg"
-                  >
-                    <Signature className="mr-3 h-6 w-6" />
-                    {signContractMutation.isPending ? (
-                      <div className="flex items-center">
-                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
-                        Firma in corso...
+                    <div className="space-y-4 mb-6">
+                      <div className="flex items-start space-x-3 p-4 bg-white rounded-lg border border-gray-200">
+                        <Checkbox
+                          id="privacy"
+                          checked={consents.privacy}
+                          onCheckedChange={(checked) =>
+                            setConsents(prev => ({ ...prev, privacy: !!checked }))
+                          }
+                          className="mt-1 h-5 w-5"
+                        />
+                        <Label htmlFor="privacy" className="text-sm text-gray-700 leading-relaxed cursor-pointer font-medium">
+                          Accetto l'informativa sulla privacy e il trattamento dei dati personali
+                          <span className="text-red-500 ml-1 font-bold">*</span>
+                        </Label>
                       </div>
-                    ) : "FIRMA IL DOCUMENTO"}
-                  </Button>
-                </div>
 
-                {/* Progress message during signing */}
-                {signContractMutation.isPending && (
-                  <div className="text-center text-sm text-gray-600 mt-2">
-                    <div className="animate-pulse">
-                      🔐 Elaborazione firma digitale sicura...
+                      <div className="flex items-start space-x-3 p-4 bg-white rounded-lg border border-gray-200">
+                        <Checkbox
+                          id="marketing"
+                          checked={consents.marketing}
+                          onCheckedChange={(checked) =>
+                            setConsents(prev => ({ ...prev, marketing: !!checked }))
+                          }
+                          className="mt-1 h-5 w-5"
+                        />
+                        <Label htmlFor="marketing" className="text-sm text-gray-700 leading-relaxed cursor-pointer font-medium">
+                          Acconsento a ricevere comunicazioni commerciali e promozionali
+                        </Label>
+                      </div>
                     </div>
+
+                    <Button
+                      onClick={() => {
+                        console.log("Click su pulsante firma");
+                        signContractMutation.mutate({ otpCode, consents, signatures });
+                      }}
+                      disabled={
+                        !showOtpInput ||
+                        otpCode.length !== 6 ||
+                        !consents.privacy ||
+                        !signatures.marketing ||
+                        signContractMutation.isPending
+                      }
+                      className="w-full bg-gray-800 hover:bg-gray-900 text-white py-5 text-lg font-bold min-h-[60px] rounded-lg"
+                    >
+                      <Signature className="mr-3 h-6 w-6" />
+                      {signContractMutation.isPending ? (
+                        <div className="flex items-center">
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
+                          Firma in corso...
+                        </div>
+                      ) : "FIRMA IL DOCUMENTO"}
+                    </Button>
                   </div>
-                )}
 
-                <div className="flex items-center justify-center text-xs text-gray-500 space-x-2">
-                  <Shield className="h-4 w-4" />
-                  <span>
-                    La firma elettronica è legalmente valida e conforme agli standard eIDAS
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  {signContractMutation.isPending && (
+                    <div className="text-center text-sm text-gray-600 mt-2">
+                      <div className="animate-pulse">
+                        Elaborazione firma digitale sicura...
+                      </div>
+                    </div>
+                  )}
 
-        {/* Message when signature is required */}
-        {contract.status !== "signed" && !signatures.marketing && (
-          <Card className="border border-orange-200 bg-orange-50 shadow-lg">
-            <CardContent className="pt-6 text-center">
-              <div className="animate-in fade-in duration-500">
-                <PenTool className="mx-auto h-16 w-16 text-orange-500 mb-4" />
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                  📝 Firma Richiesta nel Documento
-                </h3>
-                <p className="text-lg text-gray-600 mb-6">
-                  Prima di procedere con la firma digitale, è necessario apporre la firma nel documento sopra.
-                </p>
-                <div className="bg-orange-100 border border-orange-200 rounded-lg p-4 text-sm text-orange-800">
-                  <p className="font-medium mb-2">👆 Come procedere:</p>
-                  <ol className="text-left space-y-1 ml-4">
-                    <li>1. Scorri il documento sopra fino alla sezione firma</li>
-                    <li>2. Clicca sull'area "Clicca qui per firmare"</li>
-                    <li>3. Apponi la tua firma digitale</li>
-                    <li>4. Torna qui per completare il processo di autenticazione</li>
-                  </ol>
+                  <div className="flex items-center justify-center text-xs text-gray-500 space-x-2">
+                    <Shield className="h-4 w-4" />
+                    <span>
+                      La firma elettronica è legalmente valida e conforme agli standard eIDAS
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          )}
 
-        {/* Signed Status */}
-        {contract.status === "signed" && (
-          <Card className="border-green-200 shadow-lg">
-            <CardContent className="pt-6 text-center">
-              <div className="animate-in fade-in duration-500">
-                <CheckCircle className="mx-auto h-20 w-20 text-green-500 mb-6" />
-                <h3 className="text-3xl font-bold text-gray-900 mb-4">
-                  🎉 Contratto Firmato con Successo!
-                </h3>
-                <p className="text-lg text-gray-600 mb-6">
-                  Il documento è stato firmato digitalmente il{" "}
-                  {new Date(contract.signedAt).toLocaleDateString('it-IT', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
-                <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-sm text-green-800 mb-4">
-                  <p className="font-medium mb-3 text-lg">✅ Processo Completato</p>
-                  <ul className="text-left space-y-2">
-                    <li className="flex items-center">
-                      <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                      Riceverai una copia del contratto firmato via email
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                      Il documento è conservato in modo sicuro nei nostri archivi
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                      La firma elettronica ha piena validità legale
-                    </li>
-                  </ul>
-                </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800 font-medium">
-                    📧 Controlla la tua email per la copia del contratto firmato
+          {contract.status === "signed" && (
+            <Card className="border-green-200 shadow-lg">
+              <CardContent className="pt-6 text-center">
+                <div className="animate-in fade-in duration-500">
+                  <CheckCircle className="mx-auto h-20 w-20 text-green-500 mb-6" />
+                  <h3 className="text-3xl font-bold text-gray-900 mb-4">
+                    Contratto Firmato con Successo!
+                  </h3>
+                  <p className="text-lg text-gray-600 mb-6">
+                    Il documento è stato firmato digitalmente il{" "}
+                    {new Date(contract.signedAt).toLocaleDateString('it-IT', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
                   </p>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-sm text-green-800 mb-4">
+                    <p className="font-medium mb-3 text-lg">Processo Completato</p>
+                    <ul className="text-left space-y-2">
+                      <li className="flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                        Riceverai una copia del contratto firmato via email
+                      </li>
+                      <li className="flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                        Il documento è conservato in modo sicuro nei nostri archivi
+                      </li>
+                      <li className="flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                        La firma elettronica ha piena validità legale
+                      </li>
+                    </ul>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-blue-800 font-medium">
+                      Controlla la tua email per la copia del contratto firmato
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      }
+    />
   );
 }
