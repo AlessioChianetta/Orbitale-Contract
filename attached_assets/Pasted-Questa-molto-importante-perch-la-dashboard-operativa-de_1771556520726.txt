@@ -1,0 +1,220 @@
+Questa è molto importante perché è la dashboard operativa del venditore — quindi deve sembrare:
+
+veloce
+
+potente
+
+orientata ai risultati
+
+non un semplice elenco
+
+Adesso è pulita… ma molto “CRUD classico”.
+
+Ti spiego come la ristrutturerei a livello grafico 👇
+
+🎯 Problema principale
+
+È troppo:
+
+piatta
+
+uniforme
+
+tabellare
+
+senza gerarchia
+
+Non si capisce subito:
+
+quanto sto performando
+
+cosa richiede attenzione
+
+cosa è urgente
+
+È solo una lista.
+
+🔥 Nuova Struttura Premium Operativa
+1️⃣ Header più forte (orientato ai risultati)
+
+Invece di:
+
+Dashboard Venditore
+Crea e gestisci contratti
+
+Fai:
+
+Dashboard
+Performance e gestione contratti
+
+E sotto inserisci mini KPI inline tipo:
+
+€ totale mese
+
+% tasso firma
+
+Contratti in attesa
+
+Deve sembrare una console di controllo.
+
+📊 2️⃣ KPI Cards – Ridisegnale completamente
+
+Ora sono:
+
+piccole
+
+neutre
+
+non protagoniste
+
+Nuova versione:
+
+Numero molto grande (32–36px)
+
+Label uppercase piccola
+
+Micro trend
+
+Icona dentro cerchio soft
+
+Shadow leggera
+
+Hover con lieve elevazione
+
+Esempio:
+
+1
+CONTRATTI QUESTO MESE
++1 rispetto al mese scorso
+
+Il CTA “Nuovo Contratto” NON deve essere una card uguale alle altre.
+
+🚀 3️⃣ CTA protagonista
+
+Invece di card blu laterale:
+
+Mettilo:
+
+in alto a destra
+
+grande
+
+gradiente soft blu → viola
+
+shadow morbida
+
+hover elevate
+
+transizione 0.2s
+
+Deve sembrare il bottone più importante della pagina.
+
+📋 4️⃣ Lista Contratti → List Premium, non tabella
+
+Adesso è una tabella classica con linee.
+
+La trasformiamo in:
+
+Righe più alte
+
+Padding 18–22px.
+
+Nessuna linea pesante
+
+Solo separazione soft con spacing.
+
+Hover elegante
+
+Background leggerissimo.
+
+Cliente più importante
+
+Nome bold
+Email muted sotto
+
+Valore più evidente
+
+Font leggermente più grande
+Magari con colore soft accent.
+
+🎨 5️⃣ Stato più moderno
+
+Attualmente:
+
+Firmato (verde)
+
+Visualizzato (giallo)
+
+Inviato (blu)
+
+Ma sono troppo piatti.
+
+Nuova versione:
+
+Soft background + testo:
+
+Firmato:
+
+bg #ECFDF5
+
+text #059669
+
+Visualizzato:
+
+bg #FEF9C3
+
+text #B45309
+
+Inviato:
+
+bg #EFF6FF
+
+text #2563EB
+
+Devono sembrare badge eleganti, non tag HTML.
+
+🧠 6️⃣ Gerarchia visiva migliorata
+
+Adesso tutte le colonne hanno lo stesso peso.
+
+Nuova gerarchia:
+
+Cliente
+
+Valore
+
+Stato
+
+Data
+
+Azioni
+
+Riduci visivamente il peso del codice contratto (ora distrae).
+
+✨ 7️⃣ Micro dettagli premium
+
+Radius 16px su container lista
+
+Shadow molto soft
+
+Azioni visibili solo on hover
+
+Icone stroke 1.5
+
+Animazioni 0.2s smooth
+
+Focus ring elegante
+
+💎 8️⃣ Aggiungi controllo sopra la lista
+
+Se vuoi farla sembrare piattaforma vera:
+
+Barra ricerca
+
+Filtro stato
+
+Ordinamento
+
+Toggle: Lista / Card view
+
+Diventa subito più SaaS serio.
