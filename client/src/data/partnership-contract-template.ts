@@ -408,29 +408,6 @@ LIVELLO 2 — PROTEZIONE LEGALE
 <p><strong>23.4. Tolleranza.</strong> La mancata applicazione di una clausola non costituisce rinuncia al diritto di applicarla successivamente.</p>
 <p><strong>23.5. Copie.</strong> Redatto in due copie originali, una per ciascuna Parte.</p>
 
-<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; text-align: center; margin: 32px 0 12px 0;">FIRME</h2>
-
-<p style="text-align: center; font-style: italic; color: #475569;">Letto, confermato e sottoscritto.</p>
-
-<p style="text-align: center;"><strong>Luogo e data:</strong> ______________________________</p>
-
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0;">
-<div style="padding: 24px; border-radius: 12px; border: 2px dashed #c7d2fe; background: rgba(238,242,255,0.3); text-align: center;">
-<h3 style="font-weight: bold; color: #3730a3; margin-bottom: 16px;">IL FORNITORE</h3>
-<p style="font-size: 13px; color: #475569;">Nome e Cognome:</p>
-<div style="height: 1px; background: #cbd5e1; margin: 8px 32px;"></div>
-<p style="font-size: 13px; color: #475569; margin-top: 24px;">Firma:</p>
-<div style="height: 80px; border-bottom: 1px solid #cbd5e1; margin: 0 32px;"></div>
-</div>
-<div style="padding: 24px; border-radius: 12px; border: 2px dashed #ddd6fe; background: rgba(245,243,255,0.3); text-align: center;">
-<h3 style="font-weight: bold; color: #5b21b6; margin-bottom: 16px;">IL PARTNER</h3>
-<p style="font-size: 13px; color: #475569;">Nome e Cognome:</p>
-<div style="height: 1px; background: #cbd5e1; margin: 8px 32px;"></div>
-<p style="font-size: 13px; color: #475569; margin-top: 24px;">Firma:</p>
-<div style="height: 80px; border-bottom: 1px solid #cbd5e1; margin: 0 32px;"></div>
-</div>
-</div>
-
 <h2 style="font-size: 16px; font-weight: bold; color: #1e293b; text-align: center; margin: 32px 0 8px 0;">APPROVAZIONE SPECIFICA</h2>
 <p style="text-align: center; font-size: 13px; font-style: italic; color: #475569;">ai sensi degli articoli 1341 e 1342 del Codice Civile</p>
 
