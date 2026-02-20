@@ -1,19 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import { 
   FileText,
   TrendingUp,
@@ -25,8 +15,14 @@ import {
   Download, 
   Copy,
   Edit,
-  Bus,
-  RefreshCw
+  LayoutDashboard,
+  RefreshCw,
+  Search,
+  Filter,
+  ArrowUpDown,
+  ChevronDown,
+  LogOut,
+  Shield
 } from "lucide-react";
 import ContractForm from "@/components/contract-form";
 import { Link } from "wouter";
@@ -37,7 +33,11 @@ export default function SellerDashboard() {
   const [editingContract, setEditingContract] = useState<any>(null);
   const { toast } = useToast();
 
-  // Function to download PDF
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"date" | "value">("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
   const downloadPDF = async (contractId: number, contractCode: string) => {
     try {
       const response = await fetch(`/api/contracts/${contractId}/pdf`, {
@@ -103,7 +103,6 @@ export default function SellerDashboard() {
     }
   };
 
-  // Function to copy contract link
   const copyContractLink = (contractCode: string) => {
     const link = `${window.location.origin}/client/${contractCode}`;
     navigator.clipboard.writeText(link).then(() => {
@@ -129,22 +128,19 @@ export default function SellerDashboard() {
   });
 
   const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      draft: { label: "Bozza", variant: "secondary" as const },
-      sent: { label: "Inviato", variant: "default" as const },
-      viewed: { label: "Visualizzato", variant: "outline" as const },
-      signed: { label: "Firmato", variant: "default" as const },
-      expired: { label: "Scaduto", variant: "destructive" as const },
+    const statusConfig: Record<string, { label: string; className: string }> = {
+      draft: { label: "Bozza", className: "bg-gray-100 text-gray-600 border border-gray-200" },
+      sent: { label: "Inviato", className: "bg-blue-50 text-blue-700 border border-blue-200" },
+      viewed: { label: "Visualizzato", className: "bg-amber-50 text-amber-700 border border-amber-200" },
+      signed: { label: "Firmato", className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+      expired: { label: "Scaduto", className: "bg-red-50 text-red-700 border border-red-200" },
     };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
+    const config = statusConfig[status] || statusConfig.draft;
     return (
-      <Badge variant={config.variant} className={
-        status === "signed" ? "bg-green-100 text-green-800 hover:bg-green-100" :
-        status === "viewed" ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-100" : ""
-      }>
+      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${config.className}`}>
         {config.label}
-      </Badge>
+      </span>
     );
   };
 
@@ -160,59 +156,101 @@ export default function SellerDashboard() {
     setShowContractForm(true);
   };
 
-  if (statsLoading || contractsLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-gray-600">Caricamento dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const signedThisMonth = contracts.filter((c: any) => {
+  const signedThisMonth = useMemo(() => contracts.filter((c: any) => {
     const signedDate = c.signedAt ? new Date(c.signedAt) : null;
     const thisMonth = new Date();
     thisMonth.setDate(1);
     return signedDate && signedDate >= thisMonth && c.status === 'signed';
-  }).length;
+  }).length, [contracts]);
 
   const signatureRate = contracts.length > 0 
     ? Math.round((stats?.signedContracts / contracts.length) * 100) 
     : 0;
 
+  const pendingContracts = useMemo(() => contracts.filter((c: any) => c.status === 'sent' || c.status === 'viewed').length, [contracts]);
+
+  const filteredContracts = useMemo(() => {
+    let result = [...contracts];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((c: any) => {
+        const clientData = c.clientData || {};
+        const clientName = (clientData.cliente_nome || clientData.nome || "").toLowerCase();
+        const clientEmail = (clientData.email || "").toLowerCase();
+        return clientName.includes(q) || clientEmail.includes(q);
+      });
+    }
+
+    if (statusFilter !== "all") {
+      result = result.filter((c: any) => c.status === statusFilter);
+    }
+
+    result.sort((a: any, b: any) => {
+      if (sortBy === "date") {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+      } else {
+        const valA = a.totalValue || 0;
+        const valB = b.totalValue || 0;
+        return sortOrder === "desc" ? valB - valA : valA - valB;
+      }
+    });
+
+    return result;
+  }, [contracts, searchQuery, statusFilter, sortBy, sortOrder]);
+
+  if (statsLoading || contractsLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-slate-500">Caricamento dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100">
+      <header className="sticky top-0 z-40 border-b border-white/20 backdrop-blur-sm" style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-4">
               <div className="flex items-center">
-                <FileText className="h-8 w-8 text-primary mr-3" />
-                <h1 className="text-xl font-bold text-gray-900">Turbo Contract</h1>
-                <Badge variant="secondary" className="ml-3">Venditore</Badge>
+                <LayoutDashboard className="h-7 w-7 text-white/90 mr-2.5" strokeWidth={1.5} />
+                <div>
+                  <h1 className="text-lg font-bold text-white leading-tight">Dashboard</h1>
+                  <p className="text-xs text-white/70 leading-tight">Performance e gestione contratti</p>
+                </div>
               </div>
 
               {user?.role === "admin" && (
                 <Link href="/admin">
-                  <Button variant="ghost" size="sm">
-                    <Bus className="h-4 w-4 mr-2" />
+                  <Button variant="ghost" size="sm" className="text-white/80 hover:text-white hover:bg-white/10 transition-all duration-200">
+                    <Shield className="h-4 w-4 mr-1.5" strokeWidth={1.5} />
                     Admin
                   </Button>
                 </Link>
               )}
             </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
-                    {user?.fullName?.charAt(0) || "V"}
-                  </span>
+            <div className="flex items-center space-x-3">
+              <Button
+                onClick={() => setShowContractForm(true)}
+                className="text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
+                style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)', border: '1px solid rgba(255,255,255,0.2)' }}
+              >
+                <Plus className="h-5 w-5 mr-2" strokeWidth={1.5} />
+                Nuovo Contratto
+              </Button>
+
+              <div className="flex items-center space-x-2 ml-2">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-indigo-600 font-semibold text-sm bg-white/90 shadow-sm">
+                  {user?.fullName?.charAt(0) || "V"}
                 </div>
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-white/90 hidden sm:inline">
                   {user?.fullName}
                 </span>
               </div>
@@ -220,8 +258,9 @@ export default function SellerDashboard() {
                 variant="ghost" 
                 size="sm"
                 onClick={() => logoutMutation.mutate()}
+                className="text-white/70 hover:text-white hover:bg-white/10 transition-all duration-200"
               >
-                Esci
+                <LogOut className="h-4 w-4" strokeWidth={1.5} />
               </Button>
             </div>
           </div>
@@ -229,193 +268,221 @@ export default function SellerDashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Header */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 flex items-center">
-            <Bus className="mr-3" />
-            Dashboard Venditore
-          </h2>
-          <p className="mt-2 text-gray-600">
-            Crea e gestisci contratti per i tuoi clienti
-          </p>
-        </div>
-
-        {/* Quick Actions & Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Contratti Questo Mese</p>
-                  <p className="text-2xl font-bold text-gray-900">{signedThisMonth}</p>
-                </div>
-                <div className="p-3 bg-primary-50 rounded-lg">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-lg transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Contratti Questo Mese</p>
+                <p className="text-4xl font-bold text-slate-900">{signedThisMonth}</p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Tasso di Firma</p>
-                  <p className="text-2xl font-bold text-gray-900">{signatureRate}%</p>
-                </div>
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <Percent className="h-5 w-5 text-green-500" />
-                </div>
+              <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-indigo-600" strokeWidth={1.5} />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card className="cursor-pointer hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <Button 
-                onClick={() => setShowContractForm(true)}
-                className="w-full h-full flex items-center justify-center bg-primary hover:bg-primary/90 text-white py-8"
-              >
-                <Plus className="h-6 w-6 mr-3" />
-                <span className="text-lg font-medium">Nuovo Contratto</span>
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-lg transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Tasso di Firma</p>
+                <p className="text-4xl font-bold text-slate-900">{signatureRate}%</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
+                <Percent className="h-6 w-6 text-emerald-600" strokeWidth={1.5} />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-lg transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Contratti in Attesa</p>
+                <p className="text-4xl font-bold text-slate-900">{pendingContracts}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center">
+                <Clock className="h-6 w-6 text-amber-600" strokeWidth={1.5} />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Contracts Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <FileText className="mr-2" />
-              I Tuoi Contratti
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {contracts.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">
-                  Nessun contratto creato
-                </h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  Inizia creando il tuo primo contratto per un cliente.
-                </p>
-                <div className="mt-6">
-                  <Button onClick={() => setShowContractForm(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Crea Contratto
-                  </Button>
-                </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="p-6 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" strokeWidth={1.5} />
+                <input
+                  type="text"
+                  placeholder="Cerca per nome o email cliente..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm text-slate-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+                />
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Codice</TableHead>
-                      <TableHead>Valore</TableHead>
-                      <TableHead>Stato</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Azioni</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {contracts.map((contract: any) => {
-                      const clientData = contract.clientData || {};
-                      const clientName = clientData.cliente_nome || clientData.nome || "Cliente";
-                      const clientEmail = clientData.email || "";
 
-                      return (
-                        <TableRow key={contract.id}>
-                          <TableCell>
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {clientName}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {clientEmail}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-500 font-mono">
-                            {contract.contractCode}
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-900">
-                            {contract.totalValue ? formatCurrency(contract.totalValue) : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {getStatusBadge(contract.status)}
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-500">
-                            {new Date(contract.createdAt).toLocaleDateString('it-IT')}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => window.open(`/client/${contract.contractCode}`, '_blank')}
-                                title="Visualizza contratto"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              {contract.status !== "signed" && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => editContract(contract)}
-                                  title="Modifica contratto"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {contract.status === "signed" && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => regeneratePDF(contract.id)}
-                                  disabled={regeneratingId === contract.id}
-                                  title="Rigenera PDF"
-                                >
-                                  <RefreshCw className={`h-4 w-4 ${regeneratingId === contract.id ? 'animate-spin' : ''}`} />
-                                </Button>
-                              )}
-                              {contract.status === "signed" && contract.pdfPath && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => downloadPDF(contract.id, contract.contractCode)}
-                                  title="Scarica PDF"
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {(contract.status === "sent" || contract.status === "viewed") && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => copyContractLink(contract.contractCode)}
-                                  title="Copia link contratto"
-                                >
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" strokeWidth={1.5} />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="appearance-none pl-10 pr-9 py-2.5 rounded-xl border border-gray-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 cursor-pointer"
+                  >
+                    <option value="all">Tutti</option>
+                    <option value="sent">Inviato</option>
+                    <option value="viewed">Visualizzato</option>
+                    <option value="signed">Firmato</option>
+                    <option value="draft">Bozza</option>
+                    <option value="expired">Scaduto</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" strokeWidth={1.5} />
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (sortBy === "date") {
+                      setSortBy("value");
+                    } else {
+                      setSortBy("date");
+                    }
+                    setSortOrder(prev => prev === "desc" ? "asc" : "desc");
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-slate-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+                >
+                  <ArrowUpDown className="h-4 w-4 text-gray-400" strokeWidth={1.5} />
+                  <span>{sortBy === "date" ? "Data" : "Valore"}</span>
+                </button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+
+          {filteredContracts.length === 0 && contracts.length === 0 ? (
+            <div className="text-center py-16 px-6">
+              <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center mx-auto mb-4">
+                <FileText className="h-8 w-8 text-indigo-300" strokeWidth={1.5} />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-1">
+                Nessun contratto creato
+              </h3>
+              <p className="text-sm text-slate-500 mb-6 max-w-sm mx-auto">
+                Inizia creando il tuo primo contratto per un cliente. È semplice e veloce.
+              </p>
+              <Button
+                onClick={() => setShowContractForm(true)}
+                className="rounded-xl px-6 py-2.5 font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}
+              >
+                <Plus className="h-4 w-4 mr-2" strokeWidth={1.5} />
+                Crea Contratto
+              </Button>
+            </div>
+          ) : filteredContracts.length === 0 ? (
+            <div className="text-center py-16 px-6">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                <Search className="h-8 w-8 text-gray-300" strokeWidth={1.5} />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-1">
+                Nessun risultato
+              </h3>
+              <p className="text-sm text-slate-500 max-w-sm mx-auto">
+                Nessun contratto corrisponde ai filtri selezionati. Prova a modificare la ricerca.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100/80">
+              {filteredContracts.map((contract: any) => {
+                const clientData = contract.clientData || {};
+                const clientName = clientData.cliente_nome || clientData.nome || "Cliente";
+                const clientEmail = clientData.email || "";
+
+                return (
+                  <div
+                    key={contract.id}
+                    className="group flex items-center justify-between py-5 px-6 hover:bg-gray-50/80 transition-all duration-200"
+                  >
+                    <div className="flex items-center gap-6 flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-900 truncate">{clientName}</p>
+                        {clientEmail && (
+                          <p className="text-sm text-slate-500 truncate">{clientEmail}</p>
+                        )}
+                      </div>
+
+                      <div className="hidden md:block">
+                        <span className="font-mono text-xs text-gray-400">{contract.contractCode}</span>
+                      </div>
+
+                      <div className="hidden sm:block text-right min-w-[100px]">
+                        <span className="text-base font-semibold" style={{ color: '#4F46E5' }}>
+                          {contract.totalValue ? formatCurrency(contract.totalValue) : "—"}
+                        </span>
+                      </div>
+
+                      <div className="hidden sm:block">
+                        {getStatusBadge(contract.status)}
+                      </div>
+
+                      <div className="hidden lg:block">
+                        <span className="text-sm text-slate-500">
+                          {new Date(contract.createdAt).toLocaleDateString('it-IT')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-1 ml-4">
+                      <button
+                        onClick={() => window.open(`/client/${contract.contractCode}`, '_blank')}
+                        title="Visualizza contratto"
+                        className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        <Eye className="h-4 w-4" strokeWidth={1.5} />
+                      </button>
+                      {contract.status !== "signed" && (
+                        <button
+                          onClick={() => editContract(contract)}
+                          title="Modifica contratto"
+                          className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                          <Edit className="h-4 w-4" strokeWidth={1.5} />
+                        </button>
+                      )}
+                      {contract.status === "signed" && (
+                        <button
+                          onClick={() => regeneratePDF(contract.id)}
+                          disabled={regeneratingId === contract.id}
+                          title="Rigenera PDF"
+                          className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${regeneratingId === contract.id ? 'animate-spin' : ''}`} strokeWidth={1.5} />
+                        </button>
+                      )}
+                      {contract.status === "signed" && contract.pdfPath && (
+                        <button
+                          onClick={() => downloadPDF(contract.id, contract.contractCode)}
+                          title="Scarica PDF"
+                          className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                          <Download className="h-4 w-4" strokeWidth={1.5} />
+                        </button>
+                      )}
+                      {(contract.status === "sent" || contract.status === "viewed") && (
+                        <button
+                          onClick={() => copyContractLink(contract.contractCode)}
+                          title="Copia link contratto"
+                          className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                          <Copy className="h-4 w-4" strokeWidth={1.5} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Contract Form Modal */}
       {showContractForm && (
         <ContractForm 
           onClose={() => {

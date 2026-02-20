@@ -1,18 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar } from "lucide-react";
+import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar, Send, Gift, Check, Info, AlertTriangle } from "lucide-react";
 import DynamicFormFields from "./dynamic-form-fields";
 import PaymentCalculatorAdvanced from "./payment-calculator-advanced";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF } from "@/lib/validation-utils";
@@ -102,6 +100,18 @@ interface ContractFormProps {
   contract?: any; // Optional: Pass the contract data for editing
 }
 
+const STEPS = [
+  { id: 1, label: "Template", icon: FileText, sectionId: "section-template" },
+  { id: 2, label: "Dati Cliente", icon: Users, sectionId: "section-client" },
+  { id: 3, label: "Pagamento", icon: Euro, sectionId: "section-payment" },
+  { id: 4, label: "Durata", icon: Calendar, sectionId: "section-duration" },
+  { id: 5, label: "Bonus", icon: Gift, sectionId: "section-bonus" },
+  { id: 6, label: "Invio", icon: Send, sectionId: "section-send" },
+];
+
+const inputClass = "h-12 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 hover:border-gray-300 transition-all duration-200";
+const labelClass = "text-sm font-medium text-slate-700 mb-2 block";
+
 export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const { toast } = useToast();
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(contract?.templateId || null);
@@ -114,7 +124,38 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     type: null, 
     isValidating: false 
   });
+  const [currentStep, setCurrentStep] = useState(1);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isEditing = !!contract; // Determine if we are editing an existing contract
+
+  const scrollToSection = useCallback((sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const sections = STEPS.map(s => document.getElementById(s.sectionId)).filter(Boolean) as HTMLElement[];
+      const containerRect = container.getBoundingClientRect();
+      const containerTop = containerRect.top + 120;
+
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const rect = sections[i].getBoundingClientRect();
+        if (rect.top <= containerTop + 50) {
+          setCurrentStep(i + 1);
+          break;
+        }
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const { data: templates = [], isLoading: templatesLoading, error: templatesError } = useQuery({
     queryKey: ["/api/templates"],
@@ -272,10 +313,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   if (templatesLoading) {
     return (
       <Dialog open onOpenChange={() => onClose()}>
-        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
+        <DialogContent className="max-w-[1100px] rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0">
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mr-4"></div>
-            <span className="text-lg">Caricamento template...</span>
+            <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mr-4" />
+            <span className="text-lg text-slate-700">Caricamento template...</span>
           </div>
         </DialogContent>
       </Dialog>
@@ -285,11 +326,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   if (templatesError) {
     return (
       <Dialog open onOpenChange={() => onClose()}>
-        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
+        <DialogContent className="max-w-[1100px] rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="text-red-500 mb-4">Errore nel caricamento dei template</div>
-              <Button onClick={() => window.location.reload()}>
+              <Button onClick={() => window.location.reload()} className="rounded-xl">
                 Ricarica la pagina
               </Button>
             </div>
@@ -306,29 +347,78 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto bg-gradient-to-br from-gray-50 via-white to-purple-50 border-0 shadow-2xl">
-        <DialogHeader className="pb-6 border-b-2 border-purple-100 bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6 -m-6 mb-6 rounded-t-lg">
-          <DialogTitle className="flex items-center text-2xl font-bold">
-            <FileText className="h-6 w-6 mr-3" />
-            {isEditing ? "Modifica Contratto" : "Nuovo Contratto"}
-          </DialogTitle>
-          <DialogDescription className="text-purple-100 mt-2">
-            Genera un nuovo contratto compilando tutti i dati necessari. Il sistema produrrà automaticamente il PDF e lo invierà al cliente.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-[1100px] max-h-[95vh] p-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-white flex flex-col">
+        {/* Header */}
+        <div className="p-8 bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white flex-shrink-0">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-2xl font-bold text-white">
+              <FileText className="h-6 w-6 mr-3" />
+              {isEditing ? "Modifica Contratto" : "Nuovo Contratto"}
+            </DialogTitle>
+            <DialogDescription className="text-white/80 mt-2">
+              Genera un nuovo contratto compilando tutti i dati necessari. Il sistema produrrà automaticamente il PDF e lo invierà al cliente.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 mt-6">
-          {/* Template Selection */}
-          <Card className="border-2 border-purple-100 shadow-lg hover:shadow-xl transition-shadow bg-white">
-            <CardHeader className="pb-4 bg-gradient-to-r from-purple-50 to-pink-50">
-              <CardTitle className="text-lg font-medium text-gray-900 flex items-center">
-                <File className="mr-3 h-5 w-5 text-purple-600" />
+        {/* Step Navigation */}
+        <div className="px-8 pt-6 pb-4 border-b border-gray-100 flex-shrink-0 bg-white">
+          <div className="flex items-center justify-between">
+            {STEPS.map((step, index) => {
+              const StepIcon = step.icon;
+              const isActive = currentStep === step.id;
+              const isCompleted = currentStep > step.id;
+              return (
+                <div key={step.id} className="flex items-center flex-1 last:flex-none">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentStep(step.id);
+                      scrollToSection(step.sectionId);
+                    }}
+                    className="flex flex-col items-center group cursor-pointer"
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                      isActive
+                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+                        : isCompleted
+                        ? "bg-indigo-100 text-indigo-600"
+                        : "bg-gray-100 text-gray-400"
+                    }`}>
+                      {isCompleted ? (
+                        <Check className="h-5 w-5" />
+                      ) : (
+                        <StepIcon className="h-4 w-4" />
+                      )}
+                    </div>
+                    <span className={`text-xs mt-2 font-medium transition-colors duration-200 ${
+                      isActive ? "text-indigo-600" : isCompleted ? "text-indigo-500" : "text-gray-400"
+                    }`}>
+                      {step.label}
+                    </span>
+                  </button>
+                  {index < STEPS.length - 1 && (
+                    <div className={`flex-1 h-[2px] mx-3 mt-[-18px] transition-colors duration-300 ${
+                      isCompleted ? "bg-indigo-300" : "bg-gray-200"
+                    }`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Scrollable content */}
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-8 bg-white">
+          <form id="contract-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
+            {/* Section 1: Template Selection */}
+            <div id="section-template">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
+                <FileText className="mr-3 h-5 w-5 text-indigo-600" />
                 Selezione Template
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+              </h3>
               <div>
-                <Label htmlFor="template" className="text-sm font-medium text-gray-700">
+                <Label htmlFor="template" className={labelClass}>
                   Seleziona Template *
                 </Label>
                 <Select
@@ -340,7 +430,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   }}
                   disabled={createContractMutation.isPending}
                 >
-                  <SelectTrigger className="mt-2 h-10 border border-gray-300 focus:border-gray-500">
+                  <SelectTrigger className={`${inputClass} mt-1`}>
                     <SelectValue placeholder="Seleziona un template di contratto" />
                   </SelectTrigger>
                   <SelectContent>
@@ -366,28 +456,24 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   </p>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Client Data Section */}
-          <Card className="border-2 border-blue-100 shadow-lg hover:shadow-xl transition-shadow bg-white">
-            <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-cyan-50">
-              <CardTitle className="text-lg font-medium text-gray-900 flex items-center">
-                <Users className="mr-3 h-5 w-5 text-blue-600" />
+            {/* Section 2: Client Data */}
+            <div id="section-client" className="border-t border-gray-100 pt-8 mt-8">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
+                <Users className="mr-3 h-5 w-5 text-indigo-600" />
                 Dati Cliente/Committente
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+              </h3>
               <div className="space-y-8">
                 {/* Dati Azienda/Società */}
                 <div>
-                  <h4 className="text-base font-semibold text-gray-900 mb-4 flex items-center">
-                    <Building className="h-4 w-4 mr-2" />
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center">
+                    <Building className="h-4 w-4 mr-2 text-slate-500" />
                     Dati Azienda/Società
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
-                      <Label htmlFor="societa" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="societa" className={labelClass}>
                         Società *
                       </Label>
                       <Input
@@ -395,7 +481,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.societa")}
                         placeholder="Nome della società"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.societa && (
                         <p className="text-sm text-red-600 mt-1">
@@ -405,7 +491,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="sede" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="sede" className={labelClass}>
                         Sede *
                       </Label>
                       <Input
@@ -413,7 +499,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.sede")}
                         placeholder="Città sede legale"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.sede && (
                         <p className="text-sm text-red-600 mt-1">
@@ -423,7 +509,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     </div>
 
                     <div className="md:col-span-2">
-                      <Label htmlFor="indirizzo" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="indirizzo" className={labelClass}>
                         Indirizzo *
                       </Label>
                       <Input
@@ -431,7 +517,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.indirizzo")}
                         placeholder="Via, numero civico, CAP"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.indirizzo && (
                         <p className="text-sm text-red-600 mt-1">
@@ -441,7 +527,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="p_iva" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="p_iva" className={labelClass}>
                         Codice Fiscale / P.IVA *
                       </Label>
                       <div className="relative">
@@ -498,20 +584,20 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                           })}
                           placeholder="Codice Fiscale o Partita IVA"
                           disabled={createContractMutation.isPending}
-                          className={`mt-1 h-11 border pr-10 ${
+                          className={`${inputClass} pr-10 ${
                             vatValidation.isValid === true 
-                              ? 'border-green-500 focus:border-green-600' 
+                              ? 'border-emerald-400 focus:border-emerald-500' 
                               : vatValidation.isValid === false 
-                              ? 'border-red-500 focus:border-red-600' 
-                              : 'border-gray-300 focus:border-gray-500'
+                              ? 'border-red-400 focus:border-red-500' 
+                              : ''
                           }`}
                         />
-                        <div className="absolute right-2 top-1/2 -translate-y-1/2 mt-1">
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
                           {vatValidation.isValidating && (
                             <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
                           )}
                           {!vatValidation.isValidating && vatValidation.isValid === true && (
-                            <CheckCircle className="h-5 w-5 text-green-500" />
+                            <CheckCircle className="h-5 w-5 text-emerald-500" />
                           )}
                           {!vatValidation.isValidating && vatValidation.isValid === false && (
                             <XCircle className="h-5 w-5 text-red-500" />
@@ -519,7 +605,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         </div>
                       </div>
                       {vatValidation.type && vatValidation.isValid && (
-                        <p className="text-sm text-green-600 mt-1">
+                        <p className="text-sm text-emerald-600 mt-1">
                           {vatValidation.type === 'vat' ? 'Partita IVA valida' : 'Codice Fiscale valido'}
                         </p>
                       )}
@@ -540,7 +626,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                             variant="outline"
                             size="sm"
                             onClick={() => setVatValidation({ isValid: true, type: vatValidation.type, isValidating: false })}
-                            className="h-7 px-3 text-xs bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100 hover:border-yellow-400"
+                            className="h-7 px-3 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 rounded-lg"
                           >
                             Forza inserimento
                           </Button>
@@ -549,7 +635,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="codice_univoco" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="codice_univoco" className={labelClass}>
                         Codice Univoco
                       </Label>
                       <Input
@@ -557,12 +643,12 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.codice_univoco")}
                         placeholder="Codice univoco (opzionale)"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="email" className={labelClass}>
                         Email *
                       </Label>
                       <Input
@@ -571,7 +657,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.email")}
                         placeholder="email@esempio.com"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.email && (
                         <p className="text-sm text-red-600 mt-1">
@@ -581,7 +667,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="pec" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="pec" className={labelClass}>
                         PEC
                       </Label>
                       <Input
@@ -589,12 +675,12 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.pec")}
                         placeholder="pec@esempio.com (opzionale)"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="cellulare" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="cellulare" className={labelClass}>
                         Cellulare *
                       </Label>
                       <Input
@@ -603,7 +689,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.cellulare")}
                         placeholder="+39 333 123 4567"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.cellulare && (
                         <p className="text-sm text-red-600 mt-1">
@@ -616,13 +702,13 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
                 {/* Dati Personali Referente */}
                 <div>
-                  <h4 className="text-base font-semibold text-gray-900 mb-4 flex items-center">
-                    <User className="h-4 w-4 mr-2" />
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center">
+                    <User className="h-4 w-4 mr-2 text-slate-500" />
                     Dati Personali Referente
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="md:col-span-2">
-                      <Label htmlFor="cliente_nome" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="cliente_nome" className={labelClass}>
                         Signor./a *
                       </Label>
                       <Input
@@ -630,7 +716,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.cliente_nome")}
                         placeholder="Nome e cognome del referente"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.cliente_nome && (
                         <p className="text-sm text-red-600 mt-1">
@@ -640,7 +726,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="nato_a" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="nato_a" className={labelClass}>
                         Nato a *
                       </Label>
                       <Input
@@ -648,7 +734,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.nato_a")}
                         placeholder="Luogo di nascita"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.nato_a && (
                         <p className="text-sm text-red-600 mt-1">
@@ -658,7 +744,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="data_nascita" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="data_nascita" className={labelClass}>
                         Data di Nascita *
                       </Label>
                       <Input
@@ -666,7 +752,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         type="date"
                         {...form.register("clientData.data_nascita")}
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.data_nascita && (
                         <p className="text-sm text-red-600 mt-1">
@@ -676,7 +762,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="residente_a" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="residente_a" className={labelClass}>
                         Residente a *
                       </Label>
                       <Input
@@ -684,7 +770,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.residente_a")}
                         placeholder="Città di residenza"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.residente_a && (
                         <p className="text-sm text-red-600 mt-1">
@@ -694,7 +780,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     </div>
 
                     <div>
-                      <Label htmlFor="indirizzo_residenza" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="indirizzo_residenza" className={labelClass}>
                         Indirizzo di Residenza *
                       </Label>
                       <Input
@@ -702,7 +788,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.indirizzo_residenza")}
                         placeholder="Via, numero civico, CAP"
                         disabled={createContractMutation.isPending}
-                        className="mt-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
+                        className={inputClass}
                       />
                       {form.formState.errors.clientData?.indirizzo_residenza && (
                         <p className="text-sm text-red-600 mt-1">
@@ -713,195 +799,184 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Total Price / Partnership Mode */}
-          <Card className="border-2 border-emerald-100 shadow-lg hover:shadow-xl transition-shadow bg-white">
-            <CardHeader className="pb-4 bg-gradient-to-r from-emerald-50 to-green-50 border-b border-emerald-100">
-              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center">
-                <Euro className="mr-3 h-5 w-5 text-emerald-600" />
+            {/* Section 3: Payment */}
+            <div id="section-payment" className="border-t border-gray-100 pt-8 mt-8">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
+                <Euro className="mr-3 h-5 w-5 text-indigo-600" />
                 Modello di Pagamento
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              {/* Partnership Mode Toggle */}
-              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-lg p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 mr-6">
-                    <h4 className="text-base font-semibold text-purple-800 mb-2">
-                      Modello Partnership Avanzato
-                    </h4>
-                    <p className="text-sm text-purple-700 leading-relaxed">
-                      Attiva per partnership basata su percentuale del fatturato totale
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Checkbox
-                      checked={isPercentageMode}
-                      onCheckedChange={(checked) => {
-                        const isChecked = checked as boolean;
-                        setIsPercentageMode(isChecked);
-                        form.setValue("isPercentagePartnership", isChecked);
-                        if (isChecked) {
-                          form.setValue("totalValue", undefined);
-                          // Clear validation errors when switching modes
-                          form.clearErrors("totalValue");
-                        } else {
-                          form.setValue("partnershipPercentage", undefined);
-                          // Clear validation errors when switching modes
-                          form.clearErrors("partnershipPercentage");
-                        }
-                        // Trigger form revalidation
-                        form.trigger();
-                      }}
-                      className="h-6 w-6 border-2 border-purple-300 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Show either fixed price or percentage based on mode */}
-              {!isPercentageMode ? (
-                <div className="max-w-md">
-                  <Label htmlFor="totalValue" className="text-sm font-medium text-gray-700 mb-2 block">
-                    Prezzo Totale *
-                  </Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-3 text-gray-500 text-sm font-medium">€</span>
-                    <Input
-                      id="totalValue"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      {...form.register("totalValue", { valueAsNumber: true })}
-                      placeholder="0.00"
-                      className="pl-8 h-12 text-base border-2 border-emerald-200 focus:border-emerald-400 hover:border-emerald-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
-                      disabled={createContractMutation.isPending}
-                    />
-                  </div>
-                  {form.formState.errors.totalValue && (
-                    <p className="text-sm text-red-600 mt-3">
-                      {form.formState.errors.totalValue.message}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-8">
-                  <div className="max-w-md">
-                    <Label htmlFor="partnershipPercentage" className="text-sm font-medium text-gray-700 mb-2 block">
-                      Percentuale sul Fatturato Totale *
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="partnershipPercentage"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        max="100"
-                        {...form.register("partnershipPercentage", { valueAsNumber: true })}
-                        placeholder="0.00"
-                        className="pr-8 h-12 text-base border-2 border-emerald-200 focus:border-emerald-400 hover:border-emerald-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
-                        disabled={createContractMutation.isPending}
-                      />
-                      <span className="absolute right-3 top-3 text-gray-500 text-sm font-medium">%</span>
-                    </div>
-                    <div className="mt-3 bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-200 rounded-lg p-3">
-                      <p className="text-sm text-yellow-800 leading-relaxed">
-                        <strong>Nota:</strong> La percentuale sarà applicata sul fatturato TOTALE del ristorante
+              </h3>
+              <div className="space-y-6">
+                {/* Partnership Mode Toggle - iOS style */}
+                <div
+                  className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
+                    isPercentageMode
+                      ? "border-indigo-300 bg-indigo-50/30"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                  onClick={() => {
+                    const newMode = !isPercentageMode;
+                    setIsPercentageMode(newMode);
+                    form.setValue("isPercentagePartnership", newMode);
+                    if (newMode) {
+                      form.setValue("totalValue", undefined);
+                      form.clearErrors("totalValue");
+                    } else {
+                      form.setValue("partnershipPercentage", undefined);
+                      form.clearErrors("partnershipPercentage");
+                    }
+                    form.trigger();
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 mr-6">
+                      <h4 className="text-base font-semibold text-slate-900 mb-1">
+                        Modello Partnership Avanzato
+                      </h4>
+                      <p className="text-sm text-slate-500">
+                        Attiva per partnership basata su percentuale del fatturato totale
                       </p>
                     </div>
-                    {form.formState.errors.partnershipPercentage && (
+                    <div className="flex-shrink-0">
+                      <div className={`w-14 h-7 rounded-full transition-all duration-300 relative ${
+                        isPercentageMode ? "bg-indigo-600" : "bg-gray-200"
+                      }`}>
+                        <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${
+                          isPercentageMode ? "left-[30px]" : "left-0.5"
+                        }`} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Show either fixed price or percentage based on mode */}
+                {!isPercentageMode ? (
+                  <div className="max-w-md">
+                    <Label htmlFor="totalValue" className={labelClass}>
+                      Prezzo Totale *
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">€</span>
+                      <Input
+                        id="totalValue"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        {...form.register("totalValue", { valueAsNumber: true })}
+                        placeholder="0.00"
+                        className={`${inputClass} pl-9`}
+                        disabled={createContractMutation.isPending}
+                      />
+                    </div>
+                    {form.formState.errors.totalValue && (
                       <p className="text-sm text-red-600 mt-2">
-                        {form.formState.errors.partnershipPercentage.message}
+                        {form.formState.errors.totalValue.message}
                       </p>
                     )}
                   </div>
-
-                  {/* Anteprima Clausole Partnership */}
-                  {form.watch("partnershipPercentage") && (
-                    <div className="bg-gray-50 border border-gray-300 rounded-lg p-4">
-                      <h4 className="font-bold text-gray-800 mb-3">
-                        Anteprima Clausole Partnership
-                      </h4>
-                      <div className="text-sm space-y-3 max-h-60 overflow-y-auto">
-                        <div className="bg-white p-3 rounded border border-gray-200">
-                          <h5 className="font-semibold text-gray-700 mb-1">Definizione di Fatturato Totale</h5>
-                          <p className="text-gray-700 text-xs">
-                            Tutti i ricavi lordi dell'attività: vendite, catering, delivery, eventi privati e qualsiasi altro ricavo collegato all'attività.
-                          </p>
-                        </div>
-                        
-                        <div className="bg-white p-3 rounded border border-gray-200">
-                          <h5 className="font-semibold text-gray-700 mb-1">Modalità di Pagamento</h5>
-                          <p className="text-gray-700 text-xs">
-                            Calcolo mensile su fatturato del mese precedente, pagamento entro il 15 del mese successivo.
-                          </p>
-                        </div>
-                        
-                        <div className="bg-white p-3 rounded border border-gray-200">
-                          <h5 className="font-semibold text-gray-700 mb-1">Documentazione Richiesta</h5>
-                          <p className="text-gray-700 text-xs">
-                            Estratti cassa/POS, fatture emesse, dichiarazioni IVA, report certificati dal commercialista.
-                          </p>
-                        </div>
-                        
-                        <div className="bg-white p-3 rounded border border-gray-300">
-                          <h5 className="font-semibold text-gray-700 mb-1">Penali Ritardo</h5>
-                          <p className="text-gray-700 text-xs">
-                            2% dell'importo dovuto per ogni mese di ritardo + interessi legali.
-                          </p>
-                        </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="max-w-md">
+                      <Label htmlFor="partnershipPercentage" className={labelClass}>
+                        Percentuale sul Fatturato Totale *
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="partnershipPercentage"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          max="100"
+                          {...form.register("partnershipPercentage", { valueAsNumber: true })}
+                          placeholder="0.00"
+                          className={`${inputClass} pr-9`}
+                          disabled={createContractMutation.isPending}
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">%</span>
                       </div>
-                      <p className="text-xs text-gray-600 mt-3 font-medium italic">
-                        Queste clausole verranno inserite automaticamente nel contratto e nel PDF finale.
+                      <p className="text-sm text-slate-500 mt-2 flex items-center">
+                        <Info className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                        La percentuale sarà applicata sul fatturato TOTALE del ristorante
                       </p>
+                      {form.formState.errors.partnershipPercentage && (
+                        <p className="text-sm text-red-600 mt-2">
+                          {form.formState.errors.partnershipPercentage.message}
+                        </p>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
-          {/* Payment Calculator - Only show when total value is set and not in percentage mode */}
-          {currentTotalValue > 0 && !currentIsPercentageMode && (
-            <Card className="border-2 border-blue-100 shadow-lg hover:shadow-xl transition-shadow bg-white">
-              <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-blue-100">
-                <CardTitle className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Calculator className="mr-3 h-5 w-5 text-blue-600" />
+                    {/* Anteprima Clausole Partnership */}
+                    {form.watch("partnershipPercentage") && (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-slate-700">
+                          Clausole Partnership
+                        </h4>
+                        <ul className="space-y-2 text-sm text-slate-600">
+                          <li className="flex items-start">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 mr-3 flex-shrink-0" />
+                            <div><span className="font-medium text-slate-700">Fatturato Totale:</span> tutti i ricavi lordi dell'attività inclusi vendite, catering, delivery, eventi.</div>
+                          </li>
+                          <li className="flex items-start">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 mr-3 flex-shrink-0" />
+                            <div><span className="font-medium text-slate-700">Pagamento:</span> calcolo mensile su fatturato del mese precedente, entro il 15 del mese successivo.</div>
+                          </li>
+                          <li className="flex items-start">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 mr-3 flex-shrink-0" />
+                            <div><span className="font-medium text-slate-700">Documentazione:</span> estratti cassa/POS, fatture emesse, dichiarazioni IVA, report certificati.</div>
+                          </li>
+                          <li className="flex items-start">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 mr-3 flex-shrink-0" />
+                            <div><span className="font-medium text-slate-700">Penali:</span> 2% dell'importo dovuto per ogni mese di ritardo + interessi legali.</div>
+                          </li>
+                        </ul>
+                        <p className="text-xs text-slate-400 italic">
+                          Queste clausole verranno inserite automaticamente nel contratto e nel PDF finale.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Payment Calculator - Only show when total value is set and not in percentage mode */}
+            {currentTotalValue > 0 && !currentIsPercentageMode && (
+              <div className="border-t border-gray-100 pt-8 mt-8">
+                <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
+                  <Calculator className="mr-3 h-5 w-5 text-indigo-600" />
                   Calcolo Rate di Pagamento
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6 pt-4">
-                {/* Switch tra modalità: Calcolo Automatico o Rate Personalizzate */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                  <h4 className="text-base font-semibold text-blue-800 mb-3">Modalità Rate di Pagamento</h4>
-                  <div className="space-y-3">
-                    <label className="flex items-center space-x-3 cursor-pointer">
+                </h3>
+                <div className="space-y-6">
+                  {/* Switch tra modalità */}
+                  <div className="flex gap-3">
+                    <label className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      rataListFields.fields.length === 0 ? "border-indigo-300 bg-indigo-50/30" : "border-gray-200 hover:border-gray-300"
+                    }`}>
                       <input
                         type="radio"
                         name="paymentMode"
                         value="automatic"
                         checked={rataListFields.fields.length === 0}
                         onChange={() => {
-                          // Svuota tutte le rate personalizzate per attivare il calcolatore automatico
                           const fieldCount = rataListFields.fields.length;
                           for (let i = fieldCount - 1; i >= 0; i--) {
                             rataListFields.remove(i);
                           }
                         }}
-                        className="h-4 w-4 text-blue-600"
+                        className="h-4 w-4 text-indigo-600"
                       />
-                      <span className="text-sm font-medium text-blue-800">Calcolo Automatico (con frequenza)</span>
+                      <span className="text-sm font-medium text-slate-700">Calcolo Automatico</span>
                     </label>
-                    <label className="flex items-center space-x-3 cursor-pointer">
+                    <label className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      rataListFields.fields.length > 0 ? "border-indigo-300 bg-indigo-50/30" : "border-gray-200 hover:border-gray-300"
+                    }`}>
                       <input
                         type="radio"
                         name="paymentMode"
                         value="manual"
                         checked={rataListFields.fields.length > 0}
                         onChange={() => {
-                          // Aggiungi rate con date automatiche
                           if (rataListFields.fields.length === 0) {
                             const today = new Date().toISOString().split('T')[0];
                             const nextMonth = new Date();
@@ -912,353 +987,369 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                             rataListFields.append({ rata_importo: 0, rata_scadenza: nextMonthStr });
                           }
                         }}
-                        className="h-4 w-4 text-blue-600"
+                        className="h-4 w-4 text-indigo-600"
                       />
-                      <span className="text-sm font-medium text-blue-800">Rate Personalizzate (inserimento manuale)</span>
+                      <span className="text-sm font-medium text-slate-700">Rate Personalizzate</span>
                     </label>
                   </div>
-                </div>
 
-                {/* Calcolo Automatico Rate - Solo se non ci sono rate personalizzate */}
-                {rataListFields.fields.length === 0 && (
-                  <div>
-                    <h4 className="text-base font-semibold text-gray-800 mb-3">Calcolo Automatico Rate</h4>
-                    <PaymentCalculatorAdvanced
-                      totalAmount={currentTotalValue}
-                      onPaymentPlanChange={(paymentPlan) => {
-                        // Aggiorna il payment_plan nel form quando viene calcolato automaticamente
-                        console.log("Calcolo automatico completato:", paymentPlan);
-                        form.setValue("clientData.payment_plan", paymentPlan);
-                      }}
-                    />
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-sm text-blue-800">
-                        ℹ️ <strong>Modalità Calcolo Automatico:</strong> Le rate vengono calcolate automaticamente in base alla frequenza selezionata. 
-                        Non è necessario inserire rate personalizzate.
+                  {/* Calcolo Automatico Rate */}
+                  {rataListFields.fields.length === 0 && (
+                    <div>
+                      <PaymentCalculatorAdvanced
+                        totalAmount={currentTotalValue}
+                        onPaymentPlanChange={(paymentPlan) => {
+                          console.log("Calcolo automatico completato:", paymentPlan);
+                          form.setValue("clientData.payment_plan", paymentPlan);
+                        }}
+                      />
+                      <p className="text-sm text-slate-500 mt-4 flex items-center">
+                        <Info className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                        Le rate vengono calcolate automaticamente in base alla frequenza selezionata.
                       </p>
                     </div>
-                  </div>
-                )}
-
-                {/* Rate Personalizzate - Solo se attivate */}
-                {rataListFields.fields.length > 0 && (
-                  <div>
-                    <h4 className="text-base font-semibold text-gray-800 mb-3">Rate Personalizzate</h4>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Inserisci manualmente gli importi e le scadenze per ogni rata (es: 2000€ primo mese, 500€ mesi successivi)
-                    </p>
-                    
-                    {/* Validazione Somma */}
-                    {rataListFields.fields.length > 0 && (
-                      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-800">
-                          ⚠️ <strong>Controllo somma:</strong> Totale rate: {
-                            rataListFields.fields.reduce((sum, field, index) => {
-                              const value = form.watch(`clientData.rata_list.${index}.rata_importo`) || 0;
-                              return sum + Number(value);
-                            }, 0).toFixed(2)
-                          }€ / Prezzo totale: {currentTotalValue}€
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Lista Rate Personalizzate */}
-                    <div className="space-y-3 mb-4">
-                      {rataListFields.fields.map((field, index) => (
-                        <div key={field.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <div className="flex-1 grid grid-cols-2 gap-3">
-                            <div>
-                              <Label className="text-xs text-gray-600 mb-1 block">Importo (€)</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                {...form.register(`clientData.rata_list.${index}.rata_importo`, { valueAsNumber: true })}
-                                placeholder="0.00"
-                                className="h-10 text-sm"
-                                disabled={createContractMutation.isPending}
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-xs text-gray-600 mb-1 block">Scadenza</Label>
-                              <Input
-                                type="date"
-                                {...form.register(`clientData.rata_list.${index}.rata_scadenza`)}
-                                className="h-10 text-sm"
-                                disabled={createContractMutation.isPending}
-                              />
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => rataListFields.remove(index)}
-                            disabled={createContractMutation.isPending}
-                            className="h-8 w-8 text-gray-500 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Bottone Aggiungi Rata */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        // Calcola la data per il mese successivo
-                        const lastIndex = rataListFields.fields.length - 1;
-                        const lastDate = lastIndex >= 0 ? form.getValues(`clientData.rata_list.${lastIndex}.rata_scadenza`) : null;
-                        
-                        let nextDate;
-                        if (lastDate) {
-                          const date = new Date(lastDate);
-                          date.setMonth(date.getMonth() + 1);
-                          nextDate = date.toISOString().split('T')[0];
-                        } else {
-                          nextDate = new Date().toISOString().split('T')[0];
-                        }
-                        
-                        rataListFields.append({ rata_importo: 0, rata_scadenza: nextDate });
-                      }}
-                      disabled={createContractMutation.isPending}
-                      className="h-10 px-4 border border-gray-300 text-gray-700 hover:bg-gray-50"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Aggiungi Rata Personalizzata
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Contract Duration Section */}
-          <Card className="border-2 border-indigo-100 shadow-lg hover:shadow-xl transition-shadow bg-white">
-            <CardHeader className="pb-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100">
-              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center">
-                <Calendar className="mr-3 h-5 w-5 text-indigo-600" />
-                Durata Contratto
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 rounded-lg p-4 shadow-sm">
-                <p className="text-sm text-indigo-800 font-semibold mb-2">
-                  📅 Date di validità del contratto e autorinnovo automatico
-                </p>
-                <p className="text-sm text-indigo-700 leading-relaxed">
-                  Tutti i contratti si rinnovano automaticamente alle stesse condizioni
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="contractStartDate" className="text-sm font-medium text-gray-700 mb-2 block">
-                    Data Inizio Contratto *
-                  </Label>
-                  <Input
-                    id="contractStartDate"
-                    type="date"
-                    {...form.register("contractStartDate")}
-                    className="h-12 text-base border-2 border-indigo-200 focus:border-indigo-400 hover:border-indigo-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
-                    disabled={createContractMutation.isPending}
-                  />
-                  <p className="text-sm text-gray-600 mt-3 leading-relaxed">
-                    Data di inizio validità del contratto
-                  </p>
-                  {form.formState.errors.contractStartDate && (
-                    <p className="text-sm text-red-600 mt-2">
-                      {form.formState.errors.contractStartDate.message}
-                    </p>
                   )}
-                </div>
 
-                <div>
-                  <Label htmlFor="contractEndDate" className="text-sm font-medium text-gray-700 mb-2 block">
-                    Data Fine Contratto *
-                  </Label>
-                  <Input
-                    id="contractEndDate"
-                    type="date"
-                    {...form.register("contractEndDate")}
-                    className="h-12 text-base border-2 border-indigo-200 focus:border-indigo-400 hover:border-indigo-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
-                    disabled={createContractMutation.isPending}
-                  />
-                  <p className="text-sm text-gray-600 mt-1 leading-relaxed">
-                    Data di scadenza prima del rinnovo automatico
-                  </p>
-                  {form.formState.errors.contractEndDate && (
-                    <p className="text-sm text-red-600 mt-2">
-                      {form.formState.errors.contractEndDate.message}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="renewalDuration" className="text-sm font-medium text-gray-700 mb-2 block">
-                    Durata Rinnovo (mesi)
-                  </Label>
-                  <Input
-                    id="renewalDuration"
-                    type="number"
-                    min="1"
-                    max="60"
-                    {...form.register("renewalDuration", { valueAsNumber: true })}
-                    placeholder="12"
-                    className="h-12 text-base border-2 border-indigo-200 focus:border-indigo-400 hover:border-indigo-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
-                    disabled={createContractMutation.isPending}
-                  />
-                  <p className="text-sm text-gray-600 mt-1 leading-relaxed">
-                    Durata del rinnovo automatico
-                  </p>
-                  {form.formState.errors.renewalDuration && (
-                    <p className="text-sm text-red-600 mt-2">
-                      {form.formState.errors.renewalDuration.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Bonus Section */}
-          <Card className="border border-gray-200">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-medium text-gray-900 flex items-center">
-                <Plus className="mr-3 h-5 w-5 text-gray-600" />
-                Bonus e Servizi Inclusi
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Show predefined bonuses from template */}
-              {selectedTemplate?.predefinedBonuses && selectedTemplate.predefinedBonuses.length > 0 && (
-                <div className="space-y-4">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Bonus Predefiniti dal Template:
-                  </Label>
-                  <div className="grid gap-3">
-                    {selectedTemplate.predefinedBonuses.map((bonus: any, index: number) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                        <span className="font-medium text-gray-900">{bonus.description}</span>
-                        {bonus.value && (
-                          <span className="text-sm font-medium text-gray-600 bg-gray-200 px-2 py-1 rounded">
-                            {bonus.value}{bonus.type === 'percentage' ? '%' : '€'}
+                  {/* Rate Personalizzate */}
+                  {rataListFields.fields.length > 0 && (
+                    <div>
+                      <p className="text-sm text-slate-500 mb-4">
+                        Inserisci manualmente gli importi e le scadenze per ogni rata
+                      </p>
+                      
+                      {/* Validazione Somma */}
+                      {rataListFields.fields.length > 0 && (
+                        <div className="mb-4 flex items-center text-sm text-slate-600">
+                          <AlertTriangle className="h-4 w-4 mr-2 text-amber-500 flex-shrink-0" />
+                          <span>
+                            Totale rate: <strong>{
+                              rataListFields.fields.reduce((sum, field, index) => {
+                                const value = form.watch(`clientData.rata_list.${index}.rata_importo`) || 0;
+                                return sum + Number(value);
+                              }, 0).toFixed(2)
+                            }€</strong> / Prezzo totale: <strong>{currentTotalValue}€</strong>
                           </span>
-                        )}
+                        </div>
+                      )}
+                      
+                      {/* Lista Rate Personalizzate */}
+                      <div className="space-y-3 mb-4">
+                        {rataListFields.fields.map((field, index) => (
+                          <div key={field.id} className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50/50">
+                            <div className="flex-1 grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-xs text-slate-500 mb-1 block">Importo (€)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  {...form.register(`clientData.rata_list.${index}.rata_importo`, { valueAsNumber: true })}
+                                  placeholder="0.00"
+                                  className="h-10 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 text-sm"
+                                  disabled={createContractMutation.isPending}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-slate-500 mb-1 block">Scadenza</Label>
+                                <Input
+                                  type="date"
+                                  {...form.register(`clientData.rata_list.${index}.rata_scadenza`)}
+                                  className="h-10 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 text-sm"
+                                  disabled={createContractMutation.isPending}
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => rataListFields.remove(index)}
+                              disabled={createContractMutation.isPending}
+                              className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {/* Custom bonus fields */}
-              {bonusFields.fields.length > 0 ? (
-                <DynamicFormFields
-                  title="Bonus Aggiuntivi"
-                  fields={bonusFields.fields}
-                  onAdd={() => bonusFields.append({ bonus_descrizione: "" })}
-                  onRemove={bonusFields.remove}
-                  disabled={createContractMutation.isPending}
-                  renderField={(field, index) => (
-                    <div key={field.id} className="flex items-center space-x-3">
-                      <Input
-                        {...form.register(`clientData.bonus_list.${index}.bonus_descrizione`)}
-                        placeholder="Descrizione bonus personalizzato..."
-                        disabled={createContractMutation.isPending}
-                        className="flex-1 h-11 border-2 border-gray-200 focus:border-purple-400 hover:border-gray-300 transition-all duration-200 rounded-lg shadow-sm focus:shadow-md"
-                      />
+                      {/* Bottone Aggiungi Rata */}
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => bonusFields.remove(index)}
+                        variant="outline"
+                        onClick={() => {
+                          const lastIndex = rataListFields.fields.length - 1;
+                          const lastDate = lastIndex >= 0 ? form.getValues(`clientData.rata_list.${lastIndex}.rata_scadenza`) : null;
+                          
+                          let nextDate;
+                          if (lastDate) {
+                            const date = new Date(lastDate);
+                            date.setMonth(date.getMonth() + 1);
+                            nextDate = date.toISOString().split('T')[0];
+                          } else {
+                            nextDate = new Date().toISOString().split('T')[0];
+                          }
+                          
+                          rataListFields.append({ rata_importo: 0, rata_scadenza: nextDate });
+                        }}
                         disabled={createContractMutation.isPending}
-                        className="h-10 w-10 text-gray-500 hover:text-red-600 hover:bg-red-50"
+                        className="h-10 px-4 rounded-xl border border-gray-200 text-slate-700 hover:bg-gray-50"
                       >
-                        <X className="h-4 w-4" />
+                        <Plus className="h-4 w-4 mr-2" />
+                        Aggiungi Rata Personalizzata
                       </Button>
                     </div>
                   )}
-                />
-              ) : (
-                <div className="text-center py-6">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => bonusFields.append({ bonus_descrizione: "" })}
-                    disabled={createContractMutation.isPending}
-                    className="h-10 px-4 border border-gray-300 text-gray-700 hover:bg-gray-50"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Aggiungi Bonus Personalizzato
-                  </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
 
-          {/* Email Section */}
-          <div className="space-y-3 pt-4 border-t">
-            <div>
-              <Label htmlFor="sendToEmail">Email per l'invio del contratto</Label>
-              <Input
-                id="sendToEmail"
-                type="email"
-                value={sendToEmail}
-                onChange={(e) => setSendToEmail(e.target.value)}
-                placeholder="email@esempio.com"
-                disabled={isSubmitting}
-              />
-              <p className="text-xs text-gray-600 mt-1">
-                Email dove verrà inviato il contratto (può essere diversa da quella nel contratto)
-              </p>
+            {/* Section 4: Contract Duration */}
+            <div id="section-duration" className="border-t border-gray-100 pt-8 mt-8">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
+                <Calendar className="mr-3 h-5 w-5 text-indigo-600" />
+                Durata Contratto
+              </h3>
+              <div className="space-y-5">
+                <p className="text-sm text-slate-500 flex items-center">
+                  <Info className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
+                  Tutti i contratti si rinnovano automaticamente alle stesse condizioni
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div>
+                    <Label htmlFor="contractStartDate" className={labelClass}>
+                      Data Inizio Contratto *
+                    </Label>
+                    <Input
+                      id="contractStartDate"
+                      type="date"
+                      {...form.register("contractStartDate")}
+                      className={inputClass}
+                      disabled={createContractMutation.isPending}
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">
+                      Data di inizio validità del contratto
+                    </p>
+                    {form.formState.errors.contractStartDate && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {form.formState.errors.contractStartDate.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="contractEndDate" className={labelClass}>
+                      Data Fine Contratto *
+                    </Label>
+                    <Input
+                      id="contractEndDate"
+                      type="date"
+                      {...form.register("contractEndDate")}
+                      className={inputClass}
+                      disabled={createContractMutation.isPending}
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">
+                      Data di scadenza prima del rinnovo
+                    </p>
+                    {form.formState.errors.contractEndDate && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {form.formState.errors.contractEndDate.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="renewalDuration" className={labelClass}>
+                      Durata Rinnovo (mesi)
+                    </Label>
+                    <Input
+                      id="renewalDuration"
+                      type="number"
+                      min="1"
+                      max="60"
+                      {...form.register("renewalDuration", { valueAsNumber: true })}
+                      placeholder="12"
+                      className={inputClass}
+                      disabled={createContractMutation.isPending}
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">
+                      Durata del rinnovo automatico
+                    </p>
+                    {form.formState.errors.renewalDuration && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {form.formState.errors.renewalDuration.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="sendImmediately"
-                checked={sendImmediately}
-                onCheckedChange={setSendImmediately}
-              />
-              <Label htmlFor="sendImmediately" className="text-sm">
-                Invia immediatamente al cliente
-              </Label>
-            </div>
-          </div>
+            {/* Section 5: Bonus */}
+            <div id="section-bonus" className="border-t border-gray-100 pt-8 mt-8">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
+                <Gift className="mr-3 h-5 w-5 text-indigo-600" />
+                Bonus e Servizi Inclusi
+              </h3>
+              <div className="space-y-6">
+                {/* Show predefined bonuses from template */}
+                {selectedTemplate?.predefinedBonuses && selectedTemplate.predefinedBonuses.length > 0 && (
+                  <div className="space-y-3">
+                    <Label className={labelClass}>
+                      Bonus Predefiniti dal Template:
+                    </Label>
+                    <div className="grid gap-2">
+                      {selectedTemplate.predefinedBonuses.map((bonus: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-gray-50/50">
+                          <span className="font-medium text-slate-800 text-sm">{bonus.description}</span>
+                          {bonus.value && (
+                            <span className="text-xs font-medium text-slate-500 bg-gray-200/60 px-2.5 py-1 rounded-lg">
+                              {bonus.value}{bonus.type === 'percentage' ? '%' : '€'}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-          {/* Submit Actions */}
-          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={createContractMutation.isPending}
-              className="h-10 px-6 border border-gray-300 hover:bg-gray-50"
-            >
-              Annulla
-            </Button>
-            <Button
-              type="submit"
-              disabled={createContractMutation.isPending}
-              className="h-10 px-6 bg-gray-900 hover:bg-gray-800 text-white"
-              onClick={() => {
-                console.log("Submit button clicked");
-                console.log("Form values:", form.getValues());
-                console.log("Form errors:", form.formState.errors);
-                console.log("Is valid:", form.formState.isValid);
-                console.log("Partnership mode:", isPercentageMode);
-                console.log("Partnership percentage:", form.getValues("partnershipPercentage"));
-              }}
-            >
-              {createContractMutation.isPending 
-                ? "Generazione..." 
-                : isEditing ? "Aggiorna Contratto" : "Genera e Invia Contratto"
-              }
-            </Button>
-          </div>
-        </form>
+                {/* Custom bonus fields */}
+                {bonusFields.fields.length > 0 ? (
+                  <DynamicFormFields
+                    title="Bonus Aggiuntivi"
+                    fields={bonusFields.fields}
+                    onAdd={() => bonusFields.append({ bonus_descrizione: "" })}
+                    onRemove={bonusFields.remove}
+                    disabled={createContractMutation.isPending}
+                    renderField={(field, index) => (
+                      <div key={field.id} className="flex items-center gap-3">
+                        <Input
+                          {...form.register(`clientData.bonus_list.${index}.bonus_descrizione`)}
+                          placeholder="Descrizione bonus personalizzato..."
+                          disabled={createContractMutation.isPending}
+                          className={`flex-1 ${inputClass}`}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => bonusFields.remove(index)}
+                          disabled={createContractMutation.isPending}
+                          className="h-10 w-10 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  />
+                ) : (
+                  <div className="text-center py-6">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => bonusFields.append({ bonus_descrizione: "" })}
+                      disabled={createContractMutation.isPending}
+                      className="h-10 px-4 rounded-xl border border-gray-200 text-slate-700 hover:bg-gray-50"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Aggiungi Bonus Personalizzato
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 6: Email / Send */}
+            <div id="section-send" className="border-t border-gray-100 pt-8 mt-8">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
+                <Send className="mr-3 h-5 w-5 text-indigo-600" />
+                Invio Contratto
+              </h3>
+              <div className="space-y-5">
+                <div>
+                  <Label htmlFor="sendToEmail" className={labelClass}>Email per l'invio del contratto</Label>
+                  <Input
+                    id="sendToEmail"
+                    type="email"
+                    value={sendToEmail}
+                    onChange={(e) => setSendToEmail(e.target.value)}
+                    placeholder="email@esempio.com"
+                    disabled={isSubmitting}
+                    className={inputClass}
+                  />
+                  <p className="text-xs text-slate-400 mt-1.5">
+                    Email dove verrà inviato il contratto (può essere diversa da quella nel contratto)
+                  </p>
+                </div>
+
+                <div
+                  className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
+                    sendImmediately
+                      ? "border-indigo-300 bg-indigo-50/30"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                  onClick={() => setSendImmediately(!sendImmediately)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 mr-6">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        Invia immediatamente al cliente
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Il contratto verrà inviato subito dopo la generazione
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <div className={`w-14 h-7 rounded-full transition-all duration-300 relative ${
+                        sendImmediately ? "bg-indigo-600" : "bg-gray-200"
+                      }`}>
+                        <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${
+                          sendImmediately ? "left-[30px]" : "left-0.5"
+                        }`} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Spacer for sticky footer */}
+            <div className="h-4" />
+          </form>
+        </div>
+
+        {/* Footer - Sticky */}
+        <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur-sm border-t border-gray-100 py-4 px-8 flex justify-end gap-3 flex-shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={createContractMutation.isPending}
+            className="h-12 min-w-[160px] rounded-xl border border-gray-200 text-slate-700 hover:bg-gray-50"
+          >
+            Annulla
+          </Button>
+          <Button
+            type="submit"
+            form="contract-form"
+            disabled={createContractMutation.isPending}
+            className="h-12 min-w-[160px] rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white shadow-lg hover:shadow-xl transition-all duration-200"
+            onClick={() => {
+              console.log("Submit button clicked");
+              console.log("Form values:", form.getValues());
+              console.log("Form errors:", form.formState.errors);
+              console.log("Is valid:", form.formState.isValid);
+              console.log("Partnership mode:", isPercentageMode);
+              console.log("Partnership percentage:", form.getValues("partnershipPercentage"));
+            }}
+          >
+            {createContractMutation.isPending 
+              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generazione...</>
+              : isEditing ? "Aggiorna Contratto" : "Genera e Invia Contratto"
+            }
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
