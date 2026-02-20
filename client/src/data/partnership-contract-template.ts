@@ -340,9 +340,11 @@ LIVELLO 2 — PROTEZIONE LEGALE
 <h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #8b5cf6; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 13 — NON CONCORRENZA</h2>
 
 <div style="padding: 16px; border-radius: 12px; background: #fffbeb; border: 1px solid #fde68a; margin: 16px 0;">
-<p><strong>13.1.</strong> Per tutta la durata del Contratto e per <strong>3 anni</strong> successivi alla cessazione, il Partner si impegna a non: sviluppare o partecipare a piattaforme concorrenti; collaborare con soggetti che sviluppano prodotti concorrenti; utilizzare il know-how acquisito per creare prodotti concorrenti; sollecitare o assumere dipendenti o collaboratori del Fornitore.</p>
-<p><strong>13.2.</strong> Penale per violazione: <strong>Euro 50.000,00</strong> per ciascuna violazione accertata, fermo restando il diritto al risarcimento del maggior danno.</p>
-<p><strong>13.3.</strong> Ambito territoriale: intero territorio nazionale italiano e mercati esteri in cui il Fornitore operi o abbia manifestato interesse durante la vigenza.</p>
+<p><strong>13.1.</strong> Per tutta la durata del Contratto e per <strong>24 mesi</strong> successivi alla cessazione, il Partner si impegna a non sviluppare, direttamente o indirettamente, sistemi software che riproducano in modo sostanziale l'architettura, le logiche operative, i flussi di automazione, i prompt o il modello organizzativo dell'Infrastruttura.</p>
+<p><strong>13.2.</strong> È fatto divieto di utilizzare il know-how tecnico o commerciale appreso durante il rapporto per la realizzazione di prodotti o servizi che costituiscano replica sostanziale della Piattaforma.</p>
+<p><strong>13.3.</strong> Resta salva la possibilità per il Partner di svolgere attività professionale generica nel settore della consulenza o dell'innovazione digitale, purché non comporti la copia o riproduzione dell'Infrastruttura.</p>
+<p><strong>13.4.</strong> In caso di violazione, è prevista una penale di <strong>€30.000</strong> per ciascuna violazione accertata, fatto salvo il diritto al risarcimento del maggior danno.</p>
+<p><strong>13.5.</strong> L'ambito territoriale della presente clausola è limitato ai territori in cui il Fornitore operi al momento della cessazione del Contratto.</p>
 </div>
 
 <h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #8b5cf6; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 14 — SOSPENSIONE DEL SERVIZIO</h2>
@@ -411,7 +413,7 @@ LIVELLO 2 — PROTEZIONE LEGALE
 <li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 9 — Recesso e obbligo pagamento canoni residui</li>
 <li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 10 — Proprietà intellettuale esclusiva</li>
 <li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 12 — Manleva AI e limitazione responsabilità</li>
-<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 13 — Non concorrenza 3 anni con penale</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 13 — Non concorrenza 24 mesi con penale</li>
 <li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 14 — Sospensione senza indennizzo</li>
 <li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 15 — Cessione del contratto</li>
 <li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 18 — Clausola risolutiva espressa</li>
