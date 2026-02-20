@@ -12,7 +12,7 @@ const CONTRACT_SECTIONS = [
   { id: "art3", title: "Art. 3 — Servizi Inclusi", level: 1 },
   { id: "art3-1", title: "3.1 Assistenza AI WhatsApp", level: 2 },
   { id: "art3-2", title: "3.2 Venditore AI Lead", level: 2 },
-  { id: "art3-3", title: "3.3 SilvIA Gold/Silver", level: 2 },
+  { id: "art3-3", title: "3.3 AI Personalizzata Gold/Silver", level: 2 },
   { id: "art3-4", title: "3.4 Onboarding Dipendenti", level: 2 },
   { id: "art3-5", title: "3.5 Knowledge Base e AI", level: 2 },
   { id: "art3-6", title: "3.6 AI Course Builder", level: 2 },
@@ -246,9 +246,11 @@ export default function ContractView() {
                     {[
                       { term: "Piattaforma", def: "il sistema software proprietario di intelligenza artificiale, comprensivo di tutti i moduli, le funzionalità, le interfacce, le API, i database e i servizi accessori descritti nel presente Contratto, accessibile via web e ospitato su infrastruttura cloud gestita dal Fornitore." },
                       { term: "Licenza d'Uso", def: "il diritto non esclusivo, non trasferibile e revocabile concesso al Partner di utilizzare la Piattaforma nei limiti e secondo le modalità stabilite dal presente Contratto." },
-                      { term: "SilvIA", def: "l'assistente di intelligenza artificiale personalizzato, addestrato sulla base dei documenti, delle informazioni e delle istruzioni fornite dal Partner, operante all'interno della Piattaforma con capacità conversazionali, analitiche e generative." },
-                      { term: "Licenza Gold", def: "il pacchetto completo di accesso alla Piattaforma che include: consulente AI addestrato con memoria persistente tra le conversazioni, percorsi formativi strutturati con corsi ed esercizi, assistente AI personale, dipendente AI virtuale addestrato sulla documentazione aziendale, Knowledge Base personalizzata, Content Marketing Studio con generazione immagini AI, e tutte le funzionalità avanzate della Piattaforma." },
-                      { term: "Licenza Silver", def: "il pacchetto di accesso alla Piattaforma che include: assistente AI addestrato sulla documentazione aziendale ma senza memoria persistente tra le sessioni di chat. Ogni conversazione inizia senza contesto delle precedenti. Include l'accesso alle funzionalità base della Piattaforma." },
+                      { term: "Orbitale", def: "il nome commerciale della Piattaforma." },
+                      { term: "Assistente AI", def: "l'intelligenza artificiale integrata nella Piattaforma Orbitale, personalizzabile e addestrabile sulla base dei documenti e delle istruzioni fornite dall'utilizzatore. Opera con capacità conversazionali, analitiche e generative." },
+                      { term: "Licenza Diamond", def: "il pacchetto di accesso alla Piattaforma Orbitale riservato al Partner in qualità di consulente. Comprende l'accesso completo a tutti i moduli: dashboard consulente, gestione clienti, Lead Hub, agenti AI WhatsApp, Knowledge Base, Content Marketing Studio, AI Course Builder, Email Hub, calendario, analytics avanzate. È la licenza oggetto del presente Contratto." },
+                      { term: "Licenza Gold", def: "il pacchetto di accesso alla Piattaforma destinato ai clienti finali del Partner (non al Partner stesso). Include: assistente AI con memoria persistente, percorsi formativi strutturati, assistente AI personale, dipendente AI virtuale, Knowledge Base personalizzata, AI Analytics, Script Manager, sistema di gamification Momentum e Streak." },
+                      { term: "Licenza Silver", def: "il pacchetto di accesso alla Piattaforma destinato ai clienti finali del Partner (non al Partner stesso), con funzionalità ridotte rispetto alla Gold. Include: assistente AI senza memoria persistente tra le sessioni. Ogni conversazione inizia senza contesto delle precedenti." },
                       { term: "Agente AI WhatsApp", def: "il modulo della Piattaforma che consente la creazione di dipendenti virtuali operanti su WhatsApp Business, in grado di gestire conversazioni automatizzate, qualificare lead, prenotare appuntamenti e fornire assistenza clienti, 24 ore su 24, 7 giorni su 7." },
                       { term: "Knowledge Base", def: "l'archivio documentale digitale alimentabile dal Partner (PDF, DOCX, TXT, URL) dal quale l'intelligenza artificiale attinge per formulare risposte accurate, pertinenti e basate su fonti verificabili, senza inventare informazioni (tecnologia RAG — Retrieval Augmented Generation)." },
                       { term: "Lead", def: "un potenziale cliente del Partner che ha manifestato interesse o che viene contattato proattivamente tramite campagne automatizzate." },
@@ -268,9 +270,9 @@ export default function ContractView() {
                 <section data-section="art2" className="space-y-4">
                   <h2 className="text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">ARTICOLO 2 — OGGETTO DEL CONTRATTO</h2>
                   {[
-                    "Il Fornitore concede al Partner una licenza d'uso non esclusiva, non trasferibile e non sublicenziabile della Piattaforma, per la durata e alle condizioni stabilite dal presente Contratto.",
-                    "La licenza comprende l'accesso a tutti i moduli e le funzionalità della Piattaforma come dettagliati nell'Articolo 3, inclusi gli aggiornamenti e le evoluzioni rilasciate dal Fornitore durante il periodo di validità del Contratto.",
-                    "Il Partner acquisisce il diritto di utilizzare la Piattaforma per la propria attività e di rivendere licenze Gold e Silver ai propri clienti finali, nel rispetto delle condizioni economiche e operative stabilite nel presente Contratto.",
+                    "Il Fornitore concede al Partner una Licenza Diamond della Piattaforma Orbitale, non esclusiva, non trasferibile e non sublicenziabile, per la durata e alle condizioni stabilite dal presente Contratto.",
+                    "La Licenza Diamond comprende l'accesso a tutti i moduli e le funzionalità della Piattaforma come dettagliati nell'Articolo 3, in qualità di consulente, inclusi gli aggiornamenti e le evoluzioni rilasciate dal Fornitore durante il periodo di validità del Contratto.",
+                    "Il Partner acquisisce il diritto di utilizzare la Piattaforma Orbitale per la propria attività e di rivendere licenze Gold e Silver ai propri clienti finali, nel rispetto delle condizioni economiche e operative stabilite nel presente Contratto. Le licenze Gold e Silver sono destinate esclusivamente ai clienti del Partner e non al Partner stesso.",
                     "La Piattaforma è fornita in modalità SaaS (Software as a Service), accessibile via browser web, senza necessità di installazione locale. Il Fornitore si occupa dell'hosting, della manutenzione dell'infrastruttura e degli aggiornamenti tecnici.",
                   ].map((text, i) => (
                     <p key={i} className="text-slate-700 leading-relaxed"><span className="text-slate-400 font-mono text-xs mr-2">2.{i + 1}.</span>{text}</p>
@@ -372,7 +374,7 @@ export default function ContractView() {
 
                   {/* 3.3 */}
                   <div data-section="art3-3" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-violet-50/80 to-purple-50/40 border border-violet-100">
-                    <h3 className="text-lg font-bold text-violet-800">3.3. SilvIA — Intelligenza Artificiale Personalizzata a Livelli</h3>
+                    <h3 className="text-lg font-bold text-violet-800">3.3. Intelligenza Artificiale Personalizzata — Strutturata a Livelli</h3>
 
                     <div className="space-y-4 mt-3">
                       <div className="p-4 rounded-lg bg-white/60 border border-violet-200">
@@ -669,7 +671,40 @@ export default function ContractView() {
                   <h2 className="text-xl font-bold text-slate-800 border-l-4 border-violet-500 pl-4">ARTICOLO 11 — TITOLARITÀ E TRATTAMENTO DEI DATI</h2>
                   <p className="text-slate-700 leading-relaxed"><strong>11.1.</strong> Il Partner è titolare dei dati anagrafici e di contatto dei propri clienti. In caso di cessazione, tali dati saranno disponibili per l'esportazione.</p>
                   <p className="text-slate-700 leading-relaxed"><strong>11.2.</strong> Il Fornitore è titolare dei dati generati dall'utilizzo della Piattaforma: log conversazioni AI, dati di utilizzo e analytics, contenuti generati dall'AI, metriche, dati di addestramento.</p>
-                  <p className="text-slate-700 leading-relaxed"><strong>11.3.</strong> Ciascuna Parte tratta i dati personali nel rispetto del GDPR (Reg. UE 2016/679) e della normativa nazionale vigente. Le Parti si impegnano a sottoscrivere, ove necessario, un Data Processing Agreement.</p>
+                  
+                  <div className="mt-6 pt-4 border-t border-slate-200">
+                    <h3 className="text-lg font-bold text-violet-700 mb-3">11.3. Segregazione e Riservatezza dei Dati tra Clienti Finali</h3>
+                    <ul className="space-y-2 text-sm text-slate-700 ml-4">
+                      {[
+                        "Ciascun cliente del Partner vede esclusivamente i propri dati all'interno della Piattaforma. Non ha accesso ai dati di altri clienti dello stesso Partner;",
+                        "La Knowledge Base è segregata tra i diversi Partner: ciascun Partner ha una Knowledge Base indipendente e inaccessibile ai concorrenti;",
+                        "Per i clienti con Licenza Gold, l'intelligenza artificiale utilizza esclusivamente i dati e i documenti specifici di quel cliente per formulare risposte personalizzate;",
+                        "Il Fornitore implementa controlli di accesso granulare ai documenti della Knowledge Base: ogni documento può essere reso disponibile selettivamente all'AI del consulente, all'AI dei clienti, agli Agenti WhatsApp, o a specifiche combinazioni;",
+                        "Gli Agenti AI WhatsApp del Partner operano in un contesto isolato, elaborando esclusivamente i dati dei clienti del Partner e utilizzando la Knowledge Base del Partner, senza accesso ai dati o alla Knowledge Base di altri Partner.",
+                      ].map((text, i) => (
+                        <li key={i} className="flex gap-2"><span className="text-violet-400">•</span><span>{text}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-200">
+                    <h3 className="text-lg font-bold text-violet-700 mb-3">11.4. Sicurezza dei Dati</h3>
+                    <ul className="space-y-2 text-sm text-slate-700 ml-4">
+                      {[
+                        "Il Fornitore implementa misure tecniche e organizzative adeguate a garantire la riservatezza, l'integrità e la disponibilità dei dati, conformemente alle migliori pratiche del settore;",
+                        "Backup automatici e ridondanza dell'infrastruttura per assicurare continuità operativa e recupero da malfunzionamenti;",
+                        "Crittografia dei dati in transito (TLS/HTTPS) e a riposo nei database;",
+                        "Monitoraggio continuo della sicurezza, audit regolari e aggiornamenti tempestivi delle misure di protezione.",
+                      ].map((text, i) => (
+                        <li key={i} className="flex gap-2"><span className="text-violet-400">•</span><span>{text}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-200">
+                    <h3 className="text-lg font-bold text-violet-700 mb-3">11.5. Trattamento dei Dati Personali</h3>
+                    <p className="text-slate-700 text-sm">Ciascuna Parte tratta i dati personali nel rispetto del GDPR (Reg. UE 2016/679) e della normativa nazionale vigente. Le Parti si impegnano a sottoscrivere, ove necessario, un Data Processing Agreement.</p>
+                  </div>
                 </section>
 
                 {/* Art 12 */}

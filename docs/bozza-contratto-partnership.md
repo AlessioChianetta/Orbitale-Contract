@@ -59,33 +59,37 @@ Ai fini del presente Contratto, i seguenti termini assumono il significato di se
 
 **1.2. "Licenza d'Uso"**: il diritto non esclusivo, non trasferibile e revocabile concesso al Partner di utilizzare la Piattaforma nei limiti e secondo le modalità stabilite dal presente Contratto.
 
-**1.3. "SilvIA"**: l'assistente di intelligenza artificiale personalizzato, addestrato sulla base dei documenti, delle informazioni e delle istruzioni fornite dal Partner, operante all'interno della Piattaforma con capacità conversazionali, analitiche e generative.
+**1.3. "Orbitale"**: il nome commerciale della Piattaforma di cui al punto 1.1.
 
-**1.4. "Licenza Gold"**: il pacchetto completo di accesso alla Piattaforma che include: consulente AI addestrato con memoria persistente tra le conversazioni, percorsi formativi strutturati con corsi ed esercizi, assistente AI personale, dipendente AI virtuale addestrato sulla documentazione aziendale, Knowledge Base personalizzata, Content Marketing Studio con generazione immagini AI, e tutte le funzionalità avanzate della Piattaforma.
+**1.4. "Assistente AI"**: l'intelligenza artificiale integrata nella Piattaforma Orbitale, personalizzabile e addestrabile sulla base dei documenti, delle informazioni e delle istruzioni fornite dall'utilizzatore. Opera all'interno della Piattaforma con capacità conversazionali, analitiche e generative.
 
-**1.5. "Licenza Silver"**: il pacchetto di accesso alla Piattaforma che include: assistente AI addestrato sulla documentazione aziendale ma senza memoria persistente tra le sessioni di chat. Ogni conversazione inizia senza contesto delle precedenti. Include l'accesso alle funzionalità base della Piattaforma.
+**1.5. "Licenza Diamond"**: il pacchetto di accesso alla Piattaforma Orbitale riservato al Partner in qualità di consulente. Comprende l'accesso completo a tutti i moduli della Piattaforma, inclusi: dashboard consulente, gestione clienti, Lead Hub, agenti AI WhatsApp, Knowledge Base, Content Marketing Studio, AI Course Builder, Email Hub, calendario e consulenze, analytics avanzate, e tutte le funzionalità di gestione e amministrazione. È la licenza oggetto del presente Contratto.
 
-**1.6. "Agente AI WhatsApp"**: il modulo della Piattaforma che consente la creazione di dipendenti virtuali operanti su WhatsApp Business, in grado di gestire conversazioni automatizzate, qualificare lead, prenotare appuntamenti e fornire assistenza clienti, 24 ore su 24, 7 giorni su 7.
+**1.6. "Licenza Gold"**: il pacchetto di accesso alla Piattaforma destinato ai clienti finali del Partner (non al Partner stesso). Include: assistente AI addestrato con memoria persistente tra le conversazioni, percorsi formativi strutturati con corsi ed esercizi, assistente AI personale, dipendente AI virtuale addestrato sulla documentazione, Knowledge Base personalizzata, AI Analytics, Script Manager, sistema di gamification Momentum e Streak, e tutte le funzionalità avanzate lato cliente.
 
-**1.7. "Knowledge Base"**: l'archivio documentale digitale alimentabile dal Partner (PDF, DOCX, TXT, URL) dal quale l'intelligenza artificiale attinge per formulare risposte accurate, pertinenti e basate su fonti verificabili, senza inventare informazioni (tecnologia RAG — Retrieval Augmented Generation).
+**1.7. "Licenza Silver"**: il pacchetto di accesso alla Piattaforma destinato ai clienti finali del Partner (non al Partner stesso), con funzionalità ridotte rispetto alla Licenza Gold. Include: assistente AI addestrato sulla documentazione aziendale ma senza memoria persistente tra le sessioni di chat. Ogni conversazione inizia senza contesto delle precedenti. Include l'accesso alle funzionalità base lato cliente della Piattaforma.
 
-**1.8. "Lead"**: un potenziale cliente del Partner che ha manifestato interesse o che viene contattato proattivamente tramite campagne automatizzate.
+**1.8. "Agente AI WhatsApp"**: il modulo della Piattaforma che consente la creazione di dipendenti virtuali operanti su WhatsApp Business, in grado di gestire conversazioni automatizzate, qualificare lead, prenotare appuntamenti e fornire assistenza clienti, 24 ore su 24, 7 giorni su 7.
 
-**1.9. "Canone Mensile"**: il corrispettivo fisso ricorrente dovuto dal Partner al Fornitore per l'utilizzo della Piattaforma, come specificato nell'Articolo 6.
+**1.9. "Knowledge Base"**: l'archivio documentale digitale alimentabile dal Partner (PDF, DOCX, TXT, URL) dal quale l'intelligenza artificiale attinge per formulare risposte accurate, pertinenti e basate su fonti verificabili, senza inventare informazioni (tecnologia RAG — Retrieval Augmented Generation).
 
-**1.10. "Revenue Share"**: la percentuale sulle vendite di licenze Gold e Silver effettuate dal Partner a favore dei propri clienti finali, dovuta al Fornitore in via permanente e irrevocabile, come disciplinato dall'Articolo 7.
+**1.10. "Lead"**: un potenziale cliente del Partner che ha manifestato interesse o che viene contattato proattivamente tramite campagne automatizzate.
 
-**1.11. "Stripe Connect"**: il sistema di gestione dei pagamenti integrato che consente il tracciamento automatico delle transazioni e la ripartizione dei ricavi tra Fornitore e Partner.
+**1.11. "Canone Mensile"**: il corrispettivo fisso ricorrente dovuto dal Partner al Fornitore per l'utilizzo della Piattaforma, come specificato nell'Articolo 6.
+
+**1.12. "Revenue Share"**: la percentuale sulle vendite di licenze Gold e Silver effettuate dal Partner a favore dei propri clienti finali, dovuta al Fornitore in via permanente e irrevocabile, come disciplinato dall'Articolo 7.
+
+**1.13. "Stripe Connect"**: il sistema di gestione dei pagamenti integrato che consente il tracciamento automatico delle transazioni e la ripartizione dei ricavi tra Fornitore e Partner.
 
 ---
 
 ## ARTICOLO 2 — OGGETTO DEL CONTRATTO
 
-**2.1.** Il Fornitore concede al Partner una licenza d'uso non esclusiva, non trasferibile e non sublicenziabile della Piattaforma, per la durata e alle condizioni stabilite dal presente Contratto.
+**2.1.** Il Fornitore concede al Partner una Licenza Diamond della Piattaforma Orbitale, non esclusiva, non trasferibile e non sublicenziabile, per la durata e alle condizioni stabilite dal presente Contratto.
 
-**2.2.** La licenza comprende l'accesso a tutti i moduli e le funzionalità della Piattaforma come dettagliati nell'Articolo 3, inclusi gli aggiornamenti e le evoluzioni rilasciate dal Fornitore durante il periodo di validità del Contratto.
+**2.2.** La Licenza Diamond comprende l'accesso a tutti i moduli e le funzionalità della Piattaforma come dettagliati nell'Articolo 3, in qualità di consulente, inclusi gli aggiornamenti e le evoluzioni rilasciate dal Fornitore durante il periodo di validità del Contratto.
 
-**2.3.** Il Partner acquisisce il diritto di utilizzare la Piattaforma per la propria attività e di rivendere licenze Gold e Silver ai propri clienti finali, nel rispetto delle condizioni economiche e operative stabilite nel presente Contratto.
+**2.3.** Il Partner acquisisce il diritto di utilizzare la Piattaforma Orbitale per la propria attività e di rivendere licenze Gold e Silver ai propri clienti finali, nel rispetto delle condizioni economiche e operative stabilite nel presente Contratto. Le licenze Gold e Silver sono destinate esclusivamente ai clienti del Partner e non al Partner stesso.
 
 **2.4.** La Piattaforma è fornita in modalità SaaS (Software as a Service), accessibile via browser web, senza necessità di installazione locale. Il Fornitore si occupa dell'hosting, della manutenzione dell'infrastruttura e degli aggiornamenti tecnici.
 
@@ -141,9 +145,9 @@ La Piattaforma mette a disposizione del Partner un sistema completo di acquisizi
 - prenota automaticamente gli appuntamenti e invia conferma al lead e notifica al Partner;
 - passa al Partner soltanto i lead qualificati e con appuntamento fissato.
 
-### 3.3. SilvIA — Intelligenza Artificiale Personalizzata Strutturata a Livelli
+### 3.3. Intelligenza Artificiale Personalizzata — Strutturata a Livelli
 
-La Piattaforma consente al Partner di creare e offrire ai propri clienti un'intelligenza artificiale personalizzata, denominata "SilvIA", strutturata su due livelli di servizio:
+La Piattaforma Orbitale consente al Partner di creare e offrire ai propri clienti un'intelligenza artificiale personalizzata, strutturata su due livelli di servizio:
 
 **a) Licenza Gold — Il Pacchetto Completo:**
 - **Consulente AI addestrato con memoria**: l'AI ricorda ogni conversazione precedente con il cliente e riprende il discorso esattamente dove era stato lasciato. Conosce la situazione aggiornata del cliente, i suoi progressi, gli obiettivi e le preferenze comunicative;
@@ -442,7 +446,22 @@ Il Fornitore è titolare di tutti i dati generati dall'utilizzo della Piattaform
 - metriche di performance, statistiche e report;
 - dati di addestramento e miglioramento dell'intelligenza artificiale.
 
-### 11.3. Trattamento dei Dati Personali
+### 11.3. Segregazione e Riservatezza dei Dati tra Clienti Finali
+
+Il Fornitore garantisce la segregazione logica dei dati tra i diversi clienti finali del Partner e tra i diversi Partner all'interno della Piattaforma Orbitale. In particolare:
+
+- ogni cliente finale accede esclusivamente ai propri dati, ai propri percorsi formativi, ai propri esercizi e alle proprie conversazioni con l'Assistente AI;
+- i dati, i documenti e le conversazioni di un cliente finale non sono in alcun modo visibili o accessibili ad altri clienti finali dello stesso Partner o di altri Partner;
+- la Knowledge Base del Partner è separata da quella di altri Partner: ogni ambiente è indipendente e isolato;
+- l'Assistente AI, nell'interazione con un cliente finale Gold, utilizza esclusivamente la memoria e i documenti relativi a quel singolo cliente, senza contaminazione con dati di altri clienti;
+- il Partner può configurare in modo granulare quali documenti della Knowledge Base rendere disponibili all'AI del consulente, all'AI dei clienti o agli Agenti WhatsApp, mantenendo documenti interni (es: procedure, script di vendita) riservati al solo uso del consulente;
+- gli agenti AI WhatsApp operano nel contesto esclusivo del Partner che li ha creati, senza accesso a dati di altri Partner.
+
+### 11.4. Sicurezza dei Dati
+
+Il Fornitore adotta misure tecniche e organizzative adeguate a proteggere i dati trattati sulla Piattaforma da accessi non autorizzati, perdita, distruzione o alterazione, in conformità con lo stato dell'arte tecnologico e con la normativa vigente. Il Fornitore si impegna a effettuare backup periodici dei dati e a garantire la continuità del servizio nei limiti di quanto ragionevolmente praticabile.
+
+### 11.5. Trattamento dei Dati Personali
 
 Ciascuna Parte si impegna a trattare i dati personali nel rispetto del Regolamento (UE) 2016/679 (GDPR) e della normativa nazionale vigente in materia di protezione dei dati personali. Le Parti si impegnano a sottoscrivere, ove necessario, un accordo specifico per il trattamento dei dati personali (Data Processing Agreement).
 
