@@ -32,11 +32,13 @@ import {
   Code,
   CheckCircle,
   AlertCircle,
+  Download,
 } from "lucide-react";
 import BonusManager from "./bonus-manager";
 import AiContractChat from "./ai-contract-chat";
 import AiContractWizard from "./ai-contract-wizard";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
+import { getPartnershipContractHtml } from "@/data/partnership-contract-template";
 
 const templateFormSchema = insertContractTemplateSchema.omit({ createdBy: true });
 type TemplateForm = z.infer<typeof templateFormSchema>;
@@ -582,6 +584,27 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                             {"<!-- BLOCK:BONUS_LIST -->...<!-- END_BLOCK:BONUS_LIST -->"}
                           </code>
                         </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 mb-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl border-[#E5E7EB] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all duration-200"
+                          onClick={() => {
+                            const html = getPartnershipContractHtml();
+                            form.setValue("content", html);
+                            toast({
+                              title: "Template importato",
+                              description: "Il contratto di partnership è stato importato nel corpo del contratto.",
+                            });
+                          }}
+                          disabled={isPending}
+                        >
+                          <Download className="h-3.5 w-3.5 mr-1.5" />
+                          Importa Template Partnership
+                        </Button>
                       </div>
 
                       <HtmlEditorWithPreview
