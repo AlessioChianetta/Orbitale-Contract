@@ -12,25 +12,6 @@ export function getPartnershipContractHtml(): string {
 <li><strong>LIVELLO 2 — PROTEZIONE LEGALE</strong>: disciplina la proprietà intellettuale, la responsabilità, le clausole restrittive, la risoluzione e il foro competente.</li>
 </ul>
 
-<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">PARTI CONTRAENTI</h2>
-
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0;">
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #eef2ff, #dbeafe); border: 1px solid #c7d2fe;">
-<h3 style="font-weight: bold; color: #3730a3; margin-bottom: 8px;">IL FORNITORE</h3>
-<p style="font-size: 13px; color: #475569;">Nome / Ragione Sociale: ______________________________</p>
-<p style="font-size: 13px; color: #475569;">CF / P.IVA: ______________________________</p>
-<p style="font-size: 13px; color: #475569;">Sede Legale: ______________________________</p>
-<p style="font-size: 13px; color: #475569;">PEC: ______________________________</p>
-</div>
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #f5f3ff, #fae8ff); border: 1px solid #ddd6fe;">
-<h3 style="font-weight: bold; color: #5b21b6; margin-bottom: 8px;">IL PARTNER</h3>
-<p style="font-size: 13px; color: #475569;">Nome / Ragione Sociale: ______________________________</p>
-<p style="font-size: 13px; color: #475569;">CF / P.IVA: ______________________________</p>
-<p style="font-size: 13px; color: #475569;">Sede Legale: ______________________________</p>
-<p style="font-size: 13px; color: #475569;">PEC: ______________________________</p>
-</div>
-</div>
-
 <div style="text-align: center; padding: 20px; border-radius: 12px; background: linear-gradient(90deg, #4f46e5, #2563eb); color: white; margin: 32px 0; font-weight: bold; font-size: 20px;">
 LIVELLO 1 — PARTE COMMERCIALE
 </div>
