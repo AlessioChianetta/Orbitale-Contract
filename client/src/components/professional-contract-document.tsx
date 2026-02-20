@@ -100,7 +100,7 @@ export default function ProfessionalContractDocument({
   afterDocumentContent,
 }: ProfessionalContractDocumentProps) {
   const [activeSection, setActiveSection] = useState("intestazione");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -206,18 +206,18 @@ export default function ProfessionalContractDocument({
 
   const documentContent = (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden print:shadow-none print:border-none print:rounded-none">
-      <div className="px-6 sm:px-10 lg:px-14 py-10 sm:py-14 space-y-10 contract-content">
+      <div className="px-4 sm:px-8 lg:px-14 py-6 sm:py-10 lg:py-14 space-y-10 contract-content">
         <div data-section="intestazione" className="space-y-6 pb-8 border-b border-slate-200">
-          <div className="flex justify-between items-start">
+          <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-4">
             <div>
               {company.logoUrl ? (
                 <img
                   src={company.logoUrl}
                   alt="Logo"
-                  className="max-w-[120px] max-h-[80px] object-contain"
+                  className="max-w-[100px] max-h-[60px] sm:max-w-[120px] sm:max-h-[80px] object-contain"
                 />
               ) : (
-                <div className="w-[120px] h-[80px] rounded bg-black flex flex-col items-center justify-center text-white">
+                <div className="w-[100px] h-[60px] sm:w-[120px] sm:h-[80px] rounded bg-black flex flex-col items-center justify-center text-white">
                   <span className="text-sm font-bold tracking-wide">
                     {p(company.companyName, "AZIENDA")
                       .substring(0, 8)
@@ -226,7 +226,7 @@ export default function ProfessionalContractDocument({
                 </div>
               )}
             </div>
-            <div className="text-right text-sm text-slate-600 space-y-0.5">
+            <div className="text-left sm:text-right text-sm text-slate-600 space-y-0.5 w-full sm:w-auto">
               <div className="font-semibold text-base text-slate-900">
                 {p(company.companyName, "Nome Azienda")}
               </div>
@@ -251,7 +251,7 @@ export default function ProfessionalContractDocument({
         </div>
 
         <section data-section="dati-cliente" className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
             DATI DEL CLIENTE / COMMITTENTE
           </h2>
 
@@ -433,7 +433,7 @@ export default function ProfessionalContractDocument({
 
         {hasCustomContent && (
           <section data-section="contenuto-personalizzato" className="space-y-4">
-            <h2 className="text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
               CONTENUTO PERSONALIZZATO
             </h2>
             <div
@@ -447,12 +447,12 @@ export default function ProfessionalContractDocument({
 
         {isPartnership && (
           <section data-section="piano-pagamenti" className="space-y-4">
-            <h2 className="text-xl font-bold text-slate-800 border-l-4 border-amber-500 pl-4">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-amber-500 pl-4">
               MODELLO DI PARTNERSHIP
             </h2>
-            <div className="p-5 rounded-xl bg-gradient-to-br from-amber-50/80 to-yellow-50/40 border border-amber-200">
+            <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-br from-amber-50/80 to-yellow-50/40 border border-amber-200">
               <div className="text-center mb-4">
-                <span className="inline-block px-4 py-2 bg-amber-400 rounded-lg text-amber-900 font-bold text-lg">
+                <span className="inline-block px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-400 rounded-lg text-amber-900 font-bold text-sm sm:text-lg">
                   Percentuale: {contract!.partnershipPercentage}% sul
                   fatturato TOTALE
                 </span>
@@ -529,10 +529,10 @@ export default function ProfessionalContractDocument({
 
         {!isPartnership && hasPaymentPlan && (
           <section data-section="piano-pagamenti" className="space-y-4">
-            <h2 className="text-xl font-bold text-slate-800 border-l-4 border-blue-500 pl-4">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-blue-500 pl-4">
               PIANO PAGAMENTI
             </h2>
-            <div className="p-5 rounded-xl bg-gradient-to-br from-blue-50/80 to-indigo-50/40 border border-blue-200">
+            <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-br from-blue-50/80 to-indigo-50/40 border border-blue-200">
               <p className="text-sm text-blue-800 font-semibold mb-4">
                 Il prezzo totale di {totalAmount} EUR + IVA sarà
                 corrisposto con le seguenti modalità:
@@ -568,7 +568,7 @@ export default function ProfessionalContractDocument({
 
         {hasPaymentText && (
           <section data-section="condizioni-pagamento" className="space-y-4">
-            <h2 className="text-xl font-bold text-slate-800 border-l-4 border-blue-500 pl-4">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-blue-500 pl-4">
               CONDIZIONI DI PAGAMENTO
             </h2>
             <div
@@ -582,7 +582,7 @@ export default function ProfessionalContractDocument({
 
         {hasContent && (
           <section data-section="corpo-contratto" className="space-y-4">
-            <h2 className="text-xl font-bold text-slate-800 border-l-4 border-violet-500 pl-4">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-violet-500 pl-4">
               CORPO DEL CONTRATTO
             </h2>
             <div
@@ -594,7 +594,7 @@ export default function ProfessionalContractDocument({
 
         {hasBonuses && (
           <section data-section="bonus" className="space-y-4">
-            <h2 className="text-xl font-bold text-slate-800 border-l-4 border-emerald-500 pl-4">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-emerald-500 pl-4">
               BONUS INCLUSI
             </h2>
             <div className="space-y-3">
@@ -604,7 +604,7 @@ export default function ProfessionalContractDocument({
                   className="p-4 rounded-r-xl border-l-4 border-emerald-500 bg-gradient-to-br from-emerald-50/80 to-green-50/40"
                 >
                   <div className="flex items-start gap-3">
-                    <Gift className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <Gift className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-sm font-semibold text-emerald-800">
                         Bonus {index + 1}
@@ -621,10 +621,10 @@ export default function ProfessionalContractDocument({
         )}
 
         <section data-section="validita" className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
             VALIDITÀ DEL CONTRATTO
           </h2>
-          <div className="p-5 rounded-xl bg-gradient-to-br from-indigo-50/80 to-blue-50/40 border border-indigo-100">
+          <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-br from-indigo-50/80 to-blue-50/40 border border-indigo-100">
             <div className="flex items-start gap-3">
               <Calendar className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" />
               <div className="space-y-2 text-sm text-slate-700">
@@ -662,10 +662,10 @@ export default function ProfessionalContractDocument({
         </section>
 
         <section data-section="autorinnovo" className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-800 border-l-4 border-violet-500 pl-4">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-violet-500 pl-4">
             CLAUSOLA DI AUTORINNOVO
           </h2>
-          <div className="p-5 rounded-xl bg-gradient-to-br from-violet-50/80 to-purple-50/40 border border-violet-100">
+          <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-br from-violet-50/80 to-purple-50/40 border border-violet-100">
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-violet-600 mt-0.5 flex-shrink-0" />
               <div className="space-y-2 text-sm text-slate-700">
@@ -695,10 +695,10 @@ export default function ProfessionalContractDocument({
         </section>
 
         <section data-section="firma" className="space-y-4">
-          <h2 className="text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
             DICHIARAZIONI E FIRMA
           </h2>
-          <div className="p-5 rounded-xl bg-gradient-to-br from-slate-50/80 to-gray-50/40 border border-slate-200">
+          <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-br from-slate-50/80 to-gray-50/40 border border-slate-200">
             <div className="space-y-3 text-sm text-slate-700">
               <p className="leading-relaxed">
                 Con la sottoscrizione del presente contratto, il Cliente
@@ -747,13 +747,13 @@ export default function ProfessionalContractDocument({
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 flex flex-col overflow-hidden">
       <header className="flex-shrink-0 z-50 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl">
-        <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
+        <div className="flex items-center justify-between px-3 sm:px-6 lg:px-8 h-14 sm:h-16">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-              <FileText className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent leading-tight">
+              <h1 className="text-base sm:text-lg font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent leading-tight">
                 {template?.name || company.contractTitle || "Contratto"}
               </h1>
               <p className="text-xs text-slate-500 hidden sm:block">
@@ -791,7 +791,9 @@ export default function ProfessionalContractDocument({
         <aside
           className={`${
             sidebarOpen ? "w-72 xl:w-80" : "w-0"
-          } transition-all duration-300 border-r border-slate-200/60 bg-white/60 backdrop-blur-sm flex-shrink-0 overflow-hidden print:hidden`}
+          } transition-all duration-300 border-r border-slate-200/60 bg-white/95 backdrop-blur-sm flex-shrink-0 overflow-hidden print:hidden ${
+            sidebarOpen ? "max-lg:fixed max-lg:left-0 max-lg:top-14 max-lg:bottom-0 max-lg:z-40 max-lg:shadow-2xl" : ""
+          }`}
         >
           <div className="h-full overflow-y-auto">
             <div className="p-4">
@@ -821,8 +823,15 @@ export default function ProfessionalContractDocument({
           </div>
         </aside>
 
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/20 z-30 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         <main ref={contentRef} className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-4 sm:px-8 lg:px-12 py-8 sm:py-12">
+          <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-12 py-4 sm:py-8 lg:py-12">
             {documentContent}
             {afterDocumentContent && (
               <div className="mt-8">
@@ -836,7 +845,7 @@ export default function ProfessionalContractDocument({
       {showScrollTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-6 right-6 z-40 w-10 h-10 rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-200 flex items-center justify-center hover:bg-indigo-700 transition-colors print:hidden"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 w-10 h-10 rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-200 flex items-center justify-center hover:bg-indigo-700 transition-colors print:hidden"
         >
           <ArrowUp className="w-5 h-5" />
         </button>
