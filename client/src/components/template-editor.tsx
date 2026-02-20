@@ -369,7 +369,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
         >
           <div className="flex-1 flex overflow-hidden">
             {/* AI SIDEBAR - LEFT */}
-            <div className="w-[380px] min-w-[380px] bg-[#F8F9FC] border-r border-[#E5E7EB]/50 flex flex-col overflow-hidden">
+            <div className="w-[480px] min-w-[420px] max-w-[40%] bg-[#F8F9FC] border-r border-[#E5E7EB]/50 flex flex-col overflow-hidden">
               <div className="px-5 pt-5 pb-3">
                 <div className="flex items-center gap-2.5 mb-4">
                   <div className="p-1.5 bg-gradient-to-br from-[#4F46E5]/10 to-[#7C3AED]/10 rounded-lg">
@@ -404,7 +404,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto px-4 pb-4">
+              <div className="flex-1 overflow-y-auto px-4 pb-3 flex flex-col">
                 {aiTab === "wizard" ? (
                   <AiContractWizard onContractGenerated={handleAiContractGenerated} />
                 ) : (
