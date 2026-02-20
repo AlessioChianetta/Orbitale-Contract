@@ -12,6 +12,7 @@ import SellerDashboard from "@/pages/seller-dashboard";
 import ClientView from "@/pages/client-view";
 import CompanySettings from "./pages/company-settings";
 import UserManagement from "./pages/user-management";
+import ContractView from "./pages/contract-view";
 
 function Router() {
   return (
@@ -21,6 +22,7 @@ function Router() {
       <ProtectedRoute path="/seller" component={SellerDashboard} />
       <ProtectedRoute path="/company-settings" component={CompanySettings} />
       <ProtectedRoute path="/user-management" component={UserManagement} />
+      <Route path="/contratto" component={ContractView} />
       <Route path="/client/:code" component={ClientView} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
