@@ -849,6 +849,57 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.post("/api/contracts/:id/regenerate-pdf", requireAuth, async (req, res) => {
+    try {
+      const contractId = parseInt(req.params.id);
+      const contract = await storage.getContract(contractId, req.user.companyId);
+
+      if (!contract) {
+        return res.status(404).json({ message: "Contract not found" });
+      }
+
+      if (req.user.role === "seller" && contract.sellerId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (contract.status !== "signed") {
+        return res.status(400).json({ message: "Only signed contracts can have their PDF regenerated" });
+      }
+
+      const auditLogs = await storage.getContractAuditLogs(contractId);
+      const seller = contract.sellerId ? await storage.getUser(contract.sellerId) : null;
+      const template = await storage.getTemplate(contract.templateId, req.user.companyId);
+      const pdfCompanySettings = await storage.getCompanySettings(req.user.companyId);
+
+      const contractForPdf = {
+        id: contract.id,
+        templateName: template?.name || 'Contratto',
+        generatedContent: contract.generatedContent,
+        clientData: contract.clientData,
+        totalValue: contract.totalValue,
+        template: template,
+        status: "signed",
+        signatures: contract.signatures || {},
+        signedAt: contract.signedAt,
+        createdAt: contract.createdAt,
+        contractStartDate: contract.contractStartDate,
+        contractEndDate: contract.contractEndDate,
+        autoRenewal: contract.autoRenewal,
+        renewalDuration: contract.renewalDuration,
+        isPercentagePartnership: contract.isPercentagePartnership,
+        partnershipPercentage: contract.partnershipPercentage
+      };
+
+      const finalPdfPath = await generatePDF(contractId, contract.generatedContent, auditLogs, contractForPdf, pdfCompanySettings);
+      await storage.updateContract(contractId, { pdfPath: finalPdfPath });
+
+      res.json({ message: "PDF rigenerato con successo", pdfPath: finalPdfPath });
+    } catch (error: any) {
+      console.error("PDF regeneration error:", error);
+      res.status(500).json({ message: "Failed to regenerate PDF", error: error.message });
+    }
+  });
+
   // Get contract stats (for dashboards)
   app.get("/api/stats", requireAuth, async (req, res) => {
     try {

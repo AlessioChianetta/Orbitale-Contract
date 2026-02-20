@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,8 @@ import {
   Download, 
   Copy,
   Edit,
-  Bus
+  Bus,
+  RefreshCw
 } from "lucide-react";
 import ContractForm from "@/components/contract-form";
 import { Link } from "wouter";
@@ -67,6 +68,38 @@ export default function SellerDashboard() {
         description: "Impossibile scaricare il PDF",
         variant: "destructive"
       });
+    }
+  };
+
+  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
+
+  const regeneratePDF = async (contractId: number) => {
+    setRegeneratingId(contractId);
+    try {
+      const response = await fetch(`/api/contracts/${contractId}/regenerate-pdf`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to regenerate PDF');
+      }
+
+      toast({
+        title: "PDF rigenerato",
+        description: "Il PDF è stato rigenerato con successo. Puoi scaricarlo ora."
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+    } catch (error: any) {
+      toast({
+        title: "Errore rigenerazione",
+        description: error.message || "Impossibile rigenerare il PDF",
+        variant: "destructive"
+      });
+    } finally {
+      setRegeneratingId(null);
     }
   };
 
@@ -336,6 +369,17 @@ export default function SellerDashboard() {
                                   title="Modifica contratto"
                                 >
                                   <Edit className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {contract.status === "signed" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => regeneratePDF(contract.id)}
+                                  disabled={regeneratingId === contract.id}
+                                  title="Rigenera PDF"
+                                >
+                                  <RefreshCw className={`h-4 w-4 ${regeneratingId === contract.id ? 'animate-spin' : ''}`} />
                                 </Button>
                               )}
                               {contract.status === "signed" && contract.pdfPath && (
