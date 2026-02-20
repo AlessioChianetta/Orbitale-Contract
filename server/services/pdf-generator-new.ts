@@ -105,7 +105,6 @@ export async function generatePDF(
 function generateClientViewIdenticalHtml(contractData: any, companySettings?: any): string {
   const client = contractData.clientData || {};
 
-  // Use company settings or fallback to defaults
   const company = companySettings || {
     companyName: 'ALE srl',
     address: 'ale, 11',
@@ -118,17 +117,14 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
     contractTitle: 'Contratto '
   };
 
-  // Combine predefined bonuses from template with manual bonuses (exactly like client-view)
   let combinedBonusList = [];
 
-  // Add predefined bonuses from template
   if (contractData.template?.predefinedBonuses && Array.isArray(contractData.template.predefinedBonuses)) {
     combinedBonusList = contractData.template.predefinedBonuses.map((bonus: any) => ({
       bonus_descrizione: bonus.description + (bonus.value ? ` (${bonus.value}${bonus.type === 'percentage' ? '%' : '€'})` : '')
     }));
   }
 
-  // Add manual bonuses from client data
   if (client.bonus_list && Array.isArray(client.bonus_list)) {
     combinedBonusList = [...combinedBonusList, ...client.bonus_list];
   }
@@ -155,6 +151,17 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       rata_scadenza: formattedDate
     };
   });
+
+  const isPartnership = contractData.isPercentagePartnership && contractData.partnershipPercentage;
+  const hasPaymentPlan = paymentPlan.length > 0;
+  const hasCustomContent = !!contractData.template?.customContent;
+  const hasPaymentText = !!contractData.template?.paymentText;
+  const hasContent = !!contractData.template?.content;
+  const hasBonuses = bonusList.length > 0;
+  const renewalDuration = contractData.renewalDuration || 12;
+  const contractStartDate = contractData.contractStartDate || contractData.createdAt;
+  const contractEndDate = contractData.contractEndDate;
+  const totalAmount = paymentPlan.reduce((sum: number, payment: any) => sum + parseFloat(payment.rata_importo || '0'), 0).toFixed(2);
 
   return `
     <!DOCTYPE html>
@@ -188,12 +195,11 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           margin: 15mm;
         }
 
-        /* Header with CODICE 1% Logo and Company Info - Professional Layout */
         .header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin-bottom: 40px;
+          margin-bottom: 24px;
           padding-bottom: 20px;
           border-bottom: 2px solid #e5e7eb;
         }
@@ -204,24 +210,19 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           padding: 20px; 
           font-weight: 700; 
           text-align: center;
-          width: 140px;
-          height: 90px;
+          width: 120px;
+          height: 80px;
           display: flex;
           flex-direction: column;
           justify-content: center;
           align-items: center;
           border-radius: 4px;
         }
-        .logo div:first-child { 
-          font-size: 18px; 
+        .logo .logo-text { 
+          font-size: 14px; 
           line-height: 1;
           letter-spacing: 0.05em;
-        }
-        .logo div:last-child { 
-          font-size: 36px; 
-          line-height: 1;
-          margin-top: 4px;
-          font-weight: 800;
+          font-weight: 700;
         }
 
         .company-info {
@@ -237,17 +238,43 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           margin-bottom: 4px;
         }
 
-        /* Contract Title */
         .contract-title {
           font-weight: 700;
           font-size: 24px;
-          margin-bottom: 32px;
+          margin: 24px 0 32px 0;
           color: #111827;
           text-align: center;
           letter-spacing: -0.02em;
         }
 
-        /* Client Data Table - Professional Design */
+        .section-header {
+          font-size: 14pt;
+          font-weight: 700;
+          color: #1e293b;
+          border-left: 4px solid #6366f1;
+          padding-left: 12px;
+          margin: 32px 0 16px 0;
+        }
+
+        .section-header.commercial { border-left-color: #6366f1; }
+        .section-header.legal { border-left-color: #8b5cf6; }
+        .section-header.payment { border-left-color: #3b82f6; }
+        .section-header.bonus { border-left-color: #10b981; }
+        .section-header.validity { border-left-color: #6366f1; }
+
+        .section-card {
+          padding: 20px;
+          border-radius: 12px;
+          margin: 16px 0 32px 0;
+          page-break-inside: avoid;
+        }
+
+        .section-card.blue { background-color: #eff6ff; border: 1px solid #bfdbfe; }
+        .section-card.amber { background-color: #fffbeb; border: 1px solid #fde68a; }
+        .section-card.indigo { background-color: #eff6ff; border: 1px solid #c7d2fe; }
+        .section-card.violet { background-color: #f5f3ff; border: 1px solid #ddd6fe; }
+        .section-card.slate { background-color: #f8fafc; border: 1px solid #e2e8f0; }
+
         .client-table { 
           width: 100%; 
           border-collapse: collapse; 
@@ -255,7 +282,8 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           border: 1px solid #d1d5db;
           font-size: 10pt;
           background: white;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          border-radius: 12px;
+          overflow: hidden;
         }
 
         .client-table-header { 
@@ -299,70 +327,35 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           border-right: none;
         }
 
-        /* Payment Plan - Modern Professional Style */
-        .payment-plan {
-          border: 2px solid #3b82f6;
-          border-radius: 8px;
-          padding: 20px;
-          margin: 32px 0;
-          background-color: #f0f9ff;
-        }
-
-        .payment-plan .title {
-          font-weight: 600;
-          margin-bottom: 12px;
-          color: #1e40af;
-          font-size: 11pt;
-        }
-
-        .payment-plan ul {
-          margin: 0;
-          padding-left: 20px;
-          list-style-type: none;
-        }
-
-        .payment-plan li {
-          margin-bottom: 8px;
-          position: relative;
-          padding-left: 20px;
+        .template-content {
+          font-size: 10pt;
           color: #374151;
-        }
-
-        .payment-plan li:before {
-          content: "▸";
-          position: absolute;
-          left: 0;
-          color: #3b82f6;
-          font-weight: 600;
-        }
-
-        /* Additional Payment Text */
-        .payment-text {
-          margin: 32px 0;
-          text-align: justify;
           line-height: 1.7;
-          color: #374151;
         }
-
-        /* Bonuses - Professional Card Design */
-        .bonus-section {
-          margin: 32px 0;
-        }
+        .template-content p { margin-bottom: 12px; line-height: 1.7; }
+        .template-content ul, .template-content ol { margin: 12px 0; padding-left: 24px; }
+        .template-content li { margin-bottom: 6px; }
+        .template-content strong { font-weight: 600; color: #111827; }
+        .template-content em { font-style: italic; }
+        .template-content h1 { font-size: 20px; font-weight: 700; margin: 24px 0 12px 0; color: #111827; }
+        .template-content h2 { font-size: 18px; font-weight: 700; margin: 20px 0 10px 0; color: #111827; }
+        .template-content h3 { font-size: 16px; font-weight: 600; margin: 16px 0 8px 0; color: #111827; }
+        .template-content div { page-break-inside: avoid; }
 
         .bonus-item {
-          margin-bottom: 20px;
-          padding: 20px;
+          margin-bottom: 12px;
+          padding: 16px;
           border-left: 4px solid #10b981;
-          background-color: #f0fdf4;
-          border-radius: 0 8px 8px 0;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+          background: linear-gradient(to bottom right, rgba(236, 253, 245, 0.8), rgba(240, 253, 244, 0.4));
+          border-radius: 0 12px 12px 0;
+          page-break-inside: avoid;
         }
 
         .bonus-title {
           font-weight: 600;
           color: #065f46;
-          margin-bottom: 10px;
-          font-size: 11pt;
+          margin-bottom: 4px;
+          font-size: 10pt;
         }
 
         .bonus-description {
@@ -370,34 +363,6 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           line-height: 1.6;
           margin: 0;
           color: #374151;
-        }
-
-        /* Declaration and Signatures */
-        .declaration {
-          margin: 32px 0;
-          page-break-inside: avoid;
-        }
-
-        .declaration .title {
-          font-weight: 600;
-          margin-bottom: 12px;
-          font-size: 11pt;
-          color: #111827;
-        }
-
-        .declaration ul {
-          padding-left: 20px;
-          margin-bottom: 20px;
-          color: #374151;
-        }
-
-        .declaration li {
-          margin-bottom: 6px;
-        }
-
-        .signature-section {
-          margin: 40px 0;
-          page-break-inside: avoid;
         }
 
         .signature-area {
@@ -412,7 +377,6 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           justify-content: center;
           margin: 20px 0;
           page-break-inside: avoid;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         .signature-placeholder {
@@ -434,161 +398,62 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           padding: 10px;
         }
 
-        /* Privacy Consents */
-        .privacy-section {
-          margin: 40px 0;
-          page-break-inside: avoid;
-          background-color: #f9fafb;
-          padding: 24px;
-          border-radius: 8px;
-          border: 1px solid #e5e7eb;
-        }
-
-        .privacy-item {
-          margin-bottom: 28px;
-          page-break-inside: avoid;
-        }
-
-        .privacy-title {
-          font-weight: 600;
-          margin-bottom: 12px;
-          font-size: 11pt;
-          color: #111827;
-        }
-
-        .privacy-text {
-          margin-bottom: 12px;
-          line-height: 1.7;
+        .dot-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          font-size: 10pt;
           color: #374151;
-          text-align: justify;
+          margin-bottom: 8px;
         }
 
-        .consent-label {
-          font-weight: 600;
-          color: #111827;
+        .dot-item .dot {
           display: inline-block;
-          margin-top: 8px;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          margin-top: 6px;
+          flex-shrink: 0;
         }
 
-        /* Prevent orphans and widows */
         * {
           orphans: 3;
           widows: 3;
         }
 
-        /* Ensure sections don't break across pages */
         .bonus-item,
-        .payment-plan,
+        .section-card,
         .client-table,
-        .privacy-section,
-        .signature-section {
+        .signature-area {
           page-break-inside: avoid;
         }
-
-        /* Better spacing between major sections */
-        .payment-text {
-          page-break-inside: avoid;
-          margin: 32px 0;
-        }
-
-        /* Custom content formatting */
-        .custom-content-section {
-          margin: 32px 0;
-        }
-
-        .custom-content-section p {
-          margin-bottom: 16px;
-          text-align: justify;
-          line-height: 1.7;
-          color: #374151;
-        }
-
-        .custom-content-section ul,
-        .custom-content-section ol {
-          margin: 16px 0;
-          padding-left: 24px;
-        }
-
-        .custom-content-section li {
-          margin-bottom: 8px;
-          color: #374151;
-        }
-
-        .custom-content-section strong {
-          font-weight: 600;
-          color: #111827;
-        }
-
-        .custom-content-section em {
-          font-style: italic;
-        }
-
-        .custom-content-section h1,
-        .custom-content-section h2,
-        .custom-content-section h3 {
-          font-weight: 700;
-          margin: 24px 0 12px 0;
-          color: #111827;
-        }
-
-        .custom-content-section h1 { font-size: 20px; }
-        .custom-content-section h2 { font-size: 18px; }
-        .custom-content-section h3 { font-size: 16px; }
-
-        .section-header {
-          font-size: 14pt;
-          font-weight: 700;
-          color: #1e293b;
-          border-left: 4px solid #6366f1;
-          padding-left: 12px;
-          margin: 32px 0 16px 0;
-        }
-
-        .section-header.commercial { border-left-color: #6366f1; }
-        .section-header.legal { border-left-color: #8b5cf6; }
-        .section-header.payment { border-left-color: #3b82f6; }
-        .section-header.bonus { border-left-color: #10b981; }
-        .section-header.validity { border-left-color: #f59e0b; }
-
-        .section-card {
-          padding: 20px;
-          border-radius: 12px;
-          margin: 16px 0 32px 0;
-          page-break-inside: avoid;
-        }
-
-        .section-card.blue { background-color: #eff6ff; border: 1px solid #bfdbfe; }
-        .section-card.amber { background-color: #fffbeb; border: 1px solid #fde68a; }
-        .section-card.green { background-color: #f0fdf4; border: 1px solid #bbf7d0; }
-        .section-card.violet { background-color: #f5f3ff; border: 1px solid #ddd6fe; }
       </style>
     </head>
     <body>
-      <!-- Header with Logo and Company Info -->
+
+      <!-- 1. INTESTAZIONE -->
       <div class="header">
         ${company.logoUrl ? 
           `<img src="${company.logoUrl}" alt="Logo" style="max-width: 120px; max-height: 80px; object-fit: contain;" />` :
           `<div class="logo">
-            <div>CODICE</div>
-            <div>1%</div>
+            <div class="logo-text">${(company.companyName || 'AZIENDA').substring(0, 8).toUpperCase()}</div>
           </div>`
         }
         <div class="company-info">
           <div class="company-name">${company.companyName || 'ALE srl'}</div>
-          <div>${company.address || ', 39'} Cap ${company.postalCode || '20143'} ${company.city || 'Capo dorlando'} (MI)</div>
+          <div>${company.address || ', 39'} Cap ${company.postalCode || '20143'} ${company.city || 'Capo dorlando'}</div>
           <div>C.F. e P.I. ${company.taxId || '0000000000'}</div>
           <div>Codice univoco: ${company.uniqueCode || 'M5UXCR1'}</div>
           <div>Pec: ${company.pec || 'ALE@casellapec.com'}</div>
         </div>
       </div>
 
-      <!-- Contract Title -->
       <div class="contract-title">
-        ${contractData.template?.name || contractData.templateName || company.contractTitle || 'Contratto FAST TRACK VENDITE'}
+        ${contractData.template?.name || contractData.templateName || company.contractTitle || 'Contratto'}
       </div>
 
-      <!-- Client Data Table -->
-      <h2 class="section-header commercial">Dati del Cliente / Committente</h2>
+      <!-- 2. DATI CLIENTE -->
+      <h2 class="section-header commercial">DATI DEL CLIENTE / COMMITTENTE</h2>
       <table class="client-table">
         <tr>
           <td colspan="2" class="client-table-header full-width">
@@ -615,164 +480,184 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           <td colspan="2" class="full-width">Numero iscrizione al REA o al registro delle imprese ${client.rea || ''}</td>
         </tr>
         <tr>
-          <td colspan="2" class="full-width">In persona del suo legale rappresentante p.t.</td>
+          <td colspan="2" class="full-width" style="font-style: italic; color: #475569;">In persona del suo legale rappresentante p.t.</td>
         </tr>
         <tr>
-          <td ><strong>Signor./a.</strong> ${client.cliente_nome || ''}</td>
-          <td ><strong>Nato a</strong> ${client.nato_a || ''}</td>
+          <td><strong>Signor./a.</strong> ${client.cliente_nome || ''}</td>
+          <td><strong>Nato a</strong> ${client.nato_a || ''}</td>
         </tr>
         <tr>
-          <td ><strong>Data di nascita</strong> ${client.data_nascita ? new Date(client.data_nascita).toLocaleDateString('it-IT') : ''}</td>
-          <td ><strong>Residente a</strong> ${client.residente_a || ''}</td>
+          <td><strong>Data di nascita</strong> ${client.data_nascita ? new Date(client.data_nascita).toLocaleDateString('it-IT') : ''}</td>
+          <td><strong>Residente a</strong> ${client.residente_a || ''}</td>
         </tr>
         <tr>
           <td colspan="2" class="full-width"><strong>Indirizzo di residenza:</strong> ${client.indirizzo_residenza || ''}</td>
         </tr>
       </table>
 
-      <!-- Payment Section - Show partnership model OR payment plan OR template text -->
-      <h2 class="section-header payment">Piano Economico</h2>
-      ${contractData.isPercentagePartnership && contractData.partnershipPercentage ? `
-      <div class="payment-plan" style="background-color: #fef3c7; border: 3px solid #f59e0b; border-radius: 12px; padding: 24px; margin: 24px 0; page-break-inside: avoid;">
-        <div class="title" style="color: #92400e; text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 16px;">
-          🤝 MODELLO DI PARTNERSHIP
-        </div>
-        <div style="text-align: center; margin-bottom: 20px; padding: 12px; background-color: #fbbf24; border-radius: 8px;">
-          <span style="font-size: 18px; font-weight: bold; color: #78350f;">
-            Percentuale: ${contractData.partnershipPercentage}% sul fatturato TOTALE
-          </span>
-        </div>
-
-        <div style="margin-top: 20px;">
-          <h4 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #92400e; border-bottom: 2px solid #f59e0b; padding-bottom: 4px;">📊 DEFINIZIONE DI FATTURATO TOTALE</h4>
-          <p style="font-size: 13px; line-height: 1.6; margin-bottom: 10px;">Per "fatturato TOTALE" si intende la somma di tutti i ricavi lordi generati dall'attività, comprensivi di:</p>
-          <ul style="font-size: 13px; margin: 10px 0; padding-left: 20px; line-height: 1.6;">
-            <li>Vendite di cibo e bevande</li>
-            <li>Servizi di catering e delivery</li>
-            <li>Eventi privati e prenotazioni speciali</li>
-            <li>Qualsiasi altro ricavo direttamente collegato all'attività</li>
-          </ul>
-
-          <h4 style="font-size: 15px; font-weight: 600; margin: 20px 0 12px 0; color: #92400e; border-bottom: 2px solid #f59e0b; padding-bottom: 4px;">💰 MODALITÀ DI CALCOLO E PAGAMENTO</h4>
-          <p style="font-size: 13px; line-height: 1.6; margin-bottom: 12px;">Il pagamento della percentuale sarà calcolato mensilmente sul fatturato TOTALE del mese precedente e dovrà essere corrisposto entro il 15 del mese successivo tramite bonifico bancario.</p>
-
-          <h4 style="font-size: 15px; font-weight: 600; margin: 20px 0 12px 0; color: #92400e; border-bottom: 2px solid #f59e0b; padding-bottom: 4px;">📋 TRASPARENZA E RENDICONTAZIONE</h4>
-          <p style="font-size: 13px; line-height: 1.6; margin-bottom: 10px;">Il Cliente si impegna a fornire mensilmente la documentazione contabile necessaria per il calcolo della percentuale dovuta, inclusi:</p>
-          <ul style="font-size: 13px; margin: 10px 0; padding-left: 20px; line-height: 1.6;">
-            <li>Estratti conto del registratore di cassa o POS</li>
-            <li>Fatture emesse nel periodo di riferimento</li>
-            <li>Dichiarazioni IVA periodiche</li>
-            <li>Report di fatturato certificati dal commercialista</li>
-          </ul>
-
-          <h4 style="font-size: 15px; font-weight: 600; margin: 20px 0 12px 0; color: #92400e; border-bottom: 2px solid #f59e0b; padding-bottom: 4px;">⚠️ PENALI PER RITARDATO PAGAMENTO</h4>
-          <p style="font-size: 13px; line-height: 1.6; margin-bottom: 12px;">In caso di ritardo nel pagamento della percentuale dovuta, saranno applicate penali pari al 2% dell'importo dovuto per ogni mese di ritardo, oltre agli interessi legali.</p>
-
-          <div style="background-color: #fee2e2; border: 2px solid #fca5a5; border-radius: 8px; padding: 16px; margin-top: 20px;">
-            <p style="font-size: 14px; color: #991b1b; margin: 0; font-weight: bold; text-align: center;">
-              ⚡ IMPORTANTE: Questo modello di partnership sostituisce qualsiasi piano di pagamento fisso. Il compenso sarà calcolato esclusivamente come percentuale del fatturato totale.
-            </p>
-          </div>
-        </div>
-        </div>
-
-        <div style="margin-top: 16px;">
-          <h4 style="font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #92400e;">MODALITÀ DI PAGAMENTO</h4>
-          <ul style="font-size: 12px;">
-            <li>Comunicazione mensile del fatturato entro il giorno 5 del mese successivo</li>
-            <li>Versamento della percentuale concordata entro il giorno 15 del mese successivo</li>
-            <li>Documentazione contabile a supporto dei dati comunicati</li>
-          </ul>
-        </div>
-      </div>
-      ` : paymentPlan.length > 0 ? `
-      <div class="payment-plan">
-        <div class="title">Il prezzo totale di ${paymentPlan.reduce((sum: number, payment: any) => sum + parseFloat(payment.rata_importo), 0).toFixed(2)} EUR + IVA sarà corrisposto con le seguenti modalità:</div>
-        <ul>
-          ${paymentPlan.map((payment: any, index: number) => `
-            <li>
-              Pagamento ${index + 1} di EUR ${payment.rata_importo} + IVA entro il ${payment.rata_scadenza}
-            </li>
-          `).join('')}
-        </ul>
-      </div>
-      ` : contractData.template?.paymentText ? `
-      <div class="payment-text">
-        <p style="margin-bottom: 16px;">${contractData.template.paymentText}</p>
-      </div>
-      ` : ''}
-
-      <!-- Custom Content Section -->
-      ${contractData.template?.customContent ? '<h2 class="section-header commercial">Contenuto Personalizzato</h2>' : ''}
-      ${contractData.template?.customContent ? `
-      <div class="custom-content-section">
+      <!-- 3. CONTENUTO PERSONALIZZATO -->
+      ${hasCustomContent ? `
+      <h2 class="section-header commercial">CONTENUTO PERSONALIZZATO</h2>
+      <div class="template-content">
         ${contractData.template.customContent}
       </div>
       ` : ''}
 
-      <!-- Bonuses -->
-      ${bonusList.length > 0 ? '<h2 class="section-header bonus">Bonus Inclusi</h2>' : ''}
-      ${bonusList.length > 0 ? `
-      <div class="bonus-section">
+      <!-- 4. PIANO PAGAMENTI -->
+      ${isPartnership ? `
+      <h2 class="section-header" style="border-left-color: #f59e0b;">MODELLO DI PARTNERSHIP</h2>
+      <div class="section-card amber" style="page-break-inside: avoid;">
+        <div style="text-align: center; margin-bottom: 16px;">
+          <span style="display: inline-block; padding: 8px 16px; background-color: #fbbf24; border-radius: 8px; font-size: 16px; font-weight: 700; color: #78350f;">
+            Percentuale: ${contractData.partnershipPercentage}% sul fatturato TOTALE
+          </span>
+        </div>
+        <div style="font-size: 10pt; color: #374151;">
+          <div style="margin-bottom: 16px;">
+            <h4 style="font-size: 12pt; font-weight: 600; color: #92400e; margin-bottom: 8px;">DEFINIZIONE DI FATTURATO TOTALE</h4>
+            <p style="line-height: 1.6; margin-bottom: 8px;">Per "fatturato TOTALE" si intende la somma di tutti i ricavi lordi generati dall'attività, comprensivi di:</p>
+            <ul style="margin: 8px 0; padding-left: 20px; line-height: 1.6;">
+              <li>Vendite di cibo e bevande</li>
+              <li>Servizi di catering e delivery</li>
+              <li>Eventi privati e prenotazioni speciali</li>
+              <li>Qualsiasi altro ricavo direttamente collegato all'attività</li>
+            </ul>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <h4 style="font-size: 12pt; font-weight: 600; color: #92400e; margin-bottom: 8px;">MODALITÀ DI CALCOLO E PAGAMENTO</h4>
+            <p style="line-height: 1.6;">Il pagamento della percentuale sarà calcolato mensilmente sul fatturato TOTALE del mese precedente e dovrà essere corrisposto entro il 15 del mese successivo tramite bonifico bancario.</p>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <h4 style="font-size: 12pt; font-weight: 600; color: #92400e; margin-bottom: 8px;">TRASPARENZA E RENDICONTAZIONE</h4>
+            <p style="line-height: 1.6; margin-bottom: 8px;">Il Cliente si impegna a fornire mensilmente la documentazione contabile necessaria per il calcolo della percentuale dovuta, inclusi:</p>
+            <ul style="margin: 8px 0; padding-left: 20px; line-height: 1.6;">
+              <li>Estratti conto del registratore di cassa o POS</li>
+              <li>Fatture emesse nel periodo di riferimento</li>
+              <li>Dichiarazioni IVA periodiche</li>
+              <li>Report di fatturato certificati dal commercialista</li>
+            </ul>
+          </div>
+          <div style="padding: 12px; background-color: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; text-align: center;">
+            <p style="font-size: 10pt; color: #991b1b; margin: 0; font-weight: 600;">
+              IMPORTANTE: Questo modello di partnership sostituisce qualsiasi piano di pagamento fisso. Il compenso sarà calcolato esclusivamente come percentuale del fatturato totale.
+            </p>
+          </div>
+        </div>
+      </div>
+      ` : hasPaymentPlan ? `
+      <h2 class="section-header payment">PIANO PAGAMENTI</h2>
+      <div class="section-card blue" style="page-break-inside: avoid;">
+        <p style="font-size: 10pt; color: #1e40af; font-weight: 600; margin-bottom: 12px;">
+          Il prezzo totale di ${totalAmount} EUR + IVA sarà corrisposto con le seguenti modalità:
+        </p>
+        <div>
+          ${paymentPlan.map((payment: any, index: number) => `
+            <div class="dot-item">
+              <span class="dot" style="background-color: #3b82f6;"></span>
+              <span>Pagamento ${payment.rata_numero || index + 1} di EUR <strong>${payment.rata_importo}</strong> + IVA entro il <strong>${payment.rata_scadenza}</strong></span>
+            </div>
+          `).join('')}
+        </div>
+        ${usingCustomInstallments ? `<p style="font-size: 9pt; color: #2563eb; margin-top: 12px; font-style: italic;">Piano di pagamento personalizzato</p>` : ''}
+      </div>
+      ` : ''}
+
+      <!-- 5. CONDIZIONI DI PAGAMENTO -->
+      ${hasPaymentText ? `
+      <h2 class="section-header payment">CONDIZIONI DI PAGAMENTO</h2>
+      <div class="template-content">
+        ${contractData.template.paymentText}
+      </div>
+      ` : ''}
+
+      <!-- 6. CORPO DEL CONTRATTO -->
+      ${hasContent ? `
+      <h2 class="section-header legal" style="page-break-before: always;">CORPO DEL CONTRATTO</h2>
+      <div class="template-content">
+        ${contractData.template.content}
+      </div>
+      ` : ''}
+
+      <!-- 7. BONUS INCLUSI -->
+      ${hasBonuses ? `
+      <h2 class="section-header bonus">BONUS INCLUSI</h2>
+      <div>
         ${bonusList.map((bonus: any, index: number) => `
           <div class="bonus-item">
-            <p class="bonus-title">BONUS #${index + 1}</p>
+            <p class="bonus-title">Bonus ${index + 1}</p>
             <p class="bonus-description">${bonus.bonus_descrizione}</p>
           </div>
         `).join('')}
       </div>
       ` : ''}
 
-      <!-- Contract Validity Period -->
-      <h2 class="section-header validity">Validità del Contratto</h2>
-      <div class="section-card blue" style="text-align: center;">
-        <p style="font-size: 12pt; color: #1e40af; font-weight: 500;">
-          ${contractData.contractStartDate && contractData.contractEndDate ? 
-            `Il presente contratto ha validità dal ${formatDateSafe(contractData.contractStartDate)} al ${formatDateSafe(contractData.contractEndDate)}` :
-            `Il presente contratto ha validità dal ${formatDateSafe(contractData.createdAt || new Date())} al ${formatDateSafe(new Date(new Date(contractData.createdAt || new Date()).getTime() + 365 * 24 * 60 * 60 * 1000))}`
-          }
-        </p>
+      <!-- 8. VALIDITÀ DEL CONTRATTO -->
+      <h2 class="section-header validity">VALIDITÀ DEL CONTRATTO</h2>
+      <div class="section-card indigo">
+        <div style="font-size: 10pt; color: #374151;">
+          ${contractStartDate ? `<p style="margin-bottom: 8px;"><strong style="color: #111827;">Data di inizio:</strong> ${formatDateSafe(contractStartDate)}</p>` : ''}
+          ${contractEndDate ? `<p style="margin-bottom: 8px;"><strong style="color: #111827;">Data di scadenza:</strong> ${formatDateSafe(contractEndDate)}</p>` : ''}
+          ${contractData.signedAt ? `<p style="margin-bottom: 8px;"><strong style="color: #111827;">Firmato il:</strong> ${formatDateSafe(contractData.signedAt)}</p>` : ''}
+        </div>
       </div>
 
-      <!-- Auto Renewal Section - Always Active -->
-      <h2 class="section-header legal">Clausola di Autorinnovo</h2>
-      <div class="section-card green">
-        <p style="text-align: justify; line-height: 1.6; margin-bottom: 12px;">
-          <strong>Il presente contratto si rinnoverà automaticamente per ulteriori ${contractData.renewalDuration || 12} mesi</strong> alle stesse condizioni economiche e contrattuali, salvo disdetta da comunicarsi da una delle parti all'altra con preavviso di almeno 30 (trenta) giorni prima della scadenza mediante raccomandata A/R o PEC.
-        </p>
-        <p style="text-align: justify; line-height: 1.6; margin-bottom: 12px;">
-          In caso di mancata disdetta nei termini sopra indicati, il contratto si intenderà automaticamente rinnovato per un periodo pari a ${contractData.renewalDuration || 12} mesi, alle medesime condizioni del contratto originario.
-        </p>
-        <p style="text-align: justify; line-height: 1.6; font-size: 10pt; color: #6b7280;">
-          <em>Questa clausola è stata specificatamente accettata dal Cliente al momento della sottoscrizione del presente contratto.</em>
-        </p>
+      <!-- 9. CLAUSOLA DI AUTORINNOVO -->
+      <h2 class="section-header legal">CLAUSOLA DI AUTORINNOVO</h2>
+      <div class="section-card violet">
+        <div style="font-size: 10pt; color: #374151;">
+          <p style="line-height: 1.7; margin-bottom: 12px;">
+            Il presente contratto si intende tacitamente rinnovato per un periodo di <strong style="color: #111827;">${renewalDuration} mesi</strong> salvo disdetta da comunicarsi con un preavviso di almeno 30 giorni prima della scadenza mediante raccomandata A/R o PEC.
+          </p>
+          <p style="line-height: 1.7;">
+            In assenza di comunicazione di disdetta nei termini previsti, il contratto si rinnoverà automaticamente alle medesime condizioni economiche e contrattuali per ulteriori <strong style="color: #111827;">${renewalDuration} mesi</strong>.
+          </p>
+        </div>
       </div>
 
-      <!-- Unica sezione firma -->
-      <h2 class="section-header legal">Dichiarazioni e Firma</h2>
-      <div class="privacy-section" style="page-break-before: auto; margin-top: 40px;">
-        <div class="privacy-item" style="page-break-inside: avoid;">
-          <p class="privacy-title">Consenso per informazioni commerciali e attività promozionali.</p>
-          <p class="privacy-text">Presa visione dell'informativa generale allegata, consento che i miei dati anagrafici siano utilizzati dalle Società e/o comunicati a terzi che svolgono attività commerciali e promozionali per finalità di marketing effettuate anche al telefono, ivi compreso l'invio di materiale illustrativo relativo ai servizi e ai prodotti commercializzati.</p>
-          <p class="consent-label" style="margin-bottom: 16px;">Consenso</p>
-
-          <div class="signature-section" style="page-break-inside: avoid;">
-            <p style="margin-bottom: 16px;">Data ${new Date().toLocaleDateString('it-IT')} Luogo Milano <strong>firma Cliente/Committente</strong></p>
-            <div class="signature-area" style="page-break-inside: avoid; min-height: 100px;">
-              ${contractData.status === 'signed' && contractData.signatures?.marketing ? 
-                (contractData.signatures.marketing.startsWith('data:image') ? 
-                  `<img src="${contractData.signatures.marketing}" alt="Firma marketing" class="signature-image" style="max-height: 80px; border: 1px solid #ccc;" />` :
-                  `<div class="signature-text" style="font-family: 'Brush Script MT', cursive; font-size: 28px; color: #1f2937; font-weight: bold; padding: 8px;">${contractData.signatures.marketing}</div>`
-                ) :
-                `<div class="signature-placeholder">
-                  <div>✒️ Firma del cliente</div>
-                  <div style="font-size: 12px; margin-top: 4px;">Area firma digitale</div>
-                </div>`
-              }
+      <!-- 10. DICHIARAZIONI E FIRMA -->
+      <h2 class="section-header commercial">DICHIARAZIONI E FIRMA</h2>
+      <div class="section-card slate" style="page-break-inside: avoid;">
+        <div style="font-size: 10pt; color: #374151;">
+          <p style="line-height: 1.7; margin-bottom: 12px;">
+            Con la sottoscrizione del presente contratto, il Cliente dichiara:
+          </p>
+          <div style="margin-left: 8px;">
+            <div class="dot-item">
+              <span class="dot" style="background-color: #6366f1;"></span>
+              <span>di aver letto e compreso integralmente il contenuto del presente contratto;</span>
+            </div>
+            <div class="dot-item">
+              <span class="dot" style="background-color: #6366f1;"></span>
+              <span>di accettare espressamente tutte le clausole e condizioni in esso contenute;</span>
+            </div>
+            <div class="dot-item">
+              <span class="dot" style="background-color: #6366f1;"></span>
+              <span>di aver ricevuto tutte le informazioni necessarie prima della sottoscrizione;</span>
+            </div>
+            <div class="dot-item">
+              <span class="dot" style="background-color: #6366f1;"></span>
+              <span>che i dati forniti sono veritieri e aggiornati.</span>
             </div>
           </div>
         </div>
       </div>
+
+      <div style="margin-top: 32px; page-break-inside: avoid;">
+        <p style="margin-bottom: 16px; font-size: 10pt; color: #374151;">Data ${new Date().toLocaleDateString('it-IT')} &nbsp;&nbsp; <strong>Firma Cliente/Committente</strong></p>
+        <div class="signature-area">
+          ${contractData.status === 'signed' && contractData.signatures?.marketing ? 
+            (contractData.signatures.marketing.startsWith('data:image') ? 
+              `<img src="${contractData.signatures.marketing}" alt="Firma" class="signature-image" />` :
+              `<div class="signature-text">${contractData.signatures.marketing}</div>`
+            ) :
+            `<div class="signature-placeholder">
+              <div>✒️ Firma del cliente</div>
+              <div style="font-size: 12px; margin-top: 4px;">Area firma digitale</div>
+            </div>`
+          }
+        </div>
+      </div>
+
     </body>
     </html>
   `;
