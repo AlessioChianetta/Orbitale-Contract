@@ -116,6 +116,17 @@ Turbo Contract is a comprehensive web application for creating, managing, and di
 - July 10, 2025. Integrated Twilio Verify for professional SMS OTP delivery. Implemented hybrid OTP system that uses Twilio Verify for phone numbers when available (more cost-effective and professional) with automatic fallback to email for clients without phone numbers. Enhanced security with dual verification methods and improved user experience with proper SMS delivery confirmation. Added editable phone number functionality on client contract view for flexible OTP delivery.
 - July 10, 2025. Implemented real-time contract editing for all contract statuses (sent/viewed/signed), enabling immediate modifications upon client requests. Fixed critical timezone issues by converting all audit trail timestamps from UTC to Italian time (CET). Resolved duplicate "viewed" audit log entries by preventing repeated logs from same IP within 5 minutes. Corrected signature metadata display showing accurate phone numbers and single signature count instead of incorrect "3 signatures".
 - January 20, 2026. Fixed client contract view bug where custom content sections (customContent, paymentText, predefinedBonuses) were not displaying. The getContractByCode function now includes the full template object in the API response, enabling the client view page to render all custom template sections properly.
+- February 20, 2026. Fixed critical contract signing bug: added missing companyId parameters in routes.ts for getCompanySettings() and getContract() calls in signing endpoints. Fixed mutation call in client-view.tsx to pass correct {otpCode, consents, signatures} payload.
+- February 20, 2026. Integrated Google Gemini AI (gemini-2.5-flash model) via @google/genai package. Created server/services/provider-factory.ts with three AI functions: chatContratto() for contract consultation chat, guidedContractWizard() for step-by-step contract creation, generateContractFromAI() for full contract generation from summary. Added 4 AI API routes in server/routes.ts (all protected with requireAuth).
+- February 20, 2026. Complete refactoring of template-editor.tsx from dialog modal to full-screen tabbed interface with 4 tabs (Info, Content, Bonus & Payment, AI Assistant). The AI tab contains two sub-tabs: Guided Wizard (ai-contract-wizard.tsx) for step-by-step contract creation, and Chat Consultation (ai-contract-chat.tsx) for free-form AI assistance. Added HtmlEditorWithPreview component with toolbar (bold, italic, list, paragraph) and live preview mode. AI-generated content flows via form.setValue() callbacks into template fields.
+
+### AI Integration Architecture
+- **AI Service**: server/services/provider-factory.ts using Google AI Studio (@google/genai) with API_KEY from env
+- **Model**: gemini-2.5-flash for all AI operations
+- **Chat Component**: client/src/components/ai-contract-chat.tsx - message-based conversation with copy/insert functionality
+- **Wizard Component**: client/src/components/ai-contract-wizard.tsx - guided Q&A with progress tracking, legal references, summary generation
+- **AI Routes**: POST /api/ai/chat, /api/ai/wizard/start, /api/ai/wizard/answer, /api/ai/wizard/generate
+- **Data Flow**: AI content → form.setValue() → template save → contract generation → client view → PDF
 
 ## User Preferences
 

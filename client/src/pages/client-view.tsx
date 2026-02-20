@@ -529,11 +529,12 @@ export default function ClientView() {
         console.error("❌ Errore nel toast (onSuccess):", toastError);
       }
 
-      // Reload the page to show the signed contract
+      // Invalidate contract data to refresh and show signed status
+      queryClient.invalidateQueries({ queryKey: [`/api/client/contracts/${code}`] });
       setTimeout(() => {
         console.log("🔄 Esecuzione reload pagina (fallback)...");
         window.location.reload();
-      }, 2000);
+      }, 1500);
     },
     onError: (error: any) => {
       console.error("❌ Errore durante la firma:");
@@ -1462,7 +1463,7 @@ export default function ClientView() {
                   <Button
                     onClick={() => {
                       console.log("🖱️ Click su pulsante firma");
-                      signContractMutation.mutate();
+                      signContractMutation.mutate({ otpCode, consents, signatures });
                     }}
                     disabled={
                       !showOtpInput ||

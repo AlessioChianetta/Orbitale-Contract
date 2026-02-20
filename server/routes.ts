@@ -10,6 +10,7 @@ import { generateOTP, sendOTP } from "./services/otp-service";
 import { nanoid } from "nanoid";
 import path from "path";
 import fs from "fs";
+import { chatContratto, guidedContractWizard, generateContractFromAI, type ChatMessage } from "./services/provider-factory";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -614,7 +615,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Determine verification method based on company settings
-      const otpCompanySettings = await storage.getCompanySettings();
+      const otpCompanySettings = await storage.getCompanySettings(contract.companyId);
       const useOtpMethod = otpCompanySettings?.otpMethod || "email";
       
       let validOtp = null;
@@ -670,6 +671,9 @@ export function registerRoutes(app: Express): Server {
         await storage.markOtpAsUsed(validOtp.id);
       }
 
+      // Get seller's information (needed for company ID in template and contract queries)
+      const seller = await storage.getUser(contract.sellerId);
+
       // Update contract status and save signatures
       const signedContract = await storage.updateContract(contract.id, { 
         status: "signed",
@@ -710,7 +714,6 @@ export function registerRoutes(app: Express): Server {
 
       // Get updated contract with signatures AFTER saving them
       // Use the seller's company ID from the original contract for the query
-      const seller = await storage.getUser(contract.sellerId);
       const finalContract = await storage.getContract(contract.id, seller?.companyId);
 
       if (!finalContract || finalContract.status !== "signed") {
@@ -722,7 +725,7 @@ export function registerRoutes(app: Express): Server {
       const auditLogs = await storage.getContractAuditLogs(contract.id);
 
       // Get template for professional PDF layout
-      const template = await storage.getTemplate(contract.templateId);
+      const template = await storage.getTemplate(contract.templateId, seller?.companyId);
 
       // Get company settings for PDF - use the seller's company ID
       const pdfCompanySettings = await storage.getCompanySettings(seller?.companyId);
@@ -751,7 +754,7 @@ export function registerRoutes(app: Express): Server {
       await storage.updateContract(contract.id, { pdfPath: finalPdfPath });
 
       // Get the updated contract with the PDF path
-      const updatedContract = await storage.getContract(contract.id);
+      const updatedContract = await storage.getContract(contract.id, seller?.companyId);
 
       // Invia email di notifica firma al cliente
       const clientEmail = contract.sentToEmail || (contract.clientData as any).email;
@@ -900,6 +903,81 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error deleting user:", error);
       res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  // ============ AI ROUTES ============
+
+  const aiChatSchema = z.object({
+    messages: z.array(z.object({
+      role: z.enum(["user", "model"]),
+      content: z.string(),
+    })),
+    userMessage: z.string().min(1, "Messaggio richiesto"),
+  });
+
+  app.post("/api/ai/chat", requireAuth, async (req, res) => {
+    try {
+      const { messages, userMessage } = aiChatSchema.parse(req.body);
+      const response = await chatContratto(messages as ChatMessage[], userMessage);
+      res.json({ response });
+    } catch (error: any) {
+      console.error("AI Chat error:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: "Dati non validi", errors: error.errors });
+      }
+      res.status(500).json({ message: error.message || "Errore nella comunicazione con l'AI" });
+    }
+  });
+
+  const aiWizardSchema = z.object({
+    conversationHistory: z.array(z.object({
+      role: z.enum(["user", "model"]),
+      content: z.string(),
+    })),
+    userMessage: z.string().min(1, "Messaggio richiesto"),
+  });
+
+  app.post("/api/ai/wizard/start", requireAuth, async (req, res) => {
+    try {
+      const result = await guidedContractWizard([], "Ciao, voglio creare un nuovo contratto. Guidami passo passo.");
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI Wizard start error:", error);
+      res.status(500).json({ message: error.message || "Errore nell'avvio del wizard AI" });
+    }
+  });
+
+  app.post("/api/ai/wizard/answer", requireAuth, async (req, res) => {
+    try {
+      const { conversationHistory, userMessage } = aiWizardSchema.parse(req.body);
+      const result = await guidedContractWizard(conversationHistory as ChatMessage[], userMessage);
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI Wizard answer error:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: "Dati non validi", errors: error.errors });
+      }
+      res.status(500).json({ message: error.message || "Errore nella comunicazione con l'AI" });
+    }
+  });
+
+  const aiGenerateSchema = z.object({
+    summary: z.any(),
+    additionalInstructions: z.string().optional(),
+  });
+
+  app.post("/api/ai/wizard/generate", requireAuth, async (req, res) => {
+    try {
+      const { summary, additionalInstructions } = aiGenerateSchema.parse(req.body);
+      const result = await generateContractFromAI(summary, additionalInstructions);
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI Generate error:", error);
+      if (error.name === "ZodError") {
+        return res.status(400).json({ message: "Dati non validi", errors: error.errors });
+      }
+      res.status(500).json({ message: error.message || "Errore nella generazione del contratto" });
     }
   });
 
