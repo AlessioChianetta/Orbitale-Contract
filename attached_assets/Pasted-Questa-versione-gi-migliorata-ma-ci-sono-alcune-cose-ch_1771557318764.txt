@@ -1,0 +1,149 @@
+Questa versione è già migliorata… ma ci sono alcune cose che “stonano” visivamente e abbassano la percezione premium.
+
+🔎 1️⃣ Il VALORE (€) è troppo aggressivo
+
+Il blu acceso su:
+
+3000,00 €
+
+è molto più forte di tutto il resto della riga.
+
+Risultato:
+👉 l’occhio va SOLO sui numeri
+👉 il cliente perde importanza
+
+In una dashboard venditore, il cliente dovrebbe essere il focus, non il colore del prezzo.
+
+Soluzione:
+
+Colore neutro scuro
+
+Oppure blu molto più soft
+
+Oppure peso font maggiore ma colore normale
+
+🔎 2️⃣ Le pill “Firmato / Visualizzato / Inviato” non sono coerenti
+
+Ora sembrano:
+
+Firmato → verde ok
+
+Visualizzato → giallo un po’ spento
+
+Inviato → blu molto freddo
+
+Il blu di “Inviato” è troppo simile al blu del prezzo.
+Creano competizione.
+
+Meglio:
+
+Firmato → verde soft
+
+Visualizzato → arancio soft (più caldo)
+
+Inviato → grigio/indigo soft
+
+Devono essere secondarie, non protagoniste.
+
+🔎 3️⃣ Troppo spazio vuoto nella riga
+
+Hai:
+
+Cliente → molto largo
+Codice → piccolo
+Prezzo → distaccato
+Stato → distaccato
+Data → distaccata
+
+La riga è molto ariosa ma poco compatta.
+
+Sembra quasi “sparpagliata”.
+
+Serve più coesione tra:
+
+Valore + Stato + Data
+
+Devono sembrare un blocco.
+
+🔎 4️⃣ Il codice contratto distrae
+
+Quel codice lungo in grigio:
+
+_5_BGGmYv...
+
+Non è importante visivamente, ma è centrato e molto leggibile.
+
+Meglio:
+
+Font ancora più piccolo
+
+Opacità ridotta
+
+Oppure mostrarlo solo al click
+
+Ora pesa troppo rispetto alla sua importanza.
+
+🔎 5️⃣ KPI sopra e lista sotto sembrano due prodotti diversi
+
+KPI:
+
+Card morbide
+
+Shadow
+
+Stile moderno
+
+Lista:
+
+Molto piatta
+
+Zero shadow
+
+Zero contenitore forte
+
+Sembrano due UI fatte da persone diverse.
+
+🔎 6️⃣ La ricerca è troppo “timida”
+
+La search bar ora è molto piatta.
+
+In una dashboard venditore dovrebbe essere:
+
+Più visibile
+
+Leggermente più alta
+
+Border più definito
+
+Icona più evidente
+
+È uno strumento primario.
+
+🎯 Il vero problema nascosto
+
+Adesso la pagina è:
+
+✔ Pulita
+✔ Ordinata
+✔ Moderna
+
+Ma non ha ancora una gerarchia emozionale chiara.
+
+Non comunica:
+
+“Hai guadagnato X”
+
+“Hai 22 contratti da chiudere”
+
+“Ecco cosa richiede attenzione”
+
+È ancora solo un elenco elegante.
+
+💡 Se vuoi fare un salto ulteriore
+
+Puoi:
+
+1️⃣ Rendere il valore più protagonista MA elegante
+2️⃣ Evidenziare righe “non firmate” con background soft
+3️⃣ Mettere una barra laterale con KPI dinamici
+4️⃣ Aggiungere micro indicatori (es: tempo trascorso)

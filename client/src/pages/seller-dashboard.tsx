@@ -129,16 +129,16 @@ export default function SellerDashboard() {
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; className: string }> = {
-      draft: { label: "Bozza", className: "bg-gray-100 text-gray-600 border border-gray-200" },
-      sent: { label: "Inviato", className: "bg-blue-50 text-blue-700 border border-blue-200" },
-      viewed: { label: "Visualizzato", className: "bg-amber-50 text-amber-700 border border-amber-200" },
-      signed: { label: "Firmato", className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-      expired: { label: "Scaduto", className: "bg-red-50 text-red-700 border border-red-200" },
+      draft: { label: "Bozza", className: "bg-gray-50 text-gray-500" },
+      sent: { label: "Inviato", className: "bg-slate-100 text-slate-600" },
+      viewed: { label: "Visualizzato", className: "bg-orange-50 text-orange-600" },
+      signed: { label: "Firmato", className: "bg-emerald-50 text-emerald-600" },
+      expired: { label: "Scaduto", className: "bg-red-50 text-red-500" },
     };
 
     const config = statusConfig[status] || statusConfig.draft;
     return (
-      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${config.className}`}>
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${config.className}`}>
         {config.label}
       </span>
     );
@@ -306,27 +306,27 @@ export default function SellerDashboard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-200">
+          <div className="p-5 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" strokeWidth={1.5} />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" strokeWidth={1.5} />
                 <input
                   type="text"
                   placeholder="Cerca per nome o email cliente..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm text-slate-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+                  className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50/50 text-sm text-slate-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 focus:bg-white transition-all duration-200"
                 />
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div className="relative">
                   <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" strokeWidth={1.5} />
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none pl-10 pr-9 py-2.5 rounded-xl border border-gray-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 cursor-pointer"
+                    className="appearance-none pl-9 pr-8 py-3 rounded-xl border border-gray-200 text-sm text-slate-700 bg-gray-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all duration-200 cursor-pointer"
                   >
                     <option value="all">Tutti</option>
                     <option value="sent">Inviato</option>
@@ -335,7 +335,7 @@ export default function SellerDashboard() {
                     <option value="draft">Bozza</option>
                     <option value="expired">Scaduto</option>
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" strokeWidth={1.5} />
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" strokeWidth={1.5} />
                 </div>
 
                 <button
@@ -347,7 +347,7 @@ export default function SellerDashboard() {
                     }
                     setSortOrder(prev => prev === "desc" ? "asc" : "desc");
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-slate-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
+                  className="flex items-center gap-1.5 px-4 py-3 rounded-xl border border-gray-200 text-sm text-slate-700 bg-gray-50/50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200"
                 >
                   <ArrowUpDown className="h-4 w-4 text-gray-400" strokeWidth={1.5} />
                   <span>{sortBy === "date" ? "Data" : "Valore"}</span>
@@ -389,51 +389,58 @@ export default function SellerDashboard() {
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100/80">
+            <div className="divide-y divide-gray-50">
+              <div className="hidden sm:grid sm:grid-cols-[1fr_120px_110px_100px_80px] items-center px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                <span>Cliente</span>
+                <span className="text-right">Valore</span>
+                <span className="text-center">Stato</span>
+                <span className="text-right">Data</span>
+                <span></span>
+              </div>
               {filteredContracts.map((contract: any) => {
                 const clientData = contract.clientData || {};
                 const clientName = clientData.cliente_nome || clientData.nome || "Cliente";
                 const clientEmail = clientData.email || "";
+                const isUnsigned = contract.status === "sent" || contract.status === "viewed";
 
                 return (
                   <div
                     key={contract.id}
-                    className="group flex items-center justify-between py-5 px-6 hover:bg-gray-50/80 transition-all duration-200"
+                    className={`group grid grid-cols-1 sm:grid-cols-[1fr_120px_110px_100px_80px] items-center py-3.5 px-5 hover:bg-gray-50/60 transition-all duration-150 ${isUnsigned ? 'bg-amber-50/20' : ''}`}
                   >
-                    <div className="flex items-center gap-6 flex-1 min-w-0">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-slate-900 truncate">{clientName}</p>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-800 truncate text-[15px] leading-tight">{clientName}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
                         {clientEmail && (
-                          <p className="text-sm text-slate-500 truncate">{clientEmail}</p>
+                          <p className="text-xs text-slate-400 truncate">{clientEmail}</p>
                         )}
-                      </div>
-
-                      <div className="hidden md:block">
-                        <span className="font-mono text-xs text-gray-400">{contract.contractCode}</span>
-                      </div>
-
-                      <div className="hidden sm:block text-right min-w-[100px]">
-                        <span className="text-base font-semibold" style={{ color: '#4F46E5' }}>
-                          {contract.totalValue ? formatCurrency(contract.totalValue) : "—"}
-                        </span>
-                      </div>
-
-                      <div className="hidden sm:block">
-                        {getStatusBadge(contract.status)}
-                      </div>
-
-                      <div className="hidden lg:block">
-                        <span className="text-sm text-slate-500">
-                          {new Date(contract.createdAt).toLocaleDateString('it-IT')}
+                        <span className="hidden md:inline font-mono text-[10px] text-gray-300 truncate" title={contract.contractCode}>
+                          {contract.contractCode?.slice(0, 8)}…
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-1 ml-4">
+                    <div className="hidden sm:block text-right">
+                      <span className="text-sm font-bold text-slate-700">
+                        {contract.totalValue ? formatCurrency(contract.totalValue) : "—"}
+                      </span>
+                    </div>
+
+                    <div className="hidden sm:flex justify-center">
+                      {getStatusBadge(contract.status)}
+                    </div>
+
+                    <div className="hidden sm:block text-right">
+                      <span className="text-xs text-slate-400">
+                        {new Date(contract.createdAt).toLocaleDateString('it-IT')}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-end space-x-0.5">
                       <button
                         onClick={() => window.open(`/client/${contract.contractCode}`, '_blank')}
                         title="Visualizza contratto"
-                        className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-150"
                       >
                         <Eye className="h-4 w-4" strokeWidth={1.5} />
                       </button>
@@ -441,7 +448,7 @@ export default function SellerDashboard() {
                         <button
                           onClick={() => editContract(contract)}
                           title="Modifica contratto"
-                          className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-150"
                         >
                           <Edit className="h-4 w-4" strokeWidth={1.5} />
                         </button>
@@ -451,7 +458,7 @@ export default function SellerDashboard() {
                           onClick={() => regeneratePDF(contract.id)}
                           disabled={regeneratingId === contract.id}
                           title="Rigenera PDF"
-                          className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-150 disabled:opacity-50"
                         >
                           <RefreshCw className={`h-4 w-4 ${regeneratingId === contract.id ? 'animate-spin' : ''}`} strokeWidth={1.5} />
                         </button>
@@ -460,7 +467,7 @@ export default function SellerDashboard() {
                         <button
                           onClick={() => downloadPDF(contract.id, contract.contractCode)}
                           title="Scarica PDF"
-                          className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-150"
                         >
                           <Download className="h-4 w-4" strokeWidth={1.5} />
                         </button>
@@ -469,7 +476,7 @@ export default function SellerDashboard() {
                         <button
                           onClick={() => copyContractLink(contract.contractCode)}
                           title="Copia link contratto"
-                          className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-150"
                         >
                           <Copy className="h-4 w-4" strokeWidth={1.5} />
                         </button>
