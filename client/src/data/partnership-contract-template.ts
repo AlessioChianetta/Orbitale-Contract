@@ -45,8 +45,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 
 <p style="font-style: italic; color: #64748b;">La Piattaforma include i seguenti moduli e funzionalità, qui descritti in dettaglio affinché il Partner abbia piena consapevolezza di ciò che acquisisce.</p>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #eff6ff, #eef2ff); border: 1px solid #bfdbfe; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #1e3a8a;">3.1. Assistenza Clienti AI su WhatsApp — 24/7</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.1. Assistenza Clienti AI su WhatsApp — 24/7</h3>
 <p>La Piattaforma consente al Partner di attivare agenti AI operanti su WhatsApp Business che funzionano come veri e propri dipendenti virtuali. Questi agenti:</p>
 <ul>
 <li>rispondono automaticamente ai messaggi in arrivo dai clienti, a qualsiasi ora del giorno e della notte, senza pause e senza ritardi;</li>
@@ -60,11 +60,11 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #ecfdf5, #f0fdfa); border: 1px solid #a7f3d0; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #065f46;">3.2. Venditore AI che Qualifica i Lead su WhatsApp</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.2. Venditore AI che Qualifica i Lead su WhatsApp</h3>
 <p>La Piattaforma mette a disposizione del Partner un sistema completo di acquisizione clienti automatizzato:</p>
 
-<h4 style="font-weight: 600; color: #047857; margin: 12px 0 8px 0;">a) Lead Hub — Centro di Controllo Acquisizione</h4>
+<h4 style="font-weight: 600; color: #334155; margin: 12px 0 8px 0;">a) Lead Hub — Centro di Controllo Acquisizione</h4>
 <ul>
 <li>importazione massiva di lead da file Excel e CSV con mappatura automatica delle colonne;</li>
 <li>creazione manuale di singoli lead con tag personalizzabili per fonte, priorità, interesse;</li>
@@ -74,14 +74,14 @@ LIVELLO 1 — PARTE COMMERCIALE
 <li>filtri avanzati per tag, stato, punteggio e campagna di appartenenza.</li>
 </ul>
 
-<h4 style="font-weight: 600; color: #047857; margin: 12px 0 8px 0;">b) Lead Scoring Automatico</h4>
+<h4 style="font-weight: 600; color: #334155; margin: 12px 0 8px 0;">b) Lead Scoring Automatico</h4>
 <ul>
 <li>punteggio automatico basato sulle interazioni: +10 per risposta, +20 per prenotazione appuntamento, +15 per richiesta informazioni, +5 per clic su link;</li>
 <li>penalizzazioni: -2 per ogni giorno senza risposta, -50 per richiesta di non essere contattato, -10 per messaggio non consegnato;</li>
 <li>classificazione: lead caldo (>70 punti), tiepido (40-70), freddo (<40).</li>
 </ul>
 
-<h4 style="font-weight: 600; color: #047857; margin: 12px 0 8px 0;">c) Campagne WhatsApp Automatizzate</h4>
+<h4 style="font-weight: 600; color: #334155; margin: 12px 0 8px 0;">c) Campagne WhatsApp Automatizzate</h4>
 <ul>
 <li>creazione di campagne con nome, descrizione, "uncino" e offerta;</li>
 <li>selezione dei lead per tag, stato o manualmente;</li>
@@ -90,7 +90,7 @@ LIVELLO 1 — PARTE COMMERCIALE
 <li>statistiche in tempo reale: messaggi inviati, consegnati, letti, risposte, appuntamenti, conversioni.</li>
 </ul>
 
-<h4 style="font-weight: 600; color: #047857; margin: 12px 0 8px 0;">d) Agente AI "Setter" — Il Venditore Virtuale</h4>
+<h4 style="font-weight: 600; color: #334155; margin: 12px 0 8px 0;">d) Agente AI "Setter" — Il Venditore Virtuale</h4>
 <ul>
 <li>contatta proattivamente i lead e gestisce le risposte in arrivo;</li>
 <li>segue uno script di vendita personalizzabile con fasi strutturate: apertura, qualifica, obiezioni, proposta, chiusura;</li>
@@ -101,11 +101,11 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #f5f3ff, #faf5ff); border: 1px solid #ddd6fe; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #5b21b6;">3.3. Intelligenza Artificiale Personalizzata — Strutturata a Livelli</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.3. Intelligenza Artificiale Personalizzata — Strutturata a Livelli</h3>
 
-<div style="padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.6); border: 1px solid #c4b5fd; margin: 12px 0;">
-<h4 style="font-weight: bold; color: #6d28d9; margin-bottom: 8px;">Licenza Gold — Il Pacchetto Completo</h4>
+<div style="padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.6); border: 1px solid #e2e8f0; margin: 12px 0;">
+<h4 style="font-weight: bold; color: #334155; margin-bottom: 8px;">Licenza Gold — Il Pacchetto Completo</h4>
 <ul>
 <li>Consulente AI addestrato con memoria: l'AI ricorda ogni conversazione precedente con il cliente, riprende il discorso dove era stato lasciato, conosce progressi, obiettivi e preferenze;</li>
 <li>Percorsi formativi strutturati: corsi organizzati in moduli e lezioni (testo, video, quiz, file scaricabili), con tracciamento dei progressi e percentuale di completamento;</li>
@@ -128,8 +128,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 </div>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #fffbeb, #fff7ed); border: 1px solid #fcd34d; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #92400e;">3.4. Onboarding Venditori e Dipendenti</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.4. Onboarding Venditori e Dipendenti</h3>
 <ul>
 <li>creazione di account per venditori e dipendenti con invio automatico delle credenziali di accesso via email;</li>
 <li>assegnazione di corsi formativi e percorsi di onboarding strutturati;</li>
@@ -140,8 +140,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #ecfeff, #f0f9ff); border: 1px solid #a5f3fc; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #155e75;">3.5. Knowledge Base e AI — Il Cervello Documentale</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.5. Knowledge Base e AI — Il Cervello Documentale</h3>
 <ul>
 <li>caricamento di documenti in formato PDF, DOCX, TXT e URL di pagine web;</li>
 <li>organizzazione per categorie (Servizi e Prezzi, Materiale Formativo, Procedure Interne, FAQ Clienti);</li>
@@ -151,8 +151,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #fff1f2, #fdf2f8); border: 1px solid #fda4af; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #9f1239;">3.6. AI Course Builder — Generazione Automatica di Corsi</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.6. AI Course Builder — Generazione Automatica di Corsi</h3>
 <ul>
 <li>generazione di corsi strutturati a partire da un URL di un video YouTube;</li>
 <li>estrazione automatica della trascrizione, analisi dei contenuti, generazione di moduli e lezioni, creazione di quiz;</li>
@@ -161,8 +161,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #fdf4ff, #fdf2f8); border: 1px solid #f0abfc; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #86198f;">3.7. Content Marketing Studio</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.7. Content Marketing Studio</h3>
 <ul>
 <li>generatore di idee per contenuti basato sull'AI, personalizzato per settore e target del Partner;</li>
 <li>creazione automatica di copy per social media (LinkedIn, Instagram, Facebook) con controllo su tono, lunghezza, emoji, hashtag e call-to-action;</li>
@@ -173,8 +173,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #f0fdfa, #ecfdf5); border: 1px solid #99f6e4; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #115e59;">3.8. Email e Automazioni</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.8. Email e Automazioni</h3>
 <ul>
 <li><strong>Email Journey:</strong> sequenze di email automatiche programmate nel tempo (benvenuto, come iniziare, primo corso, check-in, feedback);</li>
 <li><strong>Email Nurturing 365:</strong> sistema automatico che genera e invia 365 email personalizzate nell'arco di un anno per scaldare i lead, una al giorno;</li>
@@ -184,8 +184,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #f0f9ff, #eff6ff); border: 1px solid #7dd3fc; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #0c4a6e;">3.9. Calendario, Consulenze e Task</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.9. Calendario, Consulenze e Task</h3>
 <ul>
 <li>calendario integrato con gestione appuntamenti e consulenze;</li>
 <li>videochiamate integrate con link generato automaticamente 15 minuti prima dell'appuntamento;</li>
@@ -195,8 +195,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #eef2ff, #f5f3ff); border: 1px solid #c7d2fe; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #3730a3;">3.10. Dashboard e Analytics</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.10. Dashboard e Analytics</h3>
 <ul>
 <li>dashboard consulente con 4 KPI principali: clienti attivi, esercizi da revisionare, consulenze della settimana, lead prioritari;</li>
 <li>sezione "Items in Attesa" con consulenze da completare, bozze email, task scaduti, lead non contattati;</li>
@@ -206,8 +206,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #fdf2f8, #fff1f2); border: 1px solid #f9a8d4; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #9d174d;">3.11. Integrazione Instagram DM</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.11. Integrazione Instagram DM</h3>
 <ul>
 <li>collegamento dell'account Instagram Business tramite API Meta;</li>
 <li>risposta automatica ai DM con la stessa AI degli agenti WhatsApp;</li>
@@ -216,8 +216,8 @@ LIVELLO 1 — PARTE COMMERCIALE
 </ul>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #eff6ff, #eef2ff); border: 1px solid #bfdbfe; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #1e40af;">3.12. Assistenza WhatsApp AI — 24/7</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">3.12. Assistenza WhatsApp AI — 24/7</h3>
 <p>Il Partner riceve accesso a un canale di assistenza gestito da un'intelligenza artificiale addestrata sulla documentazione della Piattaforma, disponibile 24 ore su 24 tramite WhatsApp. L'assistenza AI è in grado di rispondere a domande sull'utilizzo della Piattaforma, guidare il Partner nelle configurazioni e risolvere dubbi operativi.</p>
 <p>Per problematiche tecniche complesse (bug, malfunzionamenti, errori di sistema), il Partner può aprire un ticket via email come disciplinato dall'Articolo 5.</p>
 </div>
@@ -242,30 +242,21 @@ LIVELLO 1 — PARTE COMMERCIALE
 
 <h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 6 — MODELLO ECONOMICO — CORRISPETTIVI</h2>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 1px solid #86efac; margin: 16px 0;">
-<h3 style="font-weight: bold; color: #166534;">6.1. Costo di Attivazione (Setup)</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-weight: bold; color: #1e293b;">6.1. Costo di Attivazione (Setup)</h3>
 <p>All'atto della sottoscrizione, il Partner corrisponde un costo di attivazione una tantum fino a un massimo di <strong>Euro 2.000,00</strong>, comprensivo di: configurazione iniziale della Piattaforma, creazione dell'ambiente dedicato, setup degli agenti AI WhatsApp, caricamento iniziale della Knowledge Base, formazione iniziale.</p>
 <p>Il costo di attivazione può essere ridotto o azzerato a insindacabile discrezione del Fornitore.</p>
-<div style="padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.8); border: 1px solid #86efac;">
-<p><strong>Costo di attivazione concordato:</strong> Euro ______________ (____________________/00)</p>
-</div>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #eff6ff, #eef2ff); border: 1px solid #93c5fd; margin: 16px 0;">
-<h3 style="font-weight: bold; color: #1e40af;">6.2. Canone Mensile Fisso</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-weight: bold; color: #1e293b;">6.2. Canone Mensile Fisso</h3>
 <p>Il Partner corrisponde un canone mensile fisso, dovuto anticipatamente entro il giorno 5 di ogni mese solare, a partire dal mese successivo alla data di attivazione.</p>
-<div style="padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.8); border: 1px solid #93c5fd;">
-<p><strong>Canone mensile concordato:</strong> Euro ______________ (____________________/00) + IVA</p>
-</div>
 <p>Il Canone include: accesso completo a tutti i moduli, aggiornamenti base, 1 richiesta custom/mese, 5 licenze dipendente gratuite, assistenza WhatsApp AI 24/7, supporto tecnico via ticket.</p>
 </div>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #fffbeb, #fff7ed); border: 1px solid #fbbf24; margin: 16px 0;">
-<h3 style="font-weight: bold; color: #92400e;">6.3. Licenze Dipendenti Aggiuntive</h3>
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-weight: bold; color: #1e293b;">6.3. Licenze Dipendenti Aggiuntive</h3>
 <p>Le prime <strong>5 licenze</strong> per dipendenti sono incluse gratuitamente. A partire dalla sesta, il costo è di <strong>Euro 20,00/mese per pacchetto di 5 licenze</strong>. Non è possibile acquistare licenze singole.</p>
-<div style="padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.8); border: 1px solid #fbbf24; font-size: 13px; font-style: italic; color: #64748b;">
-Esempio: 8 dipendenti = 5 gratuite + 1 pacchetto da 5 (€20/mese) = 10 licenze disponibili
-</div>
 </div>
 
 <p><strong>6.4. Costi di Servizi Terzi.</strong> Restano a carico del Partner: messaggistica WhatsApp (Twilio, ~€0,05/msg), API AI (Google Vertex AI / Gemini), invio email (SMTP), configurazione WhatsApp Business (Meta). Il Fornitore non è responsabile per variazioni di prezzo dei fornitori terzi.</p>
@@ -273,11 +264,11 @@ Esempio: 8 dipendenti = 5 gratuite + 1 pacchetto da 5 (€20/mese) = 10 licenze 
 
 <h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 7 — REVENUE SHARE</h2>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #faf5ff, #f5f3ff); border: 1px solid #d8b4fe; margin: 16px 0;">
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
 <p><strong>7.1.</strong> Il Partner che rivende licenze Gold o Silver è tenuto a corrispondere al Fornitore il <strong>50% del ricavo netto</strong> generato da ciascuna licenza rivenduta.</p>
 <p><strong>7.2.</strong> Si applica a: canoni mensili delle licenze rivendute, costi di attivazione applicati ai clienti finali, servizi aggiuntivi collegati alla Piattaforma. Non si applica a: consulenze professionali, formazione e attività commerciali non connesse alla Piattaforma.</p>
-<div style="padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.8); border: 1px solid #d8b4fe;">
-<p style="color: #6b21a8; font-weight: 600;"><strong>7.3.</strong> L'obbligo di Revenue Share è PERMANENTE e IRREVOCABILE per tutta la durata del rapporto tra Partner e cliente finale, anche oltre la cessazione del presente Contratto.</p>
+<div style="padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.8); border: 1px solid #e2e8f0;">
+<p style="color: #1e293b; font-weight: 600;"><strong>7.3.</strong> L'obbligo di Revenue Share è PERMANENTE e IRREVOCABILE per tutta la durata del rapporto tra Partner e cliente finale, anche oltre la cessazione del presente Contratto.</p>
 </div>
 <p><strong>7.4.</strong> Tracciamento preferibilmente tramite Stripe Connect. Il Partner si impegna a fornire documentazione attestante i ricavi su richiesta.</p>
 <p><strong>7.5.</strong> La quota del Fornitore è liquidata mensilmente entro il giorno 15 del mese successivo. Con Stripe Connect, la ripartizione avviene automaticamente.</p>
@@ -293,7 +284,7 @@ Esempio: 8 dipendenti = 5 gratuite + 1 pacchetto da 5 (€20/mese) = 10 licenze 
 
 <h3 style="font-weight: 600; color: #1e293b; margin: 12px 0 8px 0;">9.1. Recesso del Partner</h3>
 <p>Preavviso minimo di 30 giorni via PEC o raccomandata A/R. Il recesso ha effetto alla scadenza del periodo in corso (12 mesi). Il Partner resta obbligato al pagamento dei canoni residui fino alla naturale scadenza.</p>
-<div style="padding: 12px; border-radius: 8px; background: #fffbeb; border: 1px solid #fbbf24; font-size: 13px; font-style: italic; color: #92400e; margin: 8px 0;">
+<div style="padding: 12px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 13px; font-style: italic; color: #64748b; margin: 8px 0;">
 Esempio: Contratto dal 1° gennaio, recesso comunicato il 15 giugno → resta efficace fino al 31 dicembre, canoni dovuti da luglio a dicembre.
 </div>
 
@@ -318,7 +309,7 @@ LIVELLO 2 — PROTEZIONE LEGALE
 <p><strong>11.1.</strong> Il Partner è titolare dei dati anagrafici e di contatto dei propri clienti. In caso di cessazione, tali dati saranno disponibili per l'esportazione.</p>
 <p><strong>11.2.</strong> Il Fornitore è titolare dei dati generati dall'utilizzo della Piattaforma: log conversazioni AI, dati di utilizzo e analytics, contenuti generati dall'AI, metriche, dati di addestramento.</p>
 
-<h3 style="font-size: 16px; font-weight: bold; color: #6d28d9; margin: 16px 0 8px 0;">11.3. Segregazione e Riservatezza dei Dati tra Clienti Finali</h3>
+<h3 style="font-size: 16px; font-weight: bold; color: #334155; margin: 16px 0 8px 0;">11.3. Segregazione e Riservatezza dei Dati tra Clienti Finali</h3>
 <ul>
 <li>Ciascun cliente del Partner vede esclusivamente i propri dati all'interno della Piattaforma. Non ha accesso ai dati di altri clienti dello stesso Partner;</li>
 <li>La Knowledge Base è segregata tra i diversi Partner: ciascun Partner ha una Knowledge Base indipendente e inaccessibile ai concorrenti;</li>
@@ -327,7 +318,7 @@ LIVELLO 2 — PROTEZIONE LEGALE
 <li>Gli Agenti AI WhatsApp del Partner operano in un contesto isolato, elaborando esclusivamente i dati dei clienti del Partner e utilizzando la Knowledge Base del Partner, senza accesso ai dati o alla Knowledge Base di altri Partner.</li>
 </ul>
 
-<h3 style="font-size: 16px; font-weight: bold; color: #6d28d9; margin: 16px 0 8px 0;">11.4. Sicurezza dei Dati</h3>
+<h3 style="font-size: 16px; font-weight: bold; color: #334155; margin: 16px 0 8px 0;">11.4. Sicurezza dei Dati</h3>
 <ul>
 <li>Il Fornitore implementa misure tecniche e organizzative adeguate a garantire la riservatezza, l'integrità e la disponibilità dei dati, conformemente alle migliori pratiche del settore;</li>
 <li>Backup automatici e ridondanza dell'infrastruttura per assicurare continuità operativa e recupero da malfunzionamenti;</li>
@@ -335,7 +326,7 @@ LIVELLO 2 — PROTEZIONE LEGALE
 <li>Monitoraggio continuo della sicurezza, audit regolari e aggiornamenti tempestivi delle misure di protezione.</li>
 </ul>
 
-<h3 style="font-size: 16px; font-weight: bold; color: #6d28d9; margin: 16px 0 8px 0;">11.5. Trattamento dei Dati Personali</h3>
+<h3 style="font-size: 16px; font-weight: bold; color: #334155; margin: 16px 0 8px 0;">11.5. Trattamento dei Dati Personali</h3>
 <p>Ciascuna Parte tratta i dati personali nel rispetto del GDPR (Reg. UE 2016/679) e della normativa nazionale vigente. Le Parti si impegnano a sottoscrivere, ove necessario, un Data Processing Agreement.</p>
 
 <h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #8b5cf6; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 12 — MANLEVA E LIMITAZIONE DI RESPONSABILITÀ</h2>
@@ -348,7 +339,7 @@ LIVELLO 2 — PROTEZIONE LEGALE
 
 <h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #8b5cf6; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 13 — NON CONCORRENZA</h2>
 
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #fff7ed, #fffbeb); border: 1px solid #fdba74; margin: 16px 0;">
+<div style="padding: 16px; border-radius: 12px; background: #fffbeb; border: 1px solid #fde68a; margin: 16px 0;">
 <p><strong>13.1.</strong> Per tutta la durata del Contratto e per <strong>3 anni</strong> successivi alla cessazione, il Partner si impegna a non: sviluppare o partecipare a piattaforme concorrenti; collaborare con soggetti che sviluppano prodotti concorrenti; utilizzare il know-how acquisito per creare prodotti concorrenti; sollecitare o assumere dipendenti o collaboratori del Fornitore.</p>
 <p><strong>13.2.</strong> Penale per violazione: <strong>Euro 50.000,00</strong> per ciascuna violazione accertata, fermo restando il diritto al risarcimento del maggior danno.</p>
 <p><strong>13.3.</strong> Ambito territoriale: intero territorio nazionale italiano e mercati esteri in cui il Fornitore operi o abbia manifestato interesse durante la vigenza.</p>
@@ -411,60 +402,24 @@ LIVELLO 2 — PROTEZIONE LEGALE
 <h2 style="font-size: 16px; font-weight: bold; color: #1e293b; text-align: center; margin: 32px 0 8px 0;">APPROVAZIONE SPECIFICA</h2>
 <p style="text-align: center; font-size: 13px; font-style: italic; color: #475569;">ai sensi degli articoli 1341 e 1342 del Codice Civile</p>
 
-<p>Il Partner dichiara di aver letto, compreso e di approvare specificamente le seguenti clausole:</p>
+<div style="padding: 20px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<p style="margin-bottom: 12px;">Il Partner, con la sottoscrizione digitale del presente Contratto, dichiara di aver letto, compreso e di approvare specificamente le seguenti clausole:</p>
 
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0;">
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 7 — Revenue Share permanente e irrevocabile
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 8 — Durata minima e rinnovo automatico
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 9 — Recesso e obbligo pagamento canoni residui
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 10 — Proprietà intellettuale esclusiva
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 12 — Manleva AI e limitazione responsabilità
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 13 — Non concorrenza 3 anni con penale
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 14 — Sospensione senza indennizzo
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 15 — Cessione del contratto
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 18 — Clausola risolutiva espressa
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 20 — Non esclusività
-</div>
-<div style="display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; background: #f8fafc; font-size: 13px; color: #334155;">
-<span style="display: inline-block; width: 16px; height: 16px; border: 1px solid #cbd5e1; border-radius: 4px; flex-shrink: 0;"></span>
-Art. 22 — Foro esclusivo di Messina
-</div>
-</div>
+<ul style="list-style: none; padding: 0; margin: 0;">
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 7 — Revenue Share permanente e irrevocabile</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 8 — Durata minima e rinnovo automatico</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 9 — Recesso e obbligo pagamento canoni residui</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 10 — Proprietà intellettuale esclusiva</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 12 — Manleva AI e limitazione responsabilità</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 13 — Non concorrenza 3 anni con penale</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 14 — Sospensione senza indennizzo</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 15 — Cessione del contratto</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 18 — Clausola risolutiva espressa</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9;">Art. 20 — Non esclusività</li>
+<li style="padding: 6px 0; font-size: 13px; color: #334155;">Art. 22 — Foro esclusivo di Messina</li>
+</ul>
 
-<div style="padding: 24px; border-radius: 12px; border: 2px dashed #ddd6fe; background: rgba(245,243,255,0.3); text-align: center; margin-top: 32px;">
-<h3 style="font-weight: bold; color: #5b21b6; margin-bottom: 12px;">IL PARTNER</h3>
-<p style="font-size: 13px; color: #475569;">Nome e Cognome: ______________________________</p>
-<p style="font-size: 13px; color: #475569; margin-top: 16px;">Firma: ______________________________</p>
-<p style="font-size: 13px; color: #475569; margin-top: 16px;">Data: ______________________________</p>
+<p style="margin-top: 16px; font-size: 13px; color: #475569; font-style: italic;">La firma digitale apposta tramite OTP al presente Contratto costituisce accettazione espressa di tutte le clausole sopra elencate ai sensi e per gli effetti degli artt. 1341 e 1342 del Codice Civile.</p>
 </div>
 `;
 }

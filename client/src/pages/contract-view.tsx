@@ -43,7 +43,6 @@ const CONTRACT_SECTIONS = [
   { id: "art21", title: "Art. 21 — Comunicazioni", level: 1 },
   { id: "art22", title: "Art. 22 — Foro Competente", level: 1 },
   { id: "art23", title: "Art. 23 — Disposizioni Finali", level: 1 },
-  { id: "firme", title: "Firme", level: 0 },
   { id: "approvazione", title: "Approvazione ex Art. 1341-1342 c.c.", level: 0 },
 ];
 
@@ -285,8 +284,8 @@ export default function ContractView() {
                   <p className="text-slate-600 text-sm italic">La Piattaforma include i seguenti moduli e funzionalità, qui descritti in dettaglio affinché il Partner abbia piena consapevolezza di ciò che acquisisce.</p>
 
                   {/* 3.1 */}
-                  <div data-section="art3-1" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-blue-50/80 to-indigo-50/40 border border-blue-100">
-                    <h3 className="text-lg font-bold text-indigo-800">3.1. Assistenza Clienti AI su WhatsApp — 24/7</h3>
+                  <div data-section="art3-1" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.1. Assistenza Clienti AI su WhatsApp — 24/7</h3>
                     <p className="text-slate-700 text-sm leading-relaxed">La Piattaforma consente al Partner di attivare agenti AI operanti su WhatsApp Business che funzionano come veri e propri dipendenti virtuali. Questi agenti:</p>
                     <ul className="space-y-2 text-sm text-slate-700">
                       {[
@@ -299,19 +298,19 @@ export default function ContractView() {
                         "rispettano fasce orarie configurabili e giorni di attività definiti dal Partner;",
                         "inviano notifiche in tempo reale al Partner quando un cliente prenota un appuntamento o quando si verifica un'escalation.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-indigo-400 mt-0.5">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400 mt-0.5">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   {/* 3.2 */}
-                  <div data-section="art3-2" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-emerald-50/80 to-teal-50/40 border border-emerald-100">
-                    <h3 className="text-lg font-bold text-emerald-800">3.2. Venditore AI che Qualifica i Lead su WhatsApp</h3>
+                  <div data-section="art3-2" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.2. Venditore AI che Qualifica i Lead su WhatsApp</h3>
                     <p className="text-slate-700 text-sm leading-relaxed">La Piattaforma mette a disposizione del Partner un sistema completo di acquisizione clienti automatizzato:</p>
 
                     <div className="space-y-4 mt-3">
                       <div>
-                        <h4 className="font-semibold text-emerald-700 text-sm mb-2">a) Lead Hub — Centro di Controllo Acquisizione</h4>
+                        <h4 className="font-semibold text-slate-700 text-sm mb-2">a) Lead Hub — Centro di Controllo Acquisizione</h4>
                         <ul className="space-y-1.5 text-sm text-slate-700 ml-4">
                           {[
                             "importazione massiva di lead da file Excel e CSV con mappatura automatica delle colonne;",
@@ -321,26 +320,26 @@ export default function ContractView() {
                             "visualizzazione dello stato di ogni lead: in attesa, contattato, ha risposto, qualificato, appuntamento fissato, convertito in cliente, perso;",
                             "filtri avanzati per tag, stato, punteggio e campagna di appartenenza.",
                           ].map((text, i) => (
-                            <li key={i} className="flex gap-2"><span className="text-emerald-400">•</span><span>{text}</span></li>
+                            <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                           ))}
                         </ul>
                       </div>
 
                       <div>
-                        <h4 className="font-semibold text-emerald-700 text-sm mb-2">b) Lead Scoring Automatico</h4>
+                        <h4 className="font-semibold text-slate-700 text-sm mb-2">b) Lead Scoring Automatico</h4>
                         <ul className="space-y-1.5 text-sm text-slate-700 ml-4">
                           {[
                             "punteggio automatico basato sulle interazioni: +10 per risposta, +20 per prenotazione appuntamento, +15 per richiesta informazioni, +5 per clic su link;",
                             "penalizzazioni: -2 per ogni giorno senza risposta, -50 per richiesta di non essere contattato, -10 per messaggio non consegnato;",
                             "classificazione: lead caldo (>70 punti), tiepido (40-70), freddo (<40).",
                           ].map((text, i) => (
-                            <li key={i} className="flex gap-2"><span className="text-emerald-400">•</span><span>{text}</span></li>
+                            <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                           ))}
                         </ul>
                       </div>
 
                       <div>
-                        <h4 className="font-semibold text-emerald-700 text-sm mb-2">c) Campagne WhatsApp Automatizzate</h4>
+                        <h4 className="font-semibold text-slate-700 text-sm mb-2">c) Campagne WhatsApp Automatizzate</h4>
                         <ul className="space-y-1.5 text-sm text-slate-700 ml-4">
                           {[
                             "creazione di campagne con nome, descrizione, \"uncino\" e offerta;",
@@ -349,13 +348,13 @@ export default function ContractView() {
                             "modalità \"Dry Run\" per testare la campagna senza inviare messaggi reali;",
                             "statistiche in tempo reale: messaggi inviati, consegnati, letti, risposte, appuntamenti, conversioni.",
                           ].map((text, i) => (
-                            <li key={i} className="flex gap-2"><span className="text-emerald-400">•</span><span>{text}</span></li>
+                            <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                           ))}
                         </ul>
                       </div>
 
                       <div>
-                        <h4 className="font-semibold text-emerald-700 text-sm mb-2">d) Agente AI "Setter" — Il Venditore Virtuale</h4>
+                        <h4 className="font-semibold text-slate-700 text-sm mb-2">d) Agente AI "Setter" — Il Venditore Virtuale</h4>
                         <ul className="space-y-1.5 text-sm text-slate-700 ml-4">
                           {[
                             "contatta proattivamente i lead e gestisce le risposte in arrivo;",
@@ -365,7 +364,7 @@ export default function ContractView() {
                             "prenota automaticamente e invia conferma al lead e notifica al Partner;",
                             "passa al Partner soltanto i lead qualificati e con appuntamento fissato.",
                           ].map((text, i) => (
-                            <li key={i} className="flex gap-2"><span className="text-emerald-400">•</span><span>{text}</span></li>
+                            <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                           ))}
                         </ul>
                       </div>
@@ -373,12 +372,12 @@ export default function ContractView() {
                   </div>
 
                   {/* 3.3 */}
-                  <div data-section="art3-3" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-violet-50/80 to-purple-50/40 border border-violet-100">
-                    <h3 className="text-lg font-bold text-violet-800">3.3. Intelligenza Artificiale Personalizzata — Strutturata a Livelli</h3>
+                  <div data-section="art3-3" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.3. Intelligenza Artificiale Personalizzata — Strutturata a Livelli</h3>
 
                     <div className="space-y-4 mt-3">
-                      <div className="p-4 rounded-lg bg-white/60 border border-violet-200">
-                        <h4 className="font-bold text-violet-700 mb-2">Licenza Gold — Il Pacchetto Completo</h4>
+                      <div className="p-4 rounded-lg bg-white/60 border border-slate-200">
+                        <h4 className="font-bold text-slate-700 mb-2">Licenza Gold — Il Pacchetto Completo</h4>
                         <ul className="space-y-1.5 text-sm text-slate-700">
                           {[
                             "Consulente AI addestrato con memoria: l'AI ricorda ogni conversazione precedente con il cliente, riprende il discorso dove era stato lasciato, conosce progressi, obiettivi e preferenze;",
@@ -391,7 +390,7 @@ export default function ContractView() {
                             "Script Manager: gestione script di vendita con fasi personalizzabili;",
                             "Momentum e Streak: gamification con giorni consecutivi di attività e record personali.",
                           ].map((text, i) => (
-                            <li key={i} className="flex gap-2"><span className="text-violet-400">•</span><span>{text}</span></li>
+                            <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                           ))}
                         </ul>
                       </div>
@@ -407,8 +406,8 @@ export default function ContractView() {
                   </div>
 
                   {/* 3.4 */}
-                  <div data-section="art3-4" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-amber-50/80 to-orange-50/40 border border-amber-100">
-                    <h3 className="text-lg font-bold text-amber-800">3.4. Onboarding Venditori e Dipendenti</h3>
+                  <div data-section="art3-4" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.4. Onboarding Venditori e Dipendenti</h3>
                     <ul className="space-y-1.5 text-sm text-slate-700">
                       {[
                         "creazione di account per venditori e dipendenti con invio automatico delle credenziali di accesso via email;",
@@ -418,14 +417,14 @@ export default function ContractView() {
                         "supporto doppio ruolo: un utente può essere contemporaneamente consulente e cliente nella stessa piattaforma;",
                         "le prime 5 licenze dipendente sono incluse gratuitamente nel pacchetto del Partner.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-amber-400">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   {/* 3.5 */}
-                  <div data-section="art3-5" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-cyan-50/80 to-sky-50/40 border border-cyan-100">
-                    <h3 className="text-lg font-bold text-cyan-800">3.5. Knowledge Base e AI — Il Cervello Documentale</h3>
+                  <div data-section="art3-5" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.5. Knowledge Base e AI — Il Cervello Documentale</h3>
                     <ul className="space-y-1.5 text-sm text-slate-700">
                       {[
                         "caricamento di documenti in formato PDF, DOCX, TXT e URL di pagine web;",
@@ -434,14 +433,14 @@ export default function ContractView() {
                         "tecnologia RAG (Retrieval Augmented Generation): l'AI cerca nei documenti, estrae informazioni rilevanti, formula risposte con fonti verificabili;",
                         "l'AI non inventa mai informazioni: se non trova la risposta nei documenti, lo comunica chiaramente.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-cyan-400">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   {/* 3.6 */}
-                  <div data-section="art3-6" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-rose-50/80 to-pink-50/40 border border-rose-100">
-                    <h3 className="text-lg font-bold text-rose-800">3.6. AI Course Builder — Generazione Automatica di Corsi</h3>
+                  <div data-section="art3-6" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.6. AI Course Builder — Generazione Automatica di Corsi</h3>
                     <ul className="space-y-1.5 text-sm text-slate-700">
                       {[
                         "generazione di corsi strutturati a partire da un URL di un video YouTube;",
@@ -449,14 +448,14 @@ export default function ContractView() {
                         "un video di 1 ora può generare un corso completo (5 moduli, 15 lezioni, 5 quiz) in circa 10 minuti;",
                         "revisione e modifica del corso generato prima della pubblicazione.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-rose-400">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   {/* 3.7 */}
-                  <div data-section="art3-7" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-fuchsia-50/80 to-pink-50/40 border border-fuchsia-100">
-                    <h3 className="text-lg font-bold text-fuchsia-800">3.7. Content Marketing Studio</h3>
+                  <div data-section="art3-7" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.7. Content Marketing Studio</h3>
                     <ul className="space-y-1.5 text-sm text-slate-700">
                       {[
                         "generatore di idee per contenuti basato sull'AI, personalizzato per settore e target del Partner;",
@@ -466,14 +465,14 @@ export default function ContractView() {
                         "organizzazione dei contenuti in cartelle e calendario editoriale visuale;",
                         "libreria brand assets per logo, palette colori, bio e descrizioni.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-fuchsia-400">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   {/* 3.8 */}
-                  <div data-section="art3-8" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-teal-50/80 to-emerald-50/40 border border-teal-100">
-                    <h3 className="text-lg font-bold text-teal-800">3.8. Email e Automazioni</h3>
+                  <div data-section="art3-8" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.8. Email e Automazioni</h3>
                     <ul className="space-y-2 text-sm text-slate-700">
                       {[
                         { label: "Email Journey", text: "sequenze di email automatiche programmate nel tempo (benvenuto, come iniziare, primo corso, check-in, feedback);" },
@@ -482,14 +481,14 @@ export default function ContractView() {
                         { label: "Email post-consulenza", text: "riepilogo automatico con punti chiave discussi, decisioni prese, prossimi step e data prossimo appuntamento;" },
                         { label: "Automazioni", text: "regole trigger-condizione-azione personalizzabili (es: se lead non risponde da 3 giorni, invia follow-up WhatsApp)." },
                       ].map((item, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-teal-400">•</span><span><strong>{item.label}:</strong> {item.text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span><strong>{item.label}:</strong> {item.text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   {/* 3.9 */}
-                  <div data-section="art3-9" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-sky-50/80 to-blue-50/40 border border-sky-100">
-                    <h3 className="text-lg font-bold text-sky-800">3.9. Calendario, Consulenze e Task</h3>
+                  <div data-section="art3-9" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.9. Calendario, Consulenze e Task</h3>
                     <ul className="space-y-1.5 text-sm text-slate-700">
                       {[
                         "calendario integrato con gestione appuntamenti e consulenze;",
@@ -498,14 +497,14 @@ export default function ContractView() {
                         "sistema task con scadenze, priorità e gestione quotidiana;",
                         "completamento consulenza con note, email di riepilogo automatica, nuovi esercizi e programmazione prossimo appuntamento.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-sky-400">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   {/* 3.10 */}
-                  <div data-section="art3-10" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-indigo-50/80 to-violet-50/40 border border-indigo-100">
-                    <h3 className="text-lg font-bold text-indigo-800">3.10. Dashboard e Analytics</h3>
+                  <div data-section="art3-10" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.10. Dashboard e Analytics</h3>
                     <ul className="space-y-1.5 text-sm text-slate-700">
                       {[
                         "dashboard consulente con 4 KPI principali: clienti attivi, esercizi da revisionare, consulenze della settimana, lead prioritari;",
@@ -514,14 +513,14 @@ export default function ContractView() {
                         "profilo cliente completo con 6 tab: panoramica, percorso formativo, consulenze, documenti, comunicazioni, analytics;",
                         "dashboard cliente con progressi formativi, esercizi, calendario e accesso all'AI Assistant.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-indigo-400">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   {/* 3.11 */}
-                  <div data-section="art3-11" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-pink-50/80 to-rose-50/40 border border-pink-100">
-                    <h3 className="text-lg font-bold text-pink-800">3.11. Integrazione Instagram DM</h3>
+                  <div data-section="art3-11" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.11. Integrazione Instagram DM</h3>
                     <ul className="space-y-1.5 text-sm text-slate-700">
                       {[
                         "collegamento dell'account Instagram Business tramite API Meta;",
@@ -529,14 +528,14 @@ export default function ContractView() {
                         "gestione story replies e conversione follower in lead;",
                         "rispetto della finestra 24 ore imposta da Instagram per le risposte.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-pink-400">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   {/* 3.12 */}
-                  <div data-section="art3-12" className="space-y-3 p-5 rounded-xl bg-gradient-to-br from-blue-50/80 to-indigo-50/40 border border-blue-100">
-                    <h3 className="text-lg font-bold text-blue-800">3.12. Assistenza WhatsApp AI — 24/7</h3>
+                  <div data-section="art3-12" className="space-y-3 p-5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+                    <h3 className="text-lg font-bold text-slate-800">3.12. Assistenza WhatsApp AI — 24/7</h3>
                     <p className="text-sm text-slate-700 leading-relaxed">
                       Il Partner riceve accesso a un canale di assistenza gestito da un'intelligenza artificiale addestrata sulla documentazione della Piattaforma, disponibile 24 ore su 24 tramite WhatsApp. L'assistenza AI è in grado di rispondere a domande sull'utilizzo della Piattaforma, guidare il Partner nelle configurazioni e risolvere dubbi operativi.
                     </p>
@@ -553,10 +552,10 @@ export default function ContractView() {
                     <p className="text-slate-700 leading-relaxed"><strong>4.1. Aggiornamenti Base.</strong> Il Fornitore rilascia periodicamente aggiornamenti della Piattaforma che includono: correzioni di bug, miglioramenti delle prestazioni, aggiornamenti di sicurezza ed evoluzioni delle funzionalità esistenti. Tali aggiornamenti sono sempre inclusi nel Canone Mensile senza costi aggiuntivi.</p>
                     <p className="text-slate-700 leading-relaxed"><strong>4.2. Aggiornamenti Custom.</strong> Il Partner ha diritto a una (1) richiesta di personalizzazione al mese, da intendersi come una modifica specifica, un adattamento funzionale o una configurazione dedicata richiesta dal Partner. Le richieste custom:</p>
                     <ul className="ml-6 space-y-1 text-sm text-slate-700">
-                      <li className="flex gap-2"><span className="text-indigo-400">•</span><span>non sono cumulabili: se il Partner non utilizza la richiesta in un determinato mese, non può sommarla a quella del mese successivo;</span></li>
-                      <li className="flex gap-2"><span className="text-indigo-400">•</span><span>devono essere inviate via email o tramite il canale di assistenza dedicato;</span></li>
-                      <li className="flex gap-2"><span className="text-indigo-400">•</span><span>saranno valutate dal Fornitore in termini di fattibilità e tempistiche;</span></li>
-                      <li className="flex gap-2"><span className="text-indigo-400">•</span><span>il Fornitore si riserva il diritto di rifiutare richieste che comportino modifiche strutturali all'architettura della Piattaforma.</span></li>
+                      <li className="flex gap-2"><span className="text-slate-400">•</span><span>non sono cumulabili: se il Partner non utilizza la richiesta in un determinato mese, non può sommarla a quella del mese successivo;</span></li>
+                      <li className="flex gap-2"><span className="text-slate-400">•</span><span>devono essere inviate via email o tramite il canale di assistenza dedicato;</span></li>
+                      <li className="flex gap-2"><span className="text-slate-400">•</span><span>saranno valutate dal Fornitore in termini di fattibilità e tempistiche;</span></li>
+                      <li className="flex gap-2"><span className="text-slate-400">•</span><span>il Fornitore si riserva il diritto di rifiutare richieste che comportino modifiche strutturali all'architettura della Piattaforma.</span></li>
                     </ul>
                     <p className="text-slate-700 leading-relaxed"><strong>4.3. Manutenzione Programmata.</strong> Il Fornitore può eseguire interventi di manutenzione programmata che comportino temporanea indisponibilità della Piattaforma, previo avviso al Partner con almeno 24 ore di anticipo.</p>
                   </div>
@@ -574,30 +573,21 @@ export default function ContractView() {
                 <section data-section="art6" className="space-y-6">
                   <h2 className="text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">ARTICOLO 6 — MODELLO ECONOMICO — CORRISPETTIVI</h2>
 
-                  <div className="p-5 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 space-y-4">
-                    <h3 className="font-bold text-green-800">6.1. Costo di Attivazione (Setup)</h3>
+                  <div className="p-5 rounded-xl bg-slate-50/80 border border-slate-200/60 space-y-4">
+                    <h3 className="font-bold text-slate-800">6.1. Costo di Attivazione (Setup)</h3>
                     <p className="text-sm text-slate-700 leading-relaxed">All'atto della sottoscrizione, il Partner corrisponde un costo di attivazione una tantum fino a un massimo di <strong>Euro 2.000,00</strong>, comprensivo di: configurazione iniziale della Piattaforma, creazione dell'ambiente dedicato, setup degli agenti AI WhatsApp, caricamento iniziale della Knowledge Base, formazione iniziale.</p>
                     <p className="text-sm text-slate-700 leading-relaxed">Il costo di attivazione può essere ridotto o azzerato a insindacabile discrezione del Fornitore.</p>
-                    <div className="p-3 rounded-lg bg-white/80 border border-green-200 text-sm">
-                      <p className="text-slate-700"><strong>Costo di attivazione concordato:</strong> Euro ______________ (____________________/00)</p>
-                    </div>
                   </div>
 
-                  <div className="p-5 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 space-y-4">
-                    <h3 className="font-bold text-blue-800">6.2. Canone Mensile Fisso</h3>
+                  <div className="p-5 rounded-xl bg-slate-50/80 border border-slate-200/60 space-y-4">
+                    <h3 className="font-bold text-slate-800">6.2. Canone Mensile Fisso</h3>
                     <p className="text-sm text-slate-700 leading-relaxed">Il Partner corrisponde un canone mensile fisso, dovuto anticipatamente entro il giorno 5 di ogni mese solare, a partire dal mese successivo alla data di attivazione.</p>
-                    <div className="p-3 rounded-lg bg-white/80 border border-blue-200 text-sm">
-                      <p className="text-slate-700"><strong>Canone mensile concordato:</strong> Euro ______________ (____________________/00) + IVA</p>
-                    </div>
                     <p className="text-sm text-slate-700">Il Canone include: accesso completo a tutti i moduli, aggiornamenti base, 1 richiesta custom/mese, 5 licenze dipendente gratuite, assistenza WhatsApp AI 24/7, supporto tecnico via ticket.</p>
                   </div>
 
-                  <div className="p-5 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 space-y-3">
-                    <h3 className="font-bold text-amber-800">6.3. Licenze Dipendenti Aggiuntive</h3>
+                  <div className="p-5 rounded-xl bg-slate-50/80 border border-slate-200/60 space-y-3">
+                    <h3 className="font-bold text-slate-800">6.3. Licenze Dipendenti Aggiuntive</h3>
                     <p className="text-sm text-slate-700 leading-relaxed">Le prime <strong>5 licenze</strong> per dipendenti sono incluse gratuitamente. A partire dalla sesta, il costo è di <strong>Euro 20,00/mese per pacchetto di 5 licenze</strong>. Non è possibile acquistare licenze singole.</p>
-                    <div className="p-3 rounded-lg bg-white/80 border border-amber-200 text-xs text-slate-600 italic">
-                      Esempio: 8 dipendenti = 5 gratuite + 1 pacchetto da 5 (€20/mese) = 10 licenze disponibili
-                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -609,11 +599,11 @@ export default function ContractView() {
                 {/* Art 7 */}
                 <section data-section="art7" className="space-y-4">
                   <h2 className="text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">ARTICOLO 7 — REVENUE SHARE</h2>
-                  <div className="p-5 rounded-xl bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200 space-y-4">
+                  <div className="p-5 rounded-xl bg-slate-50/80 border border-slate-200/60 space-y-4">
                     <p className="text-slate-700 leading-relaxed"><strong>7.1.</strong> Il Partner che rivende licenze Gold o Silver è tenuto a corrispondere al Fornitore il <strong>50% del ricavo netto</strong> generato da ciascuna licenza rivenduta.</p>
                     <p className="text-slate-700 leading-relaxed"><strong>7.2.</strong> Si applica a: canoni mensili delle licenze rivendute, costi di attivazione applicati ai clienti finali, servizi aggiuntivi collegati alla Piattaforma. Non si applica a: consulenze professionali, formazione e attività commerciali non connesse alla Piattaforma.</p>
-                    <div className="p-3 rounded-lg bg-white/80 border border-purple-200">
-                      <p className="text-sm text-purple-800 font-semibold">7.3. L'obbligo di Revenue Share è PERMANENTE e IRREVOCABILE per tutta la durata del rapporto tra Partner e cliente finale, anche oltre la cessazione del presente Contratto.</p>
+                    <div className="p-3 rounded-lg bg-white/80 border border-slate-200">
+                      <p className="text-sm text-slate-800 font-semibold">7.3. L'obbligo di Revenue Share è PERMANENTE e IRREVOCABILE per tutta la durata del rapporto tra Partner e cliente finale, anche oltre la cessazione del presente Contratto.</p>
                     </div>
                     <p className="text-slate-700 leading-relaxed text-sm"><strong>7.4.</strong> Tracciamento preferibilmente tramite Stripe Connect. Il Partner si impegna a fornire documentazione attestante i ricavi su richiesta.</p>
                     <p className="text-slate-700 leading-relaxed text-sm"><strong>7.5.</strong> La quota del Fornitore è liquidata mensilmente entro il giorno 15 del mese successivo. Con Stripe Connect, la ripartizione avviene automaticamente.</p>
@@ -673,7 +663,7 @@ export default function ContractView() {
                   <p className="text-slate-700 leading-relaxed"><strong>11.2.</strong> Il Fornitore è titolare dei dati generati dall'utilizzo della Piattaforma: log conversazioni AI, dati di utilizzo e analytics, contenuti generati dall'AI, metriche, dati di addestramento.</p>
                   
                   <div className="mt-6 pt-4 border-t border-slate-200">
-                    <h3 className="text-lg font-bold text-violet-700 mb-3">11.3. Segregazione e Riservatezza dei Dati tra Clienti Finali</h3>
+                    <h3 className="text-lg font-bold text-slate-700 mb-3">11.3. Segregazione e Riservatezza dei Dati tra Clienti Finali</h3>
                     <ul className="space-y-2 text-sm text-slate-700 ml-4">
                       {[
                         "Ciascun cliente del Partner vede esclusivamente i propri dati all'interno della Piattaforma. Non ha accesso ai dati di altri clienti dello stesso Partner;",
@@ -682,13 +672,13 @@ export default function ContractView() {
                         "Il Fornitore implementa controlli di accesso granulare ai documenti della Knowledge Base: ogni documento può essere reso disponibile selettivamente all'AI del consulente, all'AI dei clienti, agli Agenti WhatsApp, o a specifiche combinazioni;",
                         "Gli Agenti AI WhatsApp del Partner operano in un contesto isolato, elaborando esclusivamente i dati dei clienti del Partner e utilizzando la Knowledge Base del Partner, senza accesso ai dati o alla Knowledge Base di altri Partner.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-violet-400">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-slate-200">
-                    <h3 className="text-lg font-bold text-violet-700 mb-3">11.4. Sicurezza dei Dati</h3>
+                    <h3 className="text-lg font-bold text-slate-700 mb-3">11.4. Sicurezza dei Dati</h3>
                     <ul className="space-y-2 text-sm text-slate-700 ml-4">
                       {[
                         "Il Fornitore implementa misure tecniche e organizzative adeguate a garantire la riservatezza, l'integrità e la disponibilità dei dati, conformemente alle migliori pratiche del settore;",
@@ -696,13 +686,13 @@ export default function ContractView() {
                         "Crittografia dei dati in transito (TLS/HTTPS) e a riposo nei database;",
                         "Monitoraggio continuo della sicurezza, audit regolari e aggiornamenti tempestivi delle misure di protezione.",
                       ].map((text, i) => (
-                        <li key={i} className="flex gap-2"><span className="text-violet-400">•</span><span>{text}</span></li>
+                        <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{text}</span></li>
                       ))}
                     </ul>
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-slate-200">
-                    <h3 className="text-lg font-bold text-violet-700 mb-3">11.5. Trattamento dei Dati Personali</h3>
+                    <h3 className="text-lg font-bold text-slate-700 mb-3">11.5. Trattamento dei Dati Personali</h3>
                     <p className="text-slate-700 text-sm">Ciascuna Parte tratta i dati personali nel rispetto del GDPR (Reg. UE 2016/679) e della normativa nazionale vigente. Le Parti si impegnano a sottoscrivere, ove necessario, un Data Processing Agreement.</p>
                   </div>
                 </section>
@@ -720,7 +710,7 @@ export default function ContractView() {
                 {/* Art 13 */}
                 <section data-section="art13" className="space-y-4">
                   <h2 className="text-xl font-bold text-slate-800 border-l-4 border-violet-500 pl-4">ARTICOLO 13 — NON CONCORRENZA</h2>
-                  <div className="p-5 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200 space-y-3">
+                  <div className="p-5 rounded-xl bg-amber-50/60 border border-amber-200/60 space-y-3">
                     <p className="text-slate-700 leading-relaxed text-sm"><strong>13.1.</strong> Per tutta la durata del Contratto e per <strong>3 anni</strong> successivi alla cessazione, il Partner si impegna a non: sviluppare o partecipare a piattaforme concorrenti; collaborare con soggetti che sviluppano prodotti concorrenti; utilizzare il know-how acquisito per creare prodotti concorrenti; sollecitare o assumere dipendenti o collaboratori del Fornitore.</p>
                     <p className="text-slate-700 leading-relaxed text-sm"><strong>13.2.</strong> Penale per violazione: <strong>Euro 50.000,00</strong> per ciascuna violazione accertata, fermo restando il diritto al risarcimento del maggior danno.</p>
                     <p className="text-slate-700 leading-relaxed text-sm"><strong>13.3.</strong> Ambito territoriale: intero territorio nazionale italiano e mercati esteri in cui il Fornitore operi o abbia manifestato interesse durante la vigenza.</p>
@@ -801,68 +791,33 @@ export default function ContractView() {
                   <p className="text-slate-700 leading-relaxed text-sm"><strong>23.5. Copie.</strong> Redatto in due copie originali, una per ciascuna Parte.</p>
                 </section>
 
-                {/* Firme */}
-                <section data-section="firme" className="space-y-6 pt-8 border-t border-slate-200">
-                  <h2 className="text-xl font-bold text-slate-800 text-center">FIRME</h2>
-                  <p className="text-center text-slate-600 italic text-sm">Letto, confermato e sottoscritto.</p>
-
-                  <div className="text-center text-sm text-slate-700 mb-4">
-                    <p><strong>Luogo e data:</strong> ______________________________</p>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-8">
-                    <div className="p-6 rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/30 text-center space-y-4">
-                      <h3 className="font-bold text-indigo-800">IL FORNITORE</h3>
-                      <p className="text-sm text-slate-600">Nome e Cognome:</p>
-                      <div className="h-px bg-slate-300 mx-8" />
-                      <p className="text-sm text-slate-600 mt-6">Firma:</p>
-                      <div className="h-20 border-b border-slate-300 mx-8" />
-                    </div>
-                    <div className="p-6 rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/30 text-center space-y-4">
-                      <h3 className="font-bold text-violet-800">IL PARTNER</h3>
-                      <p className="text-sm text-slate-600">Nome e Cognome:</p>
-                      <div className="h-px bg-slate-300 mx-8" />
-                      <p className="text-sm text-slate-600 mt-6">Firma:</p>
-                      <div className="h-20 border-b border-slate-300 mx-8" />
-                    </div>
-                  </div>
-                </section>
-
                 {/* Approvazione specifica */}
-                <section data-section="approvazione" className="space-y-4 pt-6 border-t border-slate-200">
+                <section data-section="approvazione" className="space-y-4">
                   <h2 className="text-lg font-bold text-slate-800 text-center">APPROVAZIONE SPECIFICA</h2>
-                  <p className="text-center text-sm text-slate-600 italic">ai sensi degli articoli 1341 e 1342 del Codice Civile</p>
-
-                  <p className="text-sm text-slate-700 leading-relaxed">Il Partner dichiara di aver letto, compreso e di approvare specificamente le seguenti clausole:</p>
-
-                  <div className="grid sm:grid-cols-2 gap-2">
-                    {[
-                      "Art. 7 — Revenue Share permanente e irrevocabile",
-                      "Art. 8 — Durata minima e rinnovo automatico",
-                      "Art. 9 — Recesso e obbligo pagamento canoni residui",
-                      "Art. 10 — Proprietà intellettuale esclusiva",
-                      "Art. 12 — Manleva AI e limitazione responsabilità",
-                      "Art. 13 — Non concorrenza 3 anni con penale",
-                      "Art. 14 — Sospensione senza indennizzo",
-                      "Art. 15 — Cessione del contratto",
-                      "Art. 18 — Clausola risolutiva espressa",
-                      "Art. 20 — Non esclusività",
-                      "Art. 22 — Foro esclusivo di Messina",
-                    ].map((clause, i) => (
-                      <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 text-xs text-slate-700">
-                        <span className="w-4 h-4 rounded border border-slate-300 flex-shrink-0" />
-                        <span>{clause}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-8 p-6 rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/30 text-center space-y-4">
-                    <h3 className="font-bold text-violet-800">IL PARTNER</h3>
-                    <div className="space-y-3 text-sm text-slate-600">
-                      <p>Nome e Cognome: ______________________________</p>
-                      <p className="mt-4">Firma: ______________________________</p>
-                      <p className="mt-4">Data: ______________________________</p>
-                    </div>
+                  <p className="text-center text-sm italic text-slate-500">ai sensi degli articoli 1341 e 1342 del Codice Civile</p>
+                  
+                  <div className="p-5 rounded-xl bg-slate-50/80 border border-slate-200/60 space-y-4">
+                    <p className="text-sm text-slate-700">Il Partner, con la sottoscrizione digitale del presente Contratto, dichiara di aver letto, compreso e di approvare specificamente le seguenti clausole:</p>
+                    
+                    <ul className="space-y-1">
+                      {[
+                        "Art. 7 — Revenue Share permanente e irrevocabile",
+                        "Art. 8 — Durata minima e rinnovo automatico",
+                        "Art. 9 — Recesso e obbligo pagamento canoni residui",
+                        "Art. 10 — Proprietà intellettuale esclusiva",
+                        "Art. 12 — Manleva AI e limitazione responsabilità",
+                        "Art. 13 — Non concorrenza 3 anni con penale",
+                        "Art. 14 — Sospensione senza indennizzo",
+                        "Art. 15 — Cessione del contratto",
+                        "Art. 18 — Clausola risolutiva espressa",
+                        "Art. 20 — Non esclusività",
+                        "Art. 22 — Foro esclusivo di Messina",
+                      ].map((text, i) => (
+                        <li key={i} className="text-sm text-slate-600 py-1.5 border-b border-slate-100 last:border-0">{text}</li>
+                      ))}
+                    </ul>
+                    
+                    <p className="text-xs text-slate-500 italic pt-2">La firma digitale apposta tramite OTP al presente Contratto costituisce accettazione espressa di tutte le clausole sopra elencate ai sensi e per gli effetti degli artt. 1341 e 1342 del Codice Civile.</p>
                   </div>
                 </section>
 

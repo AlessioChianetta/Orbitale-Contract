@@ -186,37 +186,42 @@ Genera HTML con stili inline professionali. Segui ESATTAMENTE questi pattern:
 4) DIVISORE LIVELLO 2:
 <div style="text-align: center; padding: 20px; border-radius: 12px; background: linear-gradient(90deg, #7c3aed, #6b21a8); color: white; margin: 32px 0; font-weight: bold; font-size: 20px;">LIVELLO 2 — PROTEZIONE LEGALE</div>
 
-5) CARD COLORATE per sezioni importanti (servizi, corrispettivi, clausole critiche):
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #COLOR1, #COLOR2); border: 1px solid #BORDER; margin: 16px 0;">
-<h3 style="font-size: 16px; font-weight: bold; color: #TITLE_COLOR;">Titolo</h3>
+5) CARD NEUTRE per sezioni (servizi, corrispettivi, sotto-sezioni):
+Usa SEMPRE sfondo neutro grigio chiaro per TUTTE le card dei servizi. NON usare colori diversi per ogni servizio.
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">Titolo Servizio</h3>
 <p>contenuto...</p>
 <ul><li>punto 1</li><li>punto 2</li></ul>
 </div>
 
-Palette colori per le card dei servizi:
-- Blu: from-blue-50 (#eff6ff, #eef2ff) border #bfdbfe
-- Verde: from-emerald-50 (#ecfdf5, #f0fdfa) border #a7f3d0
-- Viola: from-violet-50 (#f5f3ff, #fae8ff) border #ddd6fe
-- Ambra: from-amber-50 (#fffbeb, #fff7ed) border #fde68a
-- Ciano: from-cyan-50 (#ecfeff, #f0f9ff) border #a5f3fc
-- Rosa: from-rose-50 (#fff1f2, #fdf2f8) border #fecdd3
-- Fucsia: from-fuchsia-50 (#fdf4ff, #fdf2f8) border #f0abfc
-- Teal: from-teal-50 (#f0fdfa, #ecfdf5) border #99f6e4
-- Sky: from-sky-50 (#f0f9ff, #eff6ff) border #bae6fd
-- Pink: from-pink-50 (#fdf2f8, #fff1f2) border #fbcfe8
+IMPORTANTE: NON usare background colorati (blu, verde, viola, ambra, etc.) per le card. Usa SOLO #f8fafc con bordo #e2e8f0.
+I titoli h3 dentro le card devono essere SEMPRE color: #1e293b (grigio scuro).
+I sotto-titoli h4 devono essere color: #334155.
 
-6) CARD EVIDENZIATE per clausole critiche (manleva, non concorrenza, etc.):
-<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #fef2f2, #fff1f2); border: 1px solid #fecaca; margin: 16px 0;">
+6) CARD EVIDENZIATE SOLO per clausole critiche (manleva, limitazione responsabilità):
+Usa lo sfondo rosso tenue SOLO per clausole davvero critiche come manleva e limitazione di responsabilità:
+<div style="padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #fef2f2, #fff1f2); border: 1px solid #fca5a5; margin: 16px 0;">
 contenuto clausola critica...
 </div>
 
-7) APPROVAZIONE SPECIFICA (sempre alla fine):
+Per la non concorrenza, usa un sfondo ambra molto tenue:
+<div style="padding: 16px; border-radius: 12px; background: #fffbeb; border: 1px solid #fde68a; margin: 16px 0;">
+contenuto non concorrenza...
+</div>
+
+7) APPROVAZIONE SPECIFICA (sempre alla fine, NO checkbox, NO blocco firma):
+NON inserire checkbox. NON inserire area firma con "Nome e Cognome / Firma / Data" — la firma è digitale con OTP.
 <h2 style="font-size: 16px; font-weight: bold; color: #1e293b; text-align: center; margin: 32px 0 8px 0;">APPROVAZIONE SPECIFICA</h2>
 <p style="text-align: center; font-size: 13px; font-style: italic; color: #475569;">ai sensi degli articoli 1341 e 1342 del Codice Civile</p>
-<p>Il Partner/Cliente dichiara di aver letto, compreso e di approvare specificamente le seguenti clausole:</p>
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0;">
-(elenco clausole vessatorie con checkbox visuale)
+<div style="padding: 20px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<p>Il Partner/Cliente, con la sottoscrizione digitale del presente Contratto, dichiara di aver letto, compreso e di approvare specificamente le seguenti clausole:</p>
+<ul style="list-style: none; padding: 0;">(elenco clausole vessatorie come lista semplice con li)</ul>
+<p style="font-size: 13px; color: #475569; font-style: italic;">La firma digitale apposta tramite OTP al presente Contratto costituisce accettazione espressa di tutte le clausole sopra elencate ai sensi e per gli effetti degli artt. 1341 e 1342 del Codice Civile.</p>
 </div>
+
+8) IMPORTI E CORRISPETTIVI:
+NON inserire campi vuoti con "Euro ______________" o "____________________/00". Gli importi vengono compilati dal venditore nel form separato.
+Descrivi solo le regole generali (es. "costo di attivazione una tantum", "canone mensile fisso") senza lasciare spazi da compilare.
 
 PLACEHOLDER VARIABILI:
 - {{societa}} per il nome della società cliente
