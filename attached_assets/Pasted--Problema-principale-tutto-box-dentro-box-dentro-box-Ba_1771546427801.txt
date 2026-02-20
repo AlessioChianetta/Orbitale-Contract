@@ -1,0 +1,184 @@
+🎯 Problema principale
+
+È tutto “box dentro box dentro box”.
+
+Background grigio
+
+Card grigia
+
+Editor grigio
+
+Alert azzurro
+
+Tab standard
+
+Non c’è profondità.
+Non c’è focus.
+Non c’è sensazione di strumento professionale.
+
+💎 Versione Premium Innovativa – Cosa dire a Replit
+
+Copia questo prompt:
+
+Voglio ridisegnare completamente la schermata “Modifica Template” in stile Premium Innovativo SaaS 2026.
+
+Obiettivo:
+editor potente, elegante, con forte gerarchia visiva e percezione alta di valore.
+
+🎨 1. Layout generale
+
+Background pagina: #F6F7FB
+
+Modale grande centrata con radius 20px
+
+Shadow morbida profonda (0 20px 60px rgba(0,0,0,0.08))
+
+Interno completamente bianco
+
+Spacing generoso (32px)
+
+La pagina deve respirare.
+
+🏷 2. Header moderno
+
+Struttura:
+
+Titolo grande: “Modifica Template”
+Sottotitolo leggero sotto
+Badge “Attivo” come pill soft green (background chiaro, testo verde scuro)
+
+Allinea titolo a sinistra.
+Chiudi (X) più discreto.
+
+🧭 3. Tabs premium
+
+Le tab attuali sono piatte.
+
+Rendile:
+
+Pills arrotondate
+
+Background soft grigio
+
+Attiva con background bianco + shadow leggera
+
+Transizione smooth
+
+Indicatore animato
+
+Devono sembrare segment control moderni, non tab bootstrap.
+
+🧠 4. Editor = Cuore della pagina
+
+Adesso sembra un textarea normale.
+
+Voglio:
+
+Editor con radius 16px
+
+Background leggermente diverso dal resto (es: #FCFCFD)
+
+Border ultra soft
+
+Toolbar più minimal
+
+Toggle Code / Anteprima come switch moderno
+
+Quando è in modalità codice:
+
+Font monospace elegante
+
+Background leggermente più scuro
+
+Scrollbar custom soft
+
+🧩 5. Blocco “Variabili disponibili”
+
+Attualmente è una box azzurra pesante.
+
+Rendilo:
+
+Card informativa soft
+
+Background molto chiaro (grigio-azzurro leggerissimo)
+
+Border sottile
+
+Variabili in pill copyable
+
+Icona copy su hover
+
+Non deve sembrare un alert.
+
+🎯 6. Sezione “Corpo del Contratto”
+
+Titolo più forte
+
+Piccolo badge “Obbligatorio”
+
+Editor più alto
+
+Spacing maggiore sopra e sotto
+
+Deve sembrare la parte principale.
+
+🚀 7. Footer azioni
+
+Attualmente è molto standard.
+
+Rendilo:
+
+Barra sticky in basso
+
+Background bianco
+
+Border top leggerissimo
+
+Pulsante “Aggiorna Template”:
+
+Gradiente blu → viola soft
+
+Shadow leggera
+
+Hover elevate
+
+Transizione smooth
+
+“Annulla” outline minimal.
+
+✨ 8. Micro-Interazioni
+
+Aggiungere:
+
+Transizione 0.2s su hover
+
+Focus ring elegante blu soft
+
+Elevazione card al passaggio mouse
+
+Animazione morbida cambio tab
+
+🎨 Palette da usare
+
+Primary: #4F46E5
+Accent: #7C3AED
+Success soft: bg #ECFDF5 / text #059669
+Text primary: #0F172A
+Text secondary: #64748B
+
+Radius system: 16px–20px
+Shadow system: soft, mai pesante.
+
+🧠 Percezione finale
+
+Deve sembrare:
+
+Editor professionale
+
+Strumento serio
+
+Prodotto da 79€/mese
+
+Non un admin generico
+
+Layout più arioso, meno box, più gerarchia.
