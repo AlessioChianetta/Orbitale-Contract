@@ -1,24 +1,20 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { Redirect } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertUserSchema } from "@shared/schema";
 import { z } from "zod";
-import { File, Shield, Users, Zap, Building } from "lucide-react";
+import { FileText, ArrowLeft, Building } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = insertUserSchema.pick({ username: true, password: true });
 
-// Schema per registrazione admin (nuove aziende)
 const registerAdminSchema = insertUserSchema
   .omit({ id: true, createdAt: true, companyId: true, role: true })
   .extend({ 
@@ -38,6 +34,7 @@ type RegisterAdminForm = z.infer<typeof registerAdminSchema>;
 export default function AuthPage() {
   const { user, loginMutation } = useAuth();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -91,349 +88,366 @@ export default function AuthPage() {
     registerMutation.mutate(data);
   };
 
-  // Redirect if already logged in (after all hooks are called)
   if (user) {
     return <Redirect to={user.role === "admin" ? "/admin" : "/seller"} />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Left Column - Auth Forms */}
-      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      <style>{`
+        @keyframes auth-gradient {
+          0%, 100% { background-position: 0% 50%; }
+          25% { background-position: 50% 0%; }
+          50% { background-position: 100% 50%; }
+          75% { background-position: 50% 100%; }
+        }
+        .auth-bg {
+          background: linear-gradient(135deg, #f8f9fc 0%, #eef0f7 25%, #e8e4f3 50%, #f0ecf8 75%, #f5f3fa 100%);
+          background-size: 400% 400%;
+          animation: auth-gradient 20s ease infinite;
+        }
+        .glass-card {
+          background: rgba(255, 255, 255, 0.85);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          border: 1px solid rgba(255, 255, 255, 0.6);
+          box-shadow: 0 25px 60px -12px rgba(79, 70, 229, 0.12), 0 0 0 1px rgba(79, 70, 229, 0.04);
+        }
+        .input-glow:focus {
+          box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+        }
+      `}</style>
+
+      <div className="auth-bg absolute inset-0" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[10%] left-[15%] w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-[10%] right-[15%] w-80 h-80 bg-violet-200/20 rounded-full blur-3xl" />
+      </div>
+
+      <Link href="/">
+        <span className="fixed top-6 left-6 z-50 inline-flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors text-sm font-medium cursor-pointer">
+          <ArrowLeft className="h-4 w-4" />
+          Torna alla home
+        </span>
+      </Link>
+
+      <div className="relative z-10 w-full max-w-md mx-4">
+        <div className="glass-card rounded-3xl shadow-2xl p-8">
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <File className="h-12 w-12 text-primary mr-3" />
-              <h1 className="text-3xl font-bold text-gray-900">Turbo Contract</h1>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <FileText className="h-8 w-8 text-indigo-600" />
+              <h1 className="text-2xl font-bold text-gray-900">Turbo Contract</h1>
             </div>
-            <p className="text-gray-600">
-              Sistema avanzato per la gestione di contratti e firme elettroniche
+            <p className="text-gray-500 text-sm">
+              Gestione contratti e firme digitali
             </p>
           </div>
 
-          <Card>
-            <CardContent className="p-0">
-              <Tabs defaultValue="login" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="login">Accesso</TabsTrigger>
-                  <TabsTrigger value="register">Registra Azienda</TabsTrigger>
-                </TabsList>
-
-                <div className="p-6">
-                  {/* LOGIN TAB */}
-                  <TabsContent value="login" className="space-y-4">
-                    <CardHeader className="px-0">
-                      <CardTitle className="text-center">Accedi al Sistema</CardTitle>
-                    </CardHeader>
-                    
-                    <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
-                      <div>
-                        <Label htmlFor="username">Username</Label>
-                        <Input
-                          id="username"
-                          data-testid="input-username"
-                          {...loginForm.register("username")}
-                          disabled={loginMutation.isPending}
-                        />
-                        {loginForm.formState.errors.username && (
-                          <p className="text-sm text-red-600 mt-1">
-                            {loginForm.formState.errors.username.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <Label htmlFor="password">Password</Label>
-                        <Input
-                          id="password"
-                          type="password"
-                          data-testid="input-password"
-                          {...loginForm.register("password")}
-                          disabled={loginMutation.isPending}
-                        />
-                        {loginForm.formState.errors.password && (
-                          <p className="text-sm text-red-600 mt-1">
-                            {loginForm.formState.errors.password.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        data-testid="button-login"
-                        disabled={loginMutation.isPending}
-                      >
-                        {loginMutation.isPending ? "Accesso in corso..." : "Accedi"}
-                      </Button>
-                    </form>
-                  </TabsContent>
-
-                  {/* REGISTER TAB */}
-                  <TabsContent value="register" className="space-y-4">
-                    <CardHeader className="px-0">
-                      <CardTitle className="text-center flex items-center justify-center gap-2">
-                        <Building className="h-5 w-5" />
-                        Registra Nuova Azienda
-                      </CardTitle>
-                      <p className="text-sm text-gray-600 text-center">
-                        Crea un account amministratore per la tua azienda
-                      </p>
-                    </CardHeader>
-                    
-                    <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="reg-username">Username</Label>
-                          <Input
-                            id="reg-username"
-                            data-testid="input-reg-username"
-                            {...registerForm.register("username")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.username && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.username.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="reg-password">Password</Label>
-                          <Input
-                            id="reg-password"
-                            type="password"
-                            data-testid="input-reg-password"
-                            {...registerForm.register("password")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.password && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.password.message}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="reg-email">Email</Label>
-                          <Input
-                            id="reg-email"
-                            type="email"
-                            data-testid="input-reg-email"
-                            {...registerForm.register("email")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.email && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.email.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="reg-fullName">Nome Completo</Label>
-                          <Input
-                            id="reg-fullName"
-                            data-testid="input-reg-fullname"
-                            {...registerForm.register("fullName")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.fullName && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.fullName.message}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="reg-companyName">Nome Azienda</Label>
-                        <Input
-                          id="reg-companyName"
-                          data-testid="input-reg-companyname"
-                          {...registerForm.register("companyName")}
-                          disabled={registerMutation.isPending}
-                        />
-                        {registerForm.formState.errors.companyName && (
-                          <p className="text-sm text-red-600 mt-1">
-                            {registerForm.formState.errors.companyName.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <Label htmlFor="reg-address">Indirizzo</Label>
-                        <Input
-                          id="reg-address"
-                          data-testid="input-reg-address"
-                          {...registerForm.register("address")}
-                          disabled={registerMutation.isPending}
-                        />
-                        {registerForm.formState.errors.address && (
-                          <p className="text-sm text-red-600 mt-1">
-                            {registerForm.formState.errors.address.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="reg-city">Città</Label>
-                          <Input
-                            id="reg-city"
-                            data-testid="input-reg-city"
-                            {...registerForm.register("city")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.city && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.city.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="reg-postalCode">CAP</Label>
-                          <Input
-                            id="reg-postalCode"
-                            data-testid="input-reg-postalcode"
-                            {...registerForm.register("postalCode")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.postalCode && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.postalCode.message}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="reg-taxId">Codice Fiscale</Label>
-                          <Input
-                            id="reg-taxId"
-                            data-testid="input-reg-taxid"
-                            {...registerForm.register("taxId")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.taxId && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.taxId.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="reg-vatId">Partita IVA</Label>
-                          <Input
-                            id="reg-vatId"
-                            data-testid="input-reg-vatid"
-                            {...registerForm.register("vatId")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.vatId && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.vatId.message}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="reg-uniqueCode">Codice Univoco</Label>
-                          <Input
-                            id="reg-uniqueCode"
-                            data-testid="input-reg-uniquecode"
-                            {...registerForm.register("uniqueCode")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.uniqueCode && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.uniqueCode.message}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="reg-pec">Email PEC</Label>
-                          <Input
-                            id="reg-pec"
-                            type="email"
-                            data-testid="input-reg-pec"
-                            {...registerForm.register("pec")}
-                            disabled={registerMutation.isPending}
-                          />
-                          {registerForm.formState.errors.pec && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {registerForm.formState.errors.pec.message}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        data-testid="button-register"
-                        disabled={registerMutation.isPending}
-                      >
-                        {registerMutation.isPending ? "Registrazione in corso..." : "Registra Azienda"}
-                      </Button>
-                    </form>
-                  </TabsContent>
-                </div>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Right Column - Hero Section */}
-      <div className="hidden lg:flex flex-1 bg-primary text-primary-foreground items-center justify-center p-8">
-        <div className="max-w-md text-center">
-          <h2 className="text-4xl font-bold mb-6">
-            Contratti Digitali del Futuro
-          </h2>
-          <p className="text-xl mb-8 opacity-90">
-            Gestisci template, genera contratti dinamici e raccogli firme elettroniche 
-            legalmente valide con un unico sistema integrato.
-          </p>
-          
-          <div className="space-y-6">
-            <div className="flex items-center space-x-4">
-              <div className="bg-white/20 p-3 rounded-full">
-                <Zap className="h-6 w-6" />
-              </div>
-              <div className="text-left">
-                <h3 className="font-semibold">Generazione Rapida</h3>
-                <p className="text-sm opacity-75">Template avanzati con sezioni dinamiche</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="bg-white/20 p-3 rounded-full">
-                <Shield className="h-6 w-6" />
-              </div>
-              <div className="text-left">
-                <h3 className="font-semibold">Sicurezza Garantita</h3>
-                <p className="text-sm opacity-75">Crittografia avanzata e compliance GDPR</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="bg-white/20 p-3 rounded-full">
-                <Users className="h-6 w-6" />
-              </div>
-              <div className="text-left">
-                <h3 className="font-semibold">Collaborazione Team</h3>
-                <p className="text-sm opacity-75">Gestione utenti e permessi granulari</p>
-              </div>
-            </div>
+          {/* Pill Tabs */}
+          <div className="flex bg-gray-100 rounded-xl p-1 mb-8">
+            <button
+              onClick={() => setActiveTab("login")}
+              className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
+                activeTab === "login"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Accesso
+            </button>
+            <button
+              onClick={() => setActiveTab("register")}
+              className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
+                activeTab === "register"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Registra Azienda
+            </button>
           </div>
+
+          {/* LOGIN TAB */}
+          {activeTab === "login" && (
+            <div>
+              <h2 className="text-lg font-bold text-center text-gray-900 mb-6">Accedi al Sistema</h2>
+              
+              <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
+                <div>
+                  <Label htmlFor="username" className="text-sm font-medium text-gray-700">Username</Label>
+                  <Input
+                    id="username"
+                    data-testid="input-username"
+                    className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                    {...loginForm.register("username")}
+                    disabled={loginMutation.isPending}
+                  />
+                  {loginForm.formState.errors.username && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {loginForm.formState.errors.username.message}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    data-testid="input-password"
+                    className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                    {...loginForm.register("password")}
+                    disabled={loginMutation.isPending}
+                  />
+                  {loginForm.formState.errors.password && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {loginForm.formState.errors.password.message}
+                    </p>
+                  )}
+                </div>
+
+                <Button
+                  type="submit"
+                  data-testid="button-login"
+                  disabled={loginMutation.isPending}
+                  className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold shadow-lg hover:shadow-xl hover:shadow-indigo-200 transition-all"
+                >
+                  {loginMutation.isPending ? "Accesso in corso..." : "Accedi"}
+                </Button>
+              </form>
+            </div>
+          )}
+
+          {/* REGISTER TAB */}
+          {activeTab === "register" && (
+            <div>
+              <div className="text-center mb-6">
+                <h2 className="text-lg font-bold text-gray-900 flex items-center justify-center gap-2">
+                  <Building className="h-5 w-5" />
+                  Registra Nuova Azienda
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Crea un account amministratore per la tua azienda
+                </p>
+              </div>
+              
+              <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="reg-username" className="text-sm font-medium text-gray-700">Username</Label>
+                    <Input
+                      id="reg-username"
+                      data-testid="input-reg-username"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("username")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.username && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.username.message}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="reg-password" className="text-sm font-medium text-gray-700">Password</Label>
+                    <Input
+                      id="reg-password"
+                      type="password"
+                      data-testid="input-reg-password"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("password")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.password && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.password.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="reg-email" className="text-sm font-medium text-gray-700">Email</Label>
+                    <Input
+                      id="reg-email"
+                      type="email"
+                      data-testid="input-reg-email"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("email")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.email && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.email.message}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="reg-fullName" className="text-sm font-medium text-gray-700">Nome Completo</Label>
+                    <Input
+                      id="reg-fullName"
+                      data-testid="input-reg-fullname"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("fullName")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.fullName && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.fullName.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="reg-companyName" className="text-sm font-medium text-gray-700">Nome Azienda</Label>
+                  <Input
+                    id="reg-companyName"
+                    data-testid="input-reg-companyname"
+                    className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                    {...registerForm.register("companyName")}
+                    disabled={registerMutation.isPending}
+                  />
+                  {registerForm.formState.errors.companyName && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {registerForm.formState.errors.companyName.message}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="reg-address" className="text-sm font-medium text-gray-700">Indirizzo</Label>
+                  <Input
+                    id="reg-address"
+                    data-testid="input-reg-address"
+                    className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                    {...registerForm.register("address")}
+                    disabled={registerMutation.isPending}
+                  />
+                  {registerForm.formState.errors.address && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {registerForm.formState.errors.address.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="reg-city" className="text-sm font-medium text-gray-700">Città</Label>
+                    <Input
+                      id="reg-city"
+                      data-testid="input-reg-city"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("city")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.city && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.city.message}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="reg-postalCode" className="text-sm font-medium text-gray-700">CAP</Label>
+                    <Input
+                      id="reg-postalCode"
+                      data-testid="input-reg-postalcode"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("postalCode")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.postalCode && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.postalCode.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="reg-taxId" className="text-sm font-medium text-gray-700">Codice Fiscale</Label>
+                    <Input
+                      id="reg-taxId"
+                      data-testid="input-reg-taxid"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("taxId")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.taxId && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.taxId.message}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="reg-vatId" className="text-sm font-medium text-gray-700">Partita IVA</Label>
+                    <Input
+                      id="reg-vatId"
+                      data-testid="input-reg-vatid"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("vatId")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.vatId && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.vatId.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="reg-uniqueCode" className="text-sm font-medium text-gray-700">Codice Univoco</Label>
+                    <Input
+                      id="reg-uniqueCode"
+                      data-testid="input-reg-uniquecode"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("uniqueCode")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.uniqueCode && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.uniqueCode.message}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="reg-pec" className="text-sm font-medium text-gray-700">Email PEC</Label>
+                    <Input
+                      id="reg-pec"
+                      type="email"
+                      data-testid="input-reg-pec"
+                      className="h-12 rounded-xl border-gray-200 input-glow mt-1.5"
+                      {...registerForm.register("pec")}
+                      disabled={registerMutation.isPending}
+                    />
+                    {registerForm.formState.errors.pec && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {registerForm.formState.errors.pec.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  data-testid="button-register"
+                  disabled={registerMutation.isPending}
+                  className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold shadow-lg hover:shadow-xl hover:shadow-indigo-200 transition-all"
+                >
+                  {registerMutation.isPending ? "Registrazione in corso..." : "Registra Azienda"}
+                </Button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     </div>
