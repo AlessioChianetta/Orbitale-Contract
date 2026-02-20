@@ -745,8 +745,8 @@ export default function ProfessionalContractDocument({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 flex flex-col">
-      <header className="sticky top-0 z-50 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl">
+    <div className="h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 flex flex-col overflow-hidden">
+      <header className="flex-shrink-0 z-50 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl">
         <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
@@ -787,11 +787,11 @@ export default function ProfessionalContractDocument({
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0">
         <aside
           className={`${
             sidebarOpen ? "w-72 xl:w-80" : "w-0"
-          } transition-all duration-300 border-r border-slate-200/60 bg-white/60 backdrop-blur-sm flex-shrink-0 overflow-hidden print:hidden sticky top-16 h-[calc(100vh-4rem)]`}
+          } transition-all duration-300 border-r border-slate-200/60 bg-white/60 backdrop-blur-sm flex-shrink-0 overflow-hidden print:hidden`}
         >
           <div className="h-full overflow-y-auto">
             <div className="p-4">
