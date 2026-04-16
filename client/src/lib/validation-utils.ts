@@ -118,53 +118,41 @@ export function detectVATorCF(input: string): 'vat' | 'cf' | 'unknown' {
   return 'unknown';
 }
 
-// Calcolo prezzo con logica corretta: 
-// - Prezzo base è annuale (es. 2000€)
-// - 1 rata = prezzo base (2000€)
-// - Più rate = prezzo aumenta con sovrapprezzo
+// Calcolo rate: il totale resta SEMPRE uguale all'importo inserito dal venditore.
+// La frequenza modifica solo il numero di rate, non il totale. Il prezzo viene
+// deciso in trattativa — niente maggiorazioni automatiche.
 export function calculateDiscountedPrice(
   baseAnnualPrice: number,
   paymentFrequency: 'monthly' | 'quarterly' | 'semiannual' | 'annual'
 ) {
   let numberOfPayments: number;
-  let totalPrice: number;
-  let freeBonusText: string = '';
 
   switch (paymentFrequency) {
     case 'annual':
       numberOfPayments = 1;
-      totalPrice = baseAnnualPrice; // Prezzo base per pagamento unico
-      freeBonusText = '2 mesi gratis inclusi!';
       break;
     case 'semiannual':
       numberOfPayments = 2;
-      totalPrice = baseAnnualPrice * 1.10; // +10% per 2 rate semestrali
-      freeBonusText = '1 mese gratis!';
       break;
     case 'quarterly':
       numberOfPayments = 4;
-      totalPrice = baseAnnualPrice * 1.15; // +15% per 4 rate trimestrali
-      freeBonusText = '0.5 mesi gratis!';
       break;
     case 'monthly':
       numberOfPayments = 12;
-      totalPrice = baseAnnualPrice * 1.20; // +20% per 12 rate mensili
-      freeBonusText = '';
       break;
   }
 
+  const totalPrice = baseAnnualPrice;
   const installmentAmount = totalPrice / numberOfPayments;
-  const savings = paymentFrequency === 'annual' ? 0 : totalPrice - baseAnnualPrice;
-  const savingsPercentage = paymentFrequency === 'annual' ? 0 : ((totalPrice - baseAnnualPrice) / baseAnnualPrice) * 100;
 
   return {
     totalPrice,
     baseAnnualPrice,
     installmentAmount,
     numberOfPayments,
-    extraCost: savings,
-    extraCostPercentage: savingsPercentage,
-    freeBonusText
+    extraCost: 0,
+    extraCostPercentage: 0,
+    freeBonusText: ''
   };
 }
 

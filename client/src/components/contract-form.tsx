@@ -96,6 +96,15 @@ const contractFormSchema = z.object({
 }, {
   message: "La somma delle rate deve corrispondere al prezzo totale",
   path: ["clientData", "rata_list"]
+}).refine((data) => {
+  // Data fine contratto deve essere >= data inizio contratto
+  if (data.contractStartDate && data.contractEndDate) {
+    return data.contractEndDate >= data.contractStartDate;
+  }
+  return true;
+}, {
+  message: "La data di fine contratto deve essere successiva o uguale alla data di inizio",
+  path: ["contractEndDate"]
 });
 
 type ContractForm = z.infer<typeof contractFormSchema>;
