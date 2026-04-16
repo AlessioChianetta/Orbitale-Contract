@@ -12,14 +12,71 @@ import { insertCompanySettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Save, Upload, MessageSquare, Mail, Settings } from "lucide-react";
+import { Building2, Save, Upload, MessageSquare, Mail, Settings, Send, CheckCircle2, XCircle } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 const settingsFormSchema = insertCompanySettingsSchema;
 type SettingsForm = z.infer<typeof settingsFormSchema>;
 
 export default function CompanySettings() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [testEmailTo, setTestEmailTo] = useState<string>("");
+  const [testResult, setTestResult] = useState<
+    | { kind: "success"; message: string }
+    | { kind: "error"; message: string }
+    | null
+  >(null);
+
+  useEffect(() => {
+    if (!testEmailTo && user?.email) {
+      setTestEmailTo(user.email);
+    }
+  }, [user?.email]);
+
+  const testEmailMutation = useMutation({
+    mutationFn: async (to: string) => {
+      const res = await apiRequest("POST", "/api/company-settings/test-email", { to });
+      return (await res.json()) as { success: boolean; message: string; to?: string };
+    },
+    onSuccess: (data) => {
+      setTestResult({ kind: "success", message: data.message });
+      toast({
+        title: "Email di prova inviata",
+        description: data.message,
+      });
+    },
+    onError: (error: any) => {
+      const raw = String(error?.message || "Invio fallito.");
+      const cleaned = raw.replace(/^\d+:\s*/, "");
+      let msg = cleaned;
+      try {
+        const parsed = JSON.parse(cleaned);
+        if (parsed?.message) msg = parsed.message;
+      } catch {}
+      setTestResult({ kind: "error", message: msg });
+      toast({
+        title: "Email di prova fallita",
+        description: msg,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSendTestEmail = () => {
+    setTestResult(null);
+    const recipient = testEmailTo.trim() || user?.email || "";
+    if (!recipient) {
+      toast({
+        title: "Indirizzo mancante",
+        description: "Inserisci un indirizzo email a cui inviare l'email di prova.",
+        variant: "destructive",
+      });
+      return;
+    }
+    testEmailMutation.mutate(recipient);
+  };
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["/api/company-settings"],
@@ -556,6 +613,61 @@ export default function CompanySettings() {
                     Connessione TLS implicita (consigliato su porta 465)
                   </Label>
                 </div>
+              </div>
+
+              {/* Test email */}
+              <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Send className="h-4 w-4 text-blue-600" />
+                  <h4 className="font-medium">Invia un'email di prova</h4>
+                </div>
+                <p className="text-xs text-gray-600">
+                  Verifica subito le credenziali SMTP qui sopra inviando un'email a un indirizzo a tua scelta.
+                  Le impostazioni vengono lette dal database, quindi <strong>salva prima</strong> qualsiasi modifica.
+                </p>
+                <div className="flex flex-col md:flex-row md:items-end gap-3">
+                  <div className="flex-1">
+                    <Label htmlFor="testEmailTo">Destinatario</Label>
+                    <Input
+                      id="testEmailTo"
+                      type="email"
+                      value={testEmailTo}
+                      onChange={(e) => setTestEmailTo(e.target.value)}
+                      placeholder={user?.email || "destinatario@example.com"}
+                      disabled={testEmailMutation.isPending}
+                      data-testid="input-test-email-to"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSendTestEmail}
+                    disabled={testEmailMutation.isPending}
+                    data-testid="button-send-test-email"
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    {testEmailMutation.isPending ? "Invio in corso..." : "Invia email di prova"}
+                  </Button>
+                </div>
+                {testResult && (
+                  <div
+                    className={
+                      testResult.kind === "success"
+                        ? "flex items-start gap-2 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-900"
+                        : "flex items-start gap-2 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-900"
+                    }
+                    data-testid={
+                      testResult.kind === "success" ? "test-email-success" : "test-email-error"
+                    }
+                  >
+                    {testResult.kind === "success" ? (
+                      <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    )}
+                    <span className="break-words">{testResult.message}</span>
+                  </div>
+                )}
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">

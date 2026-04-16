@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema } from "@shared/schema";
 import { generatePDF } from "./services/pdf-generator-new";
-import { sendContractEmail, sendContractSignedNotification } from "./services/email-service";
+import { sendContractEmail, sendContractSignedNotification, sendTestEmail } from "./services/email-service";
 import { generateOTP, sendOTP } from "./services/otp-service";
 import { nanoid } from "nanoid";
 import path from "path";
@@ -149,6 +149,36 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid settings data", errors: error.errors });
       }
       res.status(500).json({ message: "Failed to update company settings" });
+    }
+  });
+
+  // Send a test email using the current tenant's SMTP credentials
+  app.post("/api/company-settings/test-email", requireAdmin, async (req, res) => {
+    const schema = z.object({
+      to: z.string().email("Indirizzo email non valido").optional(),
+    });
+    try {
+      const { to } = schema.parse(req.body ?? {});
+      const recipient = (to ?? req.user.email ?? "").trim();
+      if (!recipient) {
+        return res.status(400).json({ message: "Specifica un indirizzo email destinatario." });
+      }
+      const result = await sendTestEmail(req.user.companyId, recipient);
+      res.json({
+        success: true,
+        message: `Email di prova inviata a ${recipient}.`,
+        messageId: result.messageId,
+        to: recipient,
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dati non validi", errors: error.errors });
+      }
+      console.error("Test email error:", error);
+      res.status(400).json({
+        success: false,
+        message: error?.message || "Invio email di prova fallito.",
+      });
     }
   });
 

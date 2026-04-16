@@ -165,6 +165,98 @@ export async function sendContractEmail(
   }
 }
 
+export async function sendTestEmail(companyId: number, to: string): Promise<{ messageId?: string }> {
+  if (!to || !/.+@.+\..+/.test(to)) {
+    throw new Error("Indirizzo email destinatario non valido.");
+  }
+  const settings = await loadSettingsForCompany(companyId);
+  if (!settings) {
+    throw new Error("Impostazioni azienda non trovate per il tenant corrente.");
+  }
+  const { transporter, fromAddress, fromName } = getTransporterForCompany(settings);
+
+  try {
+    await transporter.verify();
+  } catch (error: any) {
+    throw enrichSmtpError(error, settings.smtpHost ?? "", settings.smtpPort ?? 0);
+  }
+
+  const subject = `Email di prova SMTP — ${fromName}`;
+  const html = renderTestEmailHtml({ senderName: fromName, host: settings.smtpHost ?? "", port: settings.smtpPort ?? 0 });
+
+  try {
+    const info = await transporter.sendMail({
+      from: buildFrom(fromName, fromAddress),
+      to,
+      subject,
+      html,
+      text: `Questa è un'email di prova inviata dal sistema ${fromName} tramite ${settings.smtpHost}:${settings.smtpPort}. Se la ricevi, la configurazione SMTP è funzionante.`,
+    });
+    console.log("✅ Email di prova inviata, messageId:", info.messageId);
+    return { messageId: info.messageId };
+  } catch (error: any) {
+    console.error("❌ SMTP error (sendTestEmail):", error?.message || error);
+    throw enrichSmtpError(error, settings.smtpHost ?? "", settings.smtpPort ?? 0);
+  }
+}
+
+function enrichSmtpError(error: any, host: string, port: number): Error {
+  const code = error?.code || error?.responseCode;
+  const command = error?.command;
+  const raw = error?.response || error?.message || String(error);
+
+  if (code === "EDNS" || code === "ENOTFOUND") {
+    return new Error(`Host SMTP non raggiungibile: impossibile risolvere "${host}". Verifica il nome del server.`);
+  }
+  if (code === "ECONNREFUSED") {
+    return new Error(`Connessione rifiutata da ${host}:${port}. Verifica host, porta e firewall.`);
+  }
+  if (code === "ETIMEDOUT" || code === "ESOCKET") {
+    return new Error(`Timeout di connessione verso ${host}:${port}. Controlla porta (465/587) e impostazione TLS.`);
+  }
+  if (code === "EAUTH" || error?.responseCode === 535 || /auth/i.test(raw)) {
+    return new Error(`Autenticazione SMTP fallita: utente o password non validi (${raw}).`);
+  }
+  if (error?.responseCode === 553 || error?.responseCode === 550 || /from|sender|relay/i.test(raw)) {
+    return new Error(`Indirizzo mittente rifiutato dal server: ${raw}. Verifica che la casella "Email mittente" coincida con l'utente SMTP.`);
+  }
+  if (command === "STARTTLS" || /tls|ssl/i.test(raw)) {
+    return new Error(`Errore TLS/SSL con ${host}:${port}: ${raw}. Prova a cambiare l'opzione "Connessione TLS implicita".`);
+  }
+  return new Error(`Errore SMTP (${code || "sconosciuto"}): ${raw}`);
+}
+
+function renderTestEmailHtml(opts: { senderName: string; host: string; port: number }): string {
+  const { senderName, host, port } = opts;
+  return `
+    <!DOCTYPE html>
+    <html><head><style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background-color: #10B981; color: white; padding: 20px; text-align: center; }
+      .content { padding: 20px; background-color: #f9f9f9; }
+      .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+    </style></head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Email di prova</h1>
+          <p>${escapeHtml(senderName)}</p>
+        </div>
+        <div class="content">
+          <p>Questa è un'<strong>email di prova</strong> inviata dalle Impostazioni Azienda → Configurazione Email.</p>
+          <p>Se la stai leggendo, la configurazione SMTP funziona correttamente.</p>
+          <p><strong>Server:</strong> ${escapeHtml(host)}:${port}</p>
+          <p><strong>Inviata il:</strong> ${new Date().toLocaleString("it-IT")}</p>
+        </div>
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} ${escapeHtml(senderName)}.</p>
+        </div>
+      </div>
+    </body></html>
+  `;
+}
+
 export async function sendOTPEmail(email: string, otpCode: string, companyId?: number): Promise<void> {
   if (!email) throw new Error("Email destinatario mancante per OTP.");
 
