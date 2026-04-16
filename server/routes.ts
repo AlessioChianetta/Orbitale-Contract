@@ -74,6 +74,39 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Returns the data needed by the contract preview modal in the form
+  // (template + safe subset of company settings). Scoped to the user's company.
+  app.get("/api/contracts/preview-data/:templateId", requireAuth, async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.templateId);
+      if (Number.isNaN(templateId)) {
+        return res.status(400).json({ message: "Template ID non valido" });
+      }
+      const template = await storage.getTemplate(templateId, req.user.companyId);
+      if (!template) {
+        return res.status(404).json({ message: "Template non trovato" });
+      }
+      const settings = await storage.getCompanySettings(req.user.companyId);
+      const safeSettings = settings
+        ? {
+            companyName: settings.companyName,
+            address: settings.address,
+            city: settings.city,
+            postalCode: settings.postalCode,
+            taxId: settings.taxId,
+            uniqueCode: settings.uniqueCode,
+            pec: settings.pec,
+            contractTitle: settings.contractTitle,
+            logoUrl: settings.logoUrl,
+          }
+        : null;
+      res.json({ template, companySettings: safeSettings });
+    } catch (error) {
+      console.error("Preview-data error:", error);
+      res.status(500).json({ message: "Impossibile caricare l'anteprima" });
+    }
+  });
+
   app.get("/api/templates/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);

@@ -69,6 +69,13 @@ interface ProfessionalContractDocumentProps {
   usingCustomInstallments?: boolean;
   signatureArea?: React.ReactNode;
   afterDocumentContent?: React.ReactNode;
+  /**
+   * When true, missing fields render as blanks (the same way the customer-facing
+   * /client/:code page does), instead of as placeholder strings like "Nome
+   * Cognome" / "00000000000". Used by the "Anteprima contratto" modal so the
+   * preview matches what the client actually receives.
+   */
+  hidePlaceholders?: boolean;
 }
 
 function formatDateSafe(dateString?: string | Date): string {
@@ -98,6 +105,7 @@ export default function ProfessionalContractDocument({
   usingCustomInstallments,
   signatureArea,
   afterDocumentContent,
+  hidePlaceholders,
 }: ProfessionalContractDocumentProps) {
   const [activeSection, setActiveSection] = useState("intestazione");
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
@@ -193,7 +201,7 @@ export default function ProfessionalContractDocument({
   };
 
   const p = (val: string | undefined, placeholder: string) =>
-    isPreview ? val || placeholder : val || "";
+    isPreview && !hidePlaceholders ? val || placeholder : val || "";
 
   const totalAmount =
     paymentPlan
@@ -335,7 +343,7 @@ export default function ProfessionalContractDocument({
                     </strong>{" "}
                     {client.data_nascita
                       ? formatDateSafe(client.data_nascita)
-                      : isPreview
+                      : isPreview && !hidePlaceholders
                         ? "01/01/1990"
                         : ""}
                   </td>
@@ -400,7 +408,7 @@ export default function ProfessionalContractDocument({
                 label: "Data di nascita",
                 value: client.data_nascita
                   ? formatDateSafe(client.data_nascita)
-                  : isPreview
+                  : isPreview && !hidePlaceholders
                     ? "01/01/1990"
                     : "",
               },

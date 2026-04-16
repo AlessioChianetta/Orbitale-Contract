@@ -10,8 +10,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar, Send, Gift, Check, Info, AlertTriangle } from "lucide-react";
+import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar, Send, Gift, Check, Info, AlertTriangle, Eye } from "lucide-react";
 import DynamicFormFields from "./dynamic-form-fields";
+import ProfessionalContractDocument from "./professional-contract-document";
 import PaymentCalculatorAdvanced from "./payment-calculator-advanced";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF } from "@/lib/validation-utils";
 
@@ -127,6 +128,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isEditing = !!contract; // Determine if we are editing an existing contract
+
+  // Preview modal state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<{ template: any; companySettings: any } | null>(null);
 
   const scrollToSection = useCallback((sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -269,6 +275,48 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       setIsSubmitting(false); // Ensure isSubmitting is reset after mutation completes
     }
   });
+
+  // Open the preview modal with the same data the customer would receive.
+  // We mount ProfessionalContractDocument (the very same component used on
+  // the public /client/:code page) so the preview is byte-for-byte faithful.
+  const handleOpenPreview = async () => {
+    const values = form.getValues();
+    const templateId = values.templateId || selectedTemplateId;
+    if (!templateId) {
+      toast({
+        title: "Seleziona un template",
+        description: "Per vedere l'anteprima devi prima scegliere un template di contratto.",
+        variant: "destructive",
+      });
+      scrollToSection("section-template");
+      return;
+    }
+    if (!values.clientData?.cliente_nome || !values.clientData?.societa) {
+      toast({
+        title: "Compila i dati cliente",
+        description: "Inserisci almeno società e nome del referente per generare l'anteprima.",
+        variant: "destructive",
+      });
+      scrollToSection("section-client");
+      return;
+    }
+
+    setPreviewLoading(true);
+    try {
+      const res = await apiRequest("GET", `/api/contracts/preview-data/${templateId}`);
+      const data = await res.json();
+      setPreviewData(data);
+      setPreviewOpen(true);
+    } catch (error: any) {
+      toast({
+        title: "Impossibile caricare l'anteprima",
+        description: error?.message || "Riprova tra qualche istante.",
+        variant: "destructive",
+      });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const onSubmit = (data: ContractForm) => {
     console.log("Form submitted with data:", data);
@@ -1267,6 +1315,24 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 Invio Contratto
               </h3>
               <div className="space-y-5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleOpenPreview}
+                  disabled={previewLoading || isSubmitting}
+                  className="h-12 w-full sm:w-auto rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300"
+                  data-testid="button-preview-contract"
+                >
+                  {previewLoading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Caricamento anteprima…</>
+                  ) : (
+                    <><Eye className="h-4 w-4 mr-2" />Anteprima contratto</>
+                  )}
+                </Button>
+                <p className="text-xs text-slate-500 -mt-3">
+                  Visualizza il documento esattamente come lo vedrà il cliente, prima di inviarlo.
+                </p>
+
                 <div>
                   <Label htmlFor="sendToEmail" className={labelClass}>Email per l'invio del contratto</Label>
                   <Input
@@ -1351,6 +1417,95 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           </Button>
         </div>
       </DialogContent>
+
+      {previewOpen && previewData && (() => {
+        const values = form.getValues();
+        const cd: any = values.clientData || {};
+        const usingCustomInstallments = Array.isArray(cd.rata_list) && cd.rata_list.length > 0;
+        const rawPaymentData = usingCustomInstallments ? cd.rata_list : (cd.payment_plan || []);
+        const paymentPlan = rawPaymentData
+          .map((p: any, i: number) => ({
+            rata_numero: i + 1,
+            rata_importo: String(p.rata_importo ?? p.amount ?? "0.00"),
+            rata_scadenza: String(p.rata_scadenza ?? p.date ?? ""),
+          }))
+          .filter((p: any) => p.rata_importo && p.rata_importo !== "0.00" && p.rata_scadenza);
+
+        const predefined = Array.isArray(previewData.template?.predefinedBonuses)
+          ? previewData.template.predefinedBonuses.map((b: any) => ({
+              bonus_descrizione:
+                (b.description || "") +
+                (b.value ? ` (${b.value}${b.type === "percentage" ? "%" : "€"})` : ""),
+            }))
+          : [];
+        const manual = Array.isArray(cd.bonus_list)
+          ? cd.bonus_list.filter((b: any) => b?.bonus_descrizione)
+          : [];
+        const bonusList = [...predefined, ...manual];
+
+        return (
+          <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+            <DialogContent className="max-w-[1100px] w-[95vw] max-h-[95vh] p-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-slate-50 flex flex-col">
+              <div className="p-6 bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white flex-shrink-0">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center text-xl font-bold text-white">
+                    <Eye className="h-5 w-5 mr-2" />
+                    Anteprima contratto
+                  </DialogTitle>
+                  <DialogDescription className="text-white/80 mt-1">
+                    Stai vedendo il documento esattamente come apparirà al cliente. Nessun dato viene salvato.
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+                <ProfessionalContractDocument
+                  mode="preview"
+                  hidePlaceholders
+                  companySettings={previewData.companySettings || {}}
+                  clientData={cd}
+                  template={previewData.template}
+                  contract={{
+                    createdAt: new Date().toISOString(),
+                    status: "draft",
+                    isPercentagePartnership: !!values.isPercentagePartnership,
+                    partnershipPercentage: values.partnershipPercentage,
+                    renewalDuration: values.renewalDuration,
+                    contractStartDate: values.contractStartDate,
+                    contractEndDate: values.contractEndDate,
+                  }}
+                  paymentPlan={paymentPlan}
+                  bonusList={bonusList}
+                  usingCustomInstallments={usingCustomInstallments}
+                />
+              </div>
+
+              <div className="sticky bottom-0 z-10 bg-white border-t border-gray-100 py-4 px-6 flex justify-end gap-3 flex-shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setPreviewOpen(false)}
+                  className="h-11 min-w-[140px] rounded-xl border border-gray-200 text-slate-700 hover:bg-gray-50"
+                  data-testid="button-close-preview"
+                >
+                  Chiudi
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setPreviewOpen(false);
+                    scrollToSection("section-send");
+                  }}
+                  className="h-11 min-w-[180px] rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white shadow-lg hover:shadow-xl"
+                  data-testid="button-proceed-from-preview"
+                >
+                  Procedi all'invio
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </Dialog>
   );
 }
