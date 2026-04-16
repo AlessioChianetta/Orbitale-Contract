@@ -47,6 +47,7 @@ import {
   ArchiveRestore,
   Files,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import ContractForm from "@/components/contract-form";
 import { Link } from "wouter";
@@ -161,6 +162,23 @@ export default function SellerDashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
     } catch {
       toast({ title: "Errore", description: "Operazione bulk fallita", variant: "destructive" });
+    }
+  };
+
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const bulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    try {
+      const res = await apiRequest("POST", "/api/contracts/bulk-delete", { ids });
+      const data = await res.json();
+      toast({ title: data.message || "Eliminati definitivamente" });
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+    } catch {
+      toast({ title: "Errore", description: "Eliminazione fallita", variant: "destructive" });
     }
   };
 
@@ -458,6 +476,11 @@ export default function SellerDashboard() {
                       <ArchiveRestore className="h-4 w-4 mr-1.5" /> Ripristina
                     </Button>
                   )}
+                  {isAdmin && (
+                    <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => setConfirmBulkDelete(true)}>
+                      <Trash2 className="h-4 w-4 mr-1.5" /> Elimina
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
                     Annulla
                   </Button>
@@ -585,7 +608,7 @@ export default function SellerDashboard() {
                                 <RefreshCw className="h-4 w-4 mr-2" /> Rigenera PDF
                               </DropdownMenuItem>
                             )}
-                            {isAdmin && (
+                            {isAdmin && contract.status === "signed" && (
                               <DropdownMenuItem onClick={() => { setRegenContract(contract); setRegenReason(""); }}>
                                 <Sparkles className="h-4 w-4 mr-2" /> Rigenera contenuto
                               </DropdownMenuItem>
@@ -672,6 +695,23 @@ export default function SellerDashboard() {
             <AlertDialogCancel disabled={regenLoading}>Annulla</AlertDialogCancel>
             <AlertDialogAction onClick={runRegenerateContent} disabled={regenLoading}>
               {regenLoading ? "Rigenerazione..." : "Rigenera"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare definitivamente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per eliminare definitivamente {selectedIds.size} contratti, inclusi i relativi log di audit e codici OTP. L'operazione è <strong>irreversibile</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={bulkDelete} className="bg-red-600 hover:bg-red-700">
+              Elimina definitivamente
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

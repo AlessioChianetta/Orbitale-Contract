@@ -279,26 +279,28 @@ export function registerRoutes(app: Express): Server {
         original.contractEndDate ? original.contractEndDate.toISOString() : undefined,
       );
 
-      const newContract = await storage.createContract({
+      const duplicatePayload = insertContractSchema.parse({
         templateId: original.templateId,
         sellerId: req.user.id,
-        clientData: original.clientData as any,
+        clientData: original.clientData,
         generatedContent,
         status: "draft",
         contractCode: nanoid(16),
-        totalValue: original.totalValue ?? undefined,
-        sentToEmail: null as any,
-        signatures: null as any,
-        signedAt: null as any,
-        expiresAt: null as any,
-        contractStartDate: original.contractStartDate as any,
-        contractEndDate: original.contractEndDate as any,
+        totalValue: original.totalValue,
+        sentToEmail: null,
+        signatures: null,
+        signedAt: null,
+        expiresAt: null,
+        contractStartDate: original.contractStartDate,
+        contractEndDate: original.contractEndDate,
         autoRenewal: original.autoRenewal ?? false,
         renewalDuration: original.renewalDuration ?? 12,
         isPercentagePartnership: original.isPercentagePartnership ?? false,
-        partnershipPercentage: original.partnershipPercentage as any,
-        pdfPath: null as any,
-      } as any);
+        partnershipPercentage: original.partnershipPercentage,
+        pdfPath: null,
+      });
+
+      const newContract = await storage.createContract(duplicatePayload);
 
       await storage.createAuditLog({
         contractId: newContract.id,
@@ -316,6 +318,27 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Regenerate content from template (admin only) — preserves signatures and status
+  app.post("/api/contracts/bulk-delete", requireAdmin, async (req, res) => {
+    try {
+      const schema = z.object({ ids: z.array(z.number().int().positive()).min(1) });
+      const { ids } = schema.parse(req.body);
+      const deletedIds = await storage.deleteContracts(ids, req.user.companyId);
+      // Audit log entries for deleted contracts are also removed by the cascade,
+      // so we only return the count to the client.
+      res.json({
+        message: `${deletedIds.length} contratti eliminati definitivamente`,
+        count: deletedIds.length,
+        ids: deletedIds,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid payload", errors: error.errors });
+      }
+      console.error("Bulk delete error:", error);
+      res.status(500).json({ message: "Failed to delete contracts" });
+    }
+  });
+
   app.post("/api/contracts/:id/regenerate-content", requireAdmin, async (req, res) => {
     try {
       const contractId = parseInt(req.params.id);
@@ -339,46 +362,53 @@ export function registerRoutes(app: Express): Server {
         contract.contractEndDate ? contract.contractEndDate.toISOString() : undefined,
       );
 
-      // Preserve signatures, signedAt, status; only update content
-      await storage.updateContract(contractId, { generatedContent: newContent });
-
-      // If contract is signed, regenerate the sealed PDF with a regeneration notice
+      // For signed contracts, regenerate the sealed PDF FIRST so we can fail atomically
+      // before mutating generatedContent. We only persist content + pdfPath if the PDF succeeds.
+      let newPdfPath: string | undefined;
       let regeneratedPdf = false;
       if (contract.status === "signed") {
+        const auditLogs = await storage.getContractAuditLogs(contract.id);
+        const pdfCompanySettings = await storage.getCompanySettings(req.user.companyId);
+        const regenerationNotice = {
+          regeneratedAt: new Date(),
+          originalSignedAt: contract.signedAt,
+          reason: (req.body?.reason as string | undefined) || "Rigenerazione contenuto da template aggiornato",
+        };
+        const contractForPdf = {
+          id: contract.id,
+          templateName: template.name || 'Contratto',
+          generatedContent: newContent,
+          clientData: contract.clientData,
+          totalValue: contract.totalValue,
+          template,
+          status: "signed" as const,
+          signatures: contract.signatures || {},
+          signedAt: contract.signedAt,
+          createdAt: contract.createdAt,
+          contractStartDate: contract.contractStartDate,
+          contractEndDate: contract.contractEndDate,
+          autoRenewal: contract.autoRenewal,
+          renewalDuration: contract.renewalDuration,
+          isPercentagePartnership: contract.isPercentagePartnership,
+          partnershipPercentage: contract.partnershipPercentage,
+          regenerationNotice,
+        };
         try {
-          const auditLogs = await storage.getContractAuditLogs(contract.id);
-          const pdfCompanySettings = await storage.getCompanySettings(req.user.companyId);
-          const regenerationNotice = {
-            regeneratedAt: new Date(),
-            originalSignedAt: contract.signedAt,
-            reason: (req.body?.reason as string | undefined) || "Rigenerazione contenuto da template aggiornato",
-          };
-          const contractForPdf: any = {
-            id: contract.id,
-            templateName: template.name || 'Contratto',
-            generatedContent: newContent,
-            clientData: contract.clientData,
-            totalValue: contract.totalValue,
-            template,
-            status: "signed",
-            signatures: contract.signatures || {},
-            signedAt: contract.signedAt,
-            createdAt: contract.createdAt,
-            contractStartDate: contract.contractStartDate,
-            contractEndDate: contract.contractEndDate,
-            autoRenewal: contract.autoRenewal,
-            renewalDuration: contract.renewalDuration,
-            isPercentagePartnership: contract.isPercentagePartnership,
-            partnershipPercentage: contract.partnershipPercentage,
-            regenerationNotice,
-          };
-          const newPdfPath = await generatePDF(contract.id, newContent, auditLogs, contractForPdf, pdfCompanySettings);
-          await storage.updateContract(contractId, { pdfPath: newPdfPath });
+          newPdfPath = await generatePDF(contract.id, newContent, auditLogs, contractForPdf, pdfCompanySettings);
           regeneratedPdf = true;
         } catch (pdfErr: any) {
-          console.error("PDF regeneration after content regen failed:", pdfErr);
+          console.error("PDF regeneration failed; aborting content regeneration to keep body+PDF consistent:", pdfErr);
+          return res.status(500).json({
+            message: "Rigenerazione PDF fallita; contenuto NON aggiornato per mantenere coerenza con il PDF firmato.",
+            error: pdfErr?.message || String(pdfErr),
+          });
         }
       }
+
+      // Persist content (and pdfPath if regenerated). Signatures, signedAt, status are preserved.
+      const updates: { generatedContent: string; pdfPath?: string } = { generatedContent: newContent };
+      if (newPdfPath) updates.pdfPath = newPdfPath;
+      await storage.updateContract(contractId, updates);
 
       // Audit log with simple before/after hashes
       const hash = (s: string) => {

@@ -41,6 +41,7 @@ export interface IStorage {
   createContract(contract: InsertContract): Promise<Contract>;
   updateContract(id: number, contract: Partial<InsertContract> & { isArchived?: boolean }): Promise<Contract>;
   setContractsArchived(ids: number[], companyId: number, isArchived: boolean): Promise<number[]>;
+  deleteContracts(ids: number[], companyId: number): Promise<number[]>;
 
   // Audit log methods
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
@@ -249,6 +250,22 @@ export class DatabaseStorage implements IStorage {
     await db.update(contracts)
       .set({ isArchived, updatedAt: new Date() })
       .where(inArray(contracts.id, eligibleIds));
+    return eligibleIds;
+  }
+
+  async deleteContracts(ids: number[], companyId: number): Promise<number[]> {
+    if (ids.length === 0) return [];
+    const eligible = await db
+      .select({ id: contracts.id })
+      .from(contracts)
+      .innerJoin(users, eq(contracts.sellerId, users.id))
+      .where(and(eq(users.companyId, companyId), inArray(contracts.id, ids)));
+    const eligibleIds = eligible.map(r => r.id);
+    if (eligibleIds.length === 0) return [];
+    // Delete dependent rows first to avoid FK violations
+    await db.delete(otpCodes).where(inArray(otpCodes.contractId, eligibleIds));
+    await db.delete(auditLogs).where(inArray(auditLogs.contractId, eligibleIds));
+    await db.delete(contracts).where(inArray(contracts.id, eligibleIds));
     return eligibleIds;
   }
 
