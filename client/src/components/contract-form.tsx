@@ -224,7 +224,14 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       contractEndDate: contract?.contractEndDate ? new Date(contract.contractEndDate).toISOString().split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to 1 year from now
       isPercentagePartnership: contract?.isPercentagePartnership || false,
       partnershipPercentage: contract?.partnershipPercentage || undefined,
-      selectedSectionIds: (contract as { selectedSectionIds?: string[] | null } | undefined)?.selectedSectionIds || undefined,
+      selectedSectionIds: (() => {
+        const raw = (contract as { selectedSectionIds?: string[] | null } | undefined)?.selectedSectionIds;
+        // Preserviamo esplicitamente un array vuoto `[]` (il venditore ha
+        // deselezionato tutte le sezioni opzionali). Solo `null`/`undefined`
+        // — cioè scelta davvero non espressa — attivano il fallback ai
+        // `defaultSelectedIds` del template.
+        return Array.isArray(raw) ? raw : undefined;
+      })(),
       clientData: contract?.clientData || {
         societa: "",
         sede: "",
