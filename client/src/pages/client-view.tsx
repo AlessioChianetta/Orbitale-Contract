@@ -660,8 +660,8 @@ export default function ClientView() {
       bonusList={bonusList}
       usingCustomInstallments={usingCustomInstallments}
       sections={resolveSelectedSections(
-        (contract.template as any)?.sections,
-        (contract as any).selectedSectionIds
+        (contract.template as { sections?: unknown } | null | undefined)?.sections,
+        (contract as { selectedSectionIds?: unknown }).selectedSectionIds
       ).map((s) => ({ id: s.id, title: s.title, content: s.content }))}
       signatureArea={
         <SignatureArea

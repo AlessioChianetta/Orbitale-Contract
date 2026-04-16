@@ -311,8 +311,8 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
     content: string;
     customContent: string;
     paymentText: string;
-    bonuses: any[];
-    sections?: any[];
+    bonuses: Array<Record<string, unknown>>;
+    sections?: ModularSection[];
     suggestedName?: string;
   }) => {
     if (data.content) form.setValue("content", data.content);
@@ -322,7 +322,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
       form.setValue("predefinedBonuses", data.bonuses);
     }
     if (Array.isArray(data.sections) && data.sections.length > 0) {
-      form.setValue("sections", data.sections as any);
+      form.setValue("sections", data.sections);
     }
     if (data.suggestedName && !form.getValues("name")) {
       form.setValue("name", data.suggestedName);
@@ -657,7 +657,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                           variant="outline"
                           disabled={isPending}
                           onClick={() => {
-                            const current = ((form.watch("sections") as any[]) || []) as ModularSection[];
+                            const current = (form.watch("sections") as ModularSection[] | undefined) || [];
                             const newSection: ModularSection = {
                               id: `sec_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
                               title: "Nuova sezione",
@@ -666,7 +666,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                               required: false,
                               order: current.length,
                             };
-                            form.setValue("sections", [...current, newSection] as any, { shouldDirty: true });
+                            form.setValue("sections", [...current, newSection], { shouldDirty: true });
                           }}
                           className="rounded-xl border-[#E5E7EB] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700"
                           data-testid="button-add-section"
@@ -676,38 +676,38 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                       </div>
 
                       <div className="mt-5 space-y-4">
-                        {(((form.watch("sections") as any[]) || []) as ModularSection[]).length === 0 && (
+                        {(((form.watch("sections") as ModularSection[] | undefined) || [])).length === 0 && (
                           <div className="text-center py-10 text-sm text-[#94A3B8] border border-dashed border-[#E5E7EB] rounded-xl">
                             Nessuna sezione modulare definita. Aggiungi sezioni opzionali per rendere il template più flessibile.
                           </div>
                         )}
-                        {(((form.watch("sections") as any[]) || []) as ModularSection[]).map((sec, index) => {
+                        {(((form.watch("sections") as ModularSection[] | undefined) || [])).map((sec, index) => {
                           const reindex = (arr: ModularSection[]): ModularSection[] =>
                             arr.map((s, i) => ({ ...s, order: i }));
                           const updateSection = (patch: Partial<ModularSection>) => {
-                            const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
+                            const current = ([...((form.watch("sections") as ModularSection[] | undefined) || [])]);
                             current[index] = { ...current[index], ...patch };
-                            form.setValue("sections", reindex(current) as any, { shouldDirty: true });
+                            form.setValue("sections", reindex(current), { shouldDirty: true });
                           };
                           const removeSection = () => {
-                            const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
+                            const current = ([...((form.watch("sections") as ModularSection[] | undefined) || [])]);
                             current.splice(index, 1);
-                            form.setValue("sections", reindex(current) as any, { shouldDirty: true });
+                            form.setValue("sections", reindex(current), { shouldDirty: true });
                           };
                           const moveSection = (dir: -1 | 1) => {
-                            const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
+                            const current = ([...((form.watch("sections") as ModularSection[] | undefined) || [])]);
                             const to = index + dir;
                             if (to < 0 || to >= current.length) return;
                             [current[index], current[to]] = [current[to], current[index]];
-                            form.setValue("sections", reindex(current) as any, { shouldDirty: true });
+                            form.setValue("sections", reindex(current), { shouldDirty: true });
                           };
                           const reorderTo = (from: number, to: number) => {
                             if (from === to || from < 0 || to < 0) return;
-                            const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
+                            const current = ([...((form.watch("sections") as ModularSection[] | undefined) || [])]);
                             if (from >= current.length || to >= current.length) return;
                             const [moved] = current.splice(from, 1);
                             current.splice(to, 0, moved);
-                            form.setValue("sections", reindex(current) as any, { shouldDirty: true });
+                            form.setValue("sections", reindex(current), { shouldDirty: true });
                           };
                           const isPreviewing = !!sectionPreview[sec.id];
                           return (
@@ -925,7 +925,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                             }))
                           }
                           sections={resolveSelectedSections(
-                            ((form.watch("sections") as any[]) || []) as ModularSection[],
+                            (form.watch("sections") as ModularSection[] | undefined) || [],
                             null
                           ).map((s) => ({ id: s.id, title: s.title, content: s.content }))}
                         />

@@ -1859,10 +1859,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   clientData={cd}
                   template={{
                     ...previewData.template,
-                    // Usa il contenuto raw del template: le sezioni modulari
-                    // vengono rese dal prop `sections` per evitare il doppio
-                    // rendering (generatedContent contiene già l'iniezione).
-                    content: previewData.template?.content,
+                    // `generatedContent` è il documento finale risolto dal
+                    // server (placeholder + sezioni modulari espanse).
+                    // Lo usiamo come sorgente unica in preview per garantire
+                    // parità totale con ciò che riceve il cliente.
+                    content: previewData.generatedContent,
                   }}
                   contract={{
                     createdAt: new Date().toISOString(),
@@ -1876,10 +1877,13 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   paymentPlan={paymentPlan}
                   bonusList={bonusList}
                   usingCustomInstallments={usingCustomInstallments}
-                  sections={resolveSelectedSections(
-                    getTemplateSections(previewData.template),
-                    values.selectedSectionIds ?? null
-                  ).map((s) => ({ id: s.id, title: s.title, content: s.content }))}
+                  /*
+                   * Non passiamo `sections` qui: `generatedContent` è già
+                   * stato processato dal server (marker sostituito o blocco
+                   * fallback iniettato prima dei termini di pagamento),
+                   * quindi le sezioni sono già rese inline. Passare di
+                   * nuovo `sections` produrrebbe un doppio rendering.
+                   */
                 />
               </div>
 
