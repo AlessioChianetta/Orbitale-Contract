@@ -5,7 +5,7 @@ export function generateOTP(): string {
 }
 
 // Funzione per inviare OTP personalizzato (NON usa Twilio Verify)
-export async function sendCustomOTP(contactInfo: string, code: string): Promise<void> {
+export async function sendCustomOTP(contactInfo: string, code: string, companyId?: number): Promise<void> {
   console.log(`[OTP Service] Invio OTP personalizzato ${code} a ${contactInfo}`);
   
   // Always log the OTP for development debugging
@@ -30,21 +30,21 @@ export async function sendCustomOTP(contactInfo: string, code: string): Promise<
       console.log('[OTP Service] 🔄 Fallback da SMS a email...');
       // Fallback all'email
       const { sendOTPEmail } = await import('./email-service');
-      await sendOTPEmail(contactInfo, code);
+      await sendOTPEmail(contactInfo, code, companyId);
       console.log('[OTP Service] ✅ OTP Email (fallback da SMS) inviato con successo!');
     }
   } else {
     // È un'email
     console.log('[OTP Service] 📧 Invio OTP via email...');
     const { sendOTPEmail } = await import('./email-service');
-    await sendOTPEmail(contactInfo, code);
+    await sendOTPEmail(contactInfo, code, companyId);
     console.log('[OTP Service] ✅ OTP Email inviato con successo!');
   }
 }
 
 // Funzione legacy mantenuta per compatibilità - ora usa sendCustomOTP
-export async function sendOTP(phoneNumber: string, code: string): Promise<void> {
-  return sendCustomOTP(phoneNumber, code);
+export async function sendOTP(phoneNumber: string, code: string, companyId?: number): Promise<void> {
+  return sendCustomOTP(phoneNumber, code, companyId);
 }
 
 export function validateOTPFormat(otp: string): boolean {

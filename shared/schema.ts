@@ -106,6 +106,14 @@ export const companySettings = pgTable("company_settings", {
   twilioAuthToken: text("twilio_auth_token"),
   twilioVerifyServiceSid: text("twilio_verify_service_sid"),
   twilioWhatsappFrom: text("twilio_whatsapp_from"),
+  // SMTP Settings (per-tenant transactional email)
+  smtpHost: text("smtp_host"),
+  smtpPort: integer("smtp_port"),
+  smtpUser: text("smtp_user"),
+  smtpPass: text("smtp_pass"),
+  smtpSecure: boolean("smtp_secure"),
+  emailFromAddress: text("email_from_address"),
+  emailFromName: text("email_from_name"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

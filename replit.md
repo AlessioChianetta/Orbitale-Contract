@@ -1,5 +1,14 @@
 # Turbo Contract
 
+## Recent changes (Task #2 — Mittente email professionale)
+- Email transazionali ora inviate via **nodemailer** sul **server SMTP del provider del cliente** (Aruba/Register/IONOS/ecc.), non più via Gmail né via Resend.
+- Credenziali SMTP per-tenant: aggiunte colonne `company_settings.smtp_host/smtp_port/smtp_user/smtp_pass/smtp_secure/email_from_address/email_from_name` (tutte nullable).
+- L'admin le configura direttamente da **Impostazioni Azienda → Configurazione Email (SMTP)** nel frontend (niente Replit Secrets).
+- `email-service.ts` riscritto con cache transporter per `companyId`, invalidata quando `PUT /api/company-settings` aggiorna le impostazioni.
+- Nome mittente preso dinamicamente da `companySettings.emailFromName` (override) o `companySettings.companyName` (default), con fallback `"Turbo Contract"`.
+- Firme funzioni preservate: `sendContractEmail`, `sendOTPEmail` (ora `sendOTPEmail(email, otp, companyId?)`), `sendContractSignedNotification`.
+- OTP via email risolve `companyId` dal contratto associato.
+
 ## Recent changes (Task #1 — Contract Management + Dashboard Refactor)
 - Added `contracts.is_archived` column (BOOLEAN NOT NULL DEFAULT FALSE, indexed) via direct SQL.
 - `GET /api/contracts` now accepts `?includeArchived=true` (default excludes archived).

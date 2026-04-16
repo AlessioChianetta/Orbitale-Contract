@@ -141,6 +141,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const settingsData = insertCompanySettingsSchema.parse(req.body);
       const settings = await storage.updateCompanySettings(settingsData, req.user.companyId);
+      const { invalidateEmailTransporterCache } = await import('./services/email-service');
+      invalidateEmailTransporterCache(req.user.companyId);
       res.json(settings);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -844,7 +846,7 @@ export function registerRoutes(app: Express): Server {
         // Usa il metodo tradizionale (email con codice personalizzato)
         // Forza l'uso dell'email se Twilio non è configurato
         const contactForOtp = (useOtpMethod === "email" || !useTwilioVerify) ? clientEmail : contactInfo;
-        await sendOTP(contactForOtp, otpCode);
+        await sendOTP(contactForOtp, otpCode, contract.companyId);
       }
 
       console.log(`[ROUTES] OTP sending completed`);

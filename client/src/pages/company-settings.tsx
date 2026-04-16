@@ -43,6 +43,13 @@ export default function CompanySettings() {
       twilioAuthToken: settings?.twilioAuthToken || "",
       twilioVerifyServiceSid: settings?.twilioVerifyServiceSid || "",
       twilioWhatsappFrom: settings?.twilioWhatsappFrom || "",
+      smtpHost: settings?.smtpHost || "",
+      smtpPort: settings?.smtpPort ?? 465,
+      smtpUser: settings?.smtpUser || "",
+      smtpPass: settings?.smtpPass || "",
+      smtpSecure: settings?.smtpSecure ?? true,
+      emailFromAddress: settings?.emailFromAddress || "",
+      emailFromName: settings?.emailFromName || "",
     },
   });
 
@@ -66,6 +73,13 @@ export default function CompanySettings() {
         twilioAuthToken: settings.twilioAuthToken || "",
         twilioVerifyServiceSid: settings.twilioVerifyServiceSid || "",
         twilioWhatsappFrom: settings.twilioWhatsappFrom || "",
+        smtpHost: settings.smtpHost || "",
+        smtpPort: settings.smtpPort ?? 465,
+        smtpUser: settings.smtpUser || "",
+        smtpPass: settings.smtpPass || "",
+        smtpSecure: settings.smtpSecure ?? true,
+        emailFromAddress: settings.emailFromAddress || "",
+        emailFromName: settings.emailFromName || "",
       };
       console.log("Form reset with values:", formValues);
       form.reset(formValues);
@@ -454,19 +468,104 @@ export default function CompanySettings() {
                 </div>
               )}
 
-              {/* Email Info - Show when Email is selected */}
-              {form.watch("otpMethod") === "email" && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Mail className="h-4 w-4 text-green-600" />
-                    <h4 className="font-medium text-green-900">Configurazione Email SMTP</h4>
-                  </div>
-                  <p className="text-sm text-green-800">
-                    I codici OTP verranno inviati via email utilizzando le credenziali SMTP già configurate nel sistema.
-                    Assicurati che le variabili d'ambiente SMTP siano impostate correttamente.
+            </div>
+
+            {/* SMTP Email Configuration */}
+            <div className="space-y-4 border-t pt-6">
+              <div className="flex items-center space-x-2">
+                <Mail className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold">Configurazione Email (SMTP)</h3>
+              </div>
+              <p className="text-sm text-gray-600">
+                Inserisci le credenziali del server SMTP del tuo provider (Aruba, Register.it, IONOS, ecc.).
+                Le email di contratto, OTP e notifica firma verranno inviate da questo mittente.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="smtpHost">Server SMTP (host) *</Label>
+                  <Input
+                    id="smtpHost"
+                    placeholder="es. smtps.aruba.it"
+                    {...form.register("smtpHost")}
+                    data-testid="input-smtp-host"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="smtpPort">Porta *</Label>
+                  <Input
+                    id="smtpPort"
+                    type="number"
+                    placeholder="465 oppure 587"
+                    {...form.register("smtpPort", { valueAsNumber: true })}
+                    data-testid="input-smtp-port"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">465 = TLS implicito · 587 = STARTTLS</p>
+                </div>
+                <div>
+                  <Label htmlFor="smtpUser">Utente SMTP *</Label>
+                  <Input
+                    id="smtpUser"
+                    placeholder="es. no-reply@tuodominio.it"
+                    autoComplete="off"
+                    {...form.register("smtpUser")}
+                    data-testid="input-smtp-user"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="smtpPass">Password SMTP *</Label>
+                  <Input
+                    id="smtpPass"
+                    type="password"
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    {...form.register("smtpPass")}
+                    data-testid="input-smtp-pass"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="emailFromAddress">Email mittente (From) *</Label>
+                  <Input
+                    id="emailFromAddress"
+                    placeholder="es. no-reply@tuodominio.it"
+                    {...form.register("emailFromAddress")}
+                    data-testid="input-email-from-address"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Deve essere un indirizzo del tuo dominio con SPF/DKIM allineati.
                   </p>
                 </div>
-              )}
+                <div>
+                  <Label htmlFor="emailFromName">Nome mittente (opzionale)</Label>
+                  <Input
+                    id="emailFromName"
+                    placeholder="Default: nome azienda"
+                    {...form.register("emailFromName")}
+                    data-testid="input-email-from-name"
+                  />
+                </div>
+                <div className="md:col-span-2 flex items-center space-x-2">
+                  <input
+                    id="smtpSecure"
+                    type="checkbox"
+                    className="h-4 w-4"
+                    {...form.register("smtpSecure")}
+                    data-testid="checkbox-smtp-secure"
+                  />
+                  <Label htmlFor="smtpSecure" className="cursor-pointer">
+                    Connessione TLS implicita (consigliato su porta 465)
+                  </Label>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">
+                <strong>📌 Suggerimenti per arrivare in inbox:</strong>
+                <ul className="list-disc ml-5 mt-1 space-y-1">
+                  <li>Usa una casella sul tuo dominio (es. <code>no-reply@tuodominio.it</code>), non Gmail/Libero/etc.</li>
+                  <li>Sul DNS del dominio configura <strong>SPF</strong> e <strong>DKIM</strong> del tuo provider SMTP.</li>
+                  <li>Aggiungi un record <strong>DMARC</strong> (anche solo <code>p=none</code>) per migliorare il punteggio.</li>
+                </ul>
+              </div>
             </div>
 
             {/* Actions */}

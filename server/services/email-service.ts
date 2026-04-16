@@ -1,101 +1,115 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import nodemailer, { Transporter } from 'nodemailer';
-import { Contract } from '@shared/schema';
+import { Contract, CompanySettings } from '@shared/schema';
 import { storage } from "../storage";
 
 /**
  * Professional transactional email sender via the customer's own SMTP server
- * (e.g. Aruba, Register.it, IONOS, hosting provider). Replaces the previous
- * raw socket/Gmail sender, which was prone to spam scoring and could not pass
- * SPF/DKIM/DMARC alignment with the company domain.
+ * (Aruba, Register.it, IONOS, hosting provider, ecc.).
  *
- * Required environment:
- *   - SMTP_HOST            e.g. smtps.aruba.it / smtp.ionos.it / smtp.register.it
- *   - SMTP_PORT            usually 465 (TLS) or 587 (STARTTLS)
- *   - SMTP_USER            full mailbox username (often equal to the From address)
- *   - SMTP_PASS            mailbox password / app password
- *   - EMAIL_FROM_ADDRESS   verified sender address on the company domain (e.g. no-reply@tuodominio.it)
+ * SMTP credentials are configured PER-TENANT directly from the admin frontend
+ * (Impostazioni Azienda → Configurazione Email) and stored in `company_settings`.
+ *
+ * Required fields on companySettings:
+ *   - smtpHost, smtpPort, smtpUser, smtpPass, emailFromAddress
  * Optional:
- *   - SMTP_SECURE          "true" forces TLS on connect (port 465). Defaults to true
- *                          when SMTP_PORT === 465, false otherwise (STARTTLS).
- *
- * The sender display name is read dynamically from companySettings.companyName,
- * so each tenant appears with their own brand. The technical address stays the
- * mailbox configured above (which must be authorized to send on the domain so
- * SPF/DKIM align).
+ *   - smtpSecure (defaults to true on port 465, false otherwise)
+ *   - emailFromName (defaults to companyName)
  */
 
 const FALLBACK_DISPLAY_NAME = "Turbo Contract";
 
-let cachedTransporter: Transporter | null = null;
-let cachedTransporterKey: string | null = null;
+type CachedEntry = { transporter: Transporter; key: string };
+const transporterCache = new Map<number, CachedEntry>();
 
-function buildTransporter(): { transporter: Transporter; fromAddress: string } {
-  const host = process.env.SMTP_HOST;
-  const portRaw = process.env.SMTP_PORT;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const fromAddress = process.env.EMAIL_FROM_ADDRESS;
+function buildKey(s: CompanySettings): string {
+  return `${s.smtpHost}|${s.smtpPort}|${s.smtpSecure ?? ""}|${s.smtpUser}|${s.smtpPass}`;
+}
 
-  if (!host || !portRaw || !user || !pass) {
+function getTransporterForCompany(settings: CompanySettings): { transporter: Transporter; fromAddress: string; fromName: string } {
+  if (!settings.smtpHost || !settings.smtpPort || !settings.smtpUser || !settings.smtpPass) {
     throw new Error(
-      "Configurazione SMTP incompleta. Imposta SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS nei Secrets."
+      "Configurazione SMTP incompleta. Vai su Impostazioni Azienda → Configurazione Email e inserisci host, porta, utente e password SMTP."
     );
   }
-  if (!fromAddress) {
+  if (!settings.emailFromAddress) {
     throw new Error(
-      "EMAIL_FROM_ADDRESS non configurata. Imposta l'indirizzo mittente verificato sul tuo dominio (es. no-reply@tuodominio.it)."
+      "Indirizzo mittente non configurato. Imposta 'Email mittente' in Impostazioni Azienda → Configurazione Email."
     );
   }
 
-  const port = parseInt(portRaw, 10);
-  const secure = process.env.SMTP_SECURE
-    ? process.env.SMTP_SECURE.toLowerCase() === "true"
-    : port === 465;
-
-  // Cache the transporter while config is unchanged. nodemailer pools connections.
-  const key = `${host}|${port}|${secure}|${user}`;
-  if (cachedTransporter && cachedTransporterKey === key) {
-    return { transporter: cachedTransporter, fromAddress };
+  const key = buildKey(settings);
+  const cached = transporterCache.get(settings.id);
+  if (cached && cached.key === key) {
+    return {
+      transporter: cached.transporter,
+      fromAddress: settings.emailFromAddress,
+      fromName: settings.emailFromName?.trim() || settings.companyName?.trim() || FALLBACK_DISPLAY_NAME,
+    };
   }
 
-  cachedTransporter = nodemailer.createTransport({
-    host,
+  // Replace any stale cached transporter for this tenant.
+  if (cached) {
+    try { cached.transporter.close(); } catch {}
+  }
+
+  const port = settings.smtpPort;
+  const secure = settings.smtpSecure ?? port === 465;
+
+  const transporter = nodemailer.createTransport({
+    host: settings.smtpHost,
     port,
     secure,
-    auth: { user, pass },
+    auth: { user: settings.smtpUser, pass: settings.smtpPass },
     pool: true,
     maxConnections: 3,
     connectionTimeout: 15_000,
     greetingTimeout: 10_000,
   });
-  cachedTransporterKey = key;
-  return { transporter: cachedTransporter, fromAddress };
-}
+  transporterCache.set(settings.id, { transporter, key });
 
-function buildFrom(displayName: string, address: string): string {
-  // nodemailer accepts an object form which it will encode safely (RFC 2047),
-  // so we don't need to manually quote the display name.
-  const safeName = (displayName || FALLBACK_DISPLAY_NAME).replace(/[\r\n]+/g, " ").trim();
-  return `"${safeName.replace(/"/g, "'")}" <${address}>`;
+  return {
+    transporter,
+    fromAddress: settings.emailFromAddress,
+    fromName: settings.emailFromName?.trim() || settings.companyName?.trim() || FALLBACK_DISPLAY_NAME,
+  };
 }
 
 /**
- * Resolve the sender display name for a given seller, using their company name
- * from company_settings. Falls back to FALLBACK_DISPLAY_NAME if anything is missing.
+ * Public hook: invalidate cached transporter when SMTP settings change.
+ * Called by the routes layer after a successful PUT /api/company-settings.
  */
-async function resolveSenderName(sellerId?: number | null): Promise<string> {
-  try {
-    if (!sellerId) return FALLBACK_DISPLAY_NAME;
-    const seller = await storage.getUser(sellerId);
-    if (!seller?.companyId) return FALLBACK_DISPLAY_NAME;
-    const settings = await storage.getCompanySettings(seller.companyId);
-    return settings?.companyName?.trim() || FALLBACK_DISPLAY_NAME;
-  } catch (err) {
-    console.warn("⚠️ Impossibile risolvere il nome azienda per il mittente, uso fallback:", err);
-    return FALLBACK_DISPLAY_NAME;
+export function invalidateEmailTransporterCache(companyId?: number): void {
+  if (companyId == null) {
+    for (const { transporter } of transporterCache.values()) {
+      try { transporter.close(); } catch {}
+    }
+    transporterCache.clear();
+  } else {
+    const c = transporterCache.get(companyId);
+    if (c) {
+      try { c.transporter.close(); } catch {}
+      transporterCache.delete(companyId);
+    }
   }
+}
+
+async function loadSettingsForSeller(sellerId?: number | null): Promise<CompanySettings | null> {
+  if (!sellerId) return null;
+  const seller = await storage.getUser(sellerId);
+  if (!seller?.companyId) return null;
+  return (await storage.getCompanySettings(seller.companyId)) ?? null;
+}
+
+async function loadSettingsForCompany(companyId?: number | null): Promise<CompanySettings | null> {
+  if (!companyId) return null;
+  return (await storage.getCompanySettings(companyId)) ?? null;
+}
+
+function buildFrom(displayName: string, address: string): string {
+  const safeName = (displayName || FALLBACK_DISPLAY_NAME).replace(/[\r\n]+/g, " ").trim();
+  return `"${safeName.replace(/"/g, "'")}" <${address}>`;
 }
 
 function getBaseUrl(): string {
@@ -112,7 +126,11 @@ export async function sendContractEmail(
   contractCode: string,
   emailTo?: string,
 ): Promise<void> {
-  const { transporter, fromAddress } = buildTransporter();
+  const settings = await loadSettingsForSeller(contract.sellerId);
+  if (!settings) {
+    throw new Error("Impostazioni azienda non trovate per il venditore del contratto.");
+  }
+  const { transporter, fromAddress, fromName } = getTransporterForCompany(settings);
 
   const clientData = contract.clientData as any;
   const clientEmail = emailTo || clientData?.email;
@@ -122,23 +140,22 @@ export async function sendContractEmail(
     throw new Error("Email destinatario mancante per l'invio del contratto.");
   }
 
-  const senderName = await resolveSenderName(contract.sellerId);
   const baseUrl = getBaseUrl();
   const contractUrl = `${baseUrl}/client/${contractCode}?email=${encodeURIComponent(clientEmail)}`;
-  const html = renderContractRequestHtml({ clientName, contractUrl, contractCode, senderName });
+  const html = renderContractRequestHtml({ clientName, contractUrl, contractCode, senderName: fromName });
 
   console.log("📤 Invio email contratto via SMTP", {
-    host: process.env.SMTP_HOST,
+    host: settings.smtpHost,
     to: clientEmail,
-    from: buildFrom(senderName, fromAddress),
+    from: buildFrom(fromName, fromAddress),
     contractCode,
   });
 
   try {
     const info = await transporter.sendMail({
-      from: buildFrom(senderName, fromAddress),
+      from: buildFrom(fromName, fromAddress),
       to: clientEmail,
-      subject: `Nuovo contratto da firmare — ${senderName}`,
+      subject: `Nuovo contratto da firmare — ${fromName}`,
       html,
     });
     console.log("✅ Email contratto inviata, messageId:", info.messageId);
@@ -148,20 +165,22 @@ export async function sendContractEmail(
   }
 }
 
-export async function sendOTPEmail(email: string, otpCode: string): Promise<void> {
-  const { transporter, fromAddress } = buildTransporter();
+export async function sendOTPEmail(email: string, otpCode: string, companyId?: number): Promise<void> {
   if (!email) throw new Error("Email destinatario mancante per OTP.");
 
-  // OTP emails are not contract-bound; we use the platform fallback display name
-  // unless a future call wires a sellerId in. Keeps signature backward-compatible.
-  const senderName = FALLBACK_DISPLAY_NAME;
-  const html = renderOtpHtml(otpCode, senderName);
+  const settings = await loadSettingsForCompany(companyId);
+  if (!settings) {
+    throw new Error("Impostazioni azienda non trovate: impossibile inviare OTP via email.");
+  }
+  const { transporter, fromAddress, fromName } = getTransporterForCompany(settings);
+
+  const html = renderOtpHtml(otpCode, fromName);
 
   try {
     const info = await transporter.sendMail({
-      from: buildFrom(senderName, fromAddress),
+      from: buildFrom(fromName, fromAddress),
       to: email,
-      subject: `Codice di verifica — ${senderName}`,
+      subject: `Codice di verifica — ${fromName}`,
       html,
     });
     console.log("✅ Email OTP inviata, messageId:", info.messageId);
@@ -172,7 +191,18 @@ export async function sendOTPEmail(email: string, otpCode: string): Promise<void
 }
 
 export async function sendContractSignedNotification(contract: Contract): Promise<void> {
-  const { transporter, fromAddress } = buildTransporter();
+  const settings = await loadSettingsForSeller(contract.sellerId);
+  if (!settings) {
+    console.warn("⚠️ Notifica firma: impostazioni azienda non trovate, skip.");
+    return;
+  }
+  let transporter: Transporter, fromAddress: string, fromName: string;
+  try {
+    ({ transporter, fromAddress, fromName } = getTransporterForCompany(settings));
+  } catch (e: any) {
+    console.warn("⚠️ Notifica firma: SMTP non configurato, skip.", e?.message || e);
+    return;
+  }
 
   const clientData = contract.clientData as any;
   const clientEmail = contract.sentToEmail || clientData?.email;
@@ -183,10 +213,8 @@ export async function sendContractSignedNotification(contract: Contract): Promis
     return;
   }
 
-  const senderName = await resolveSenderName(contract.sellerId);
-  const html = renderSignedHtml({ clientName, senderName });
+  const html = renderSignedHtml({ clientName, senderName: fromName });
 
-  // Attach signed PDF if available.
   const attachments: Array<{ filename: string; content: Buffer }> = [];
   if (contract.pdfPath) {
     try {
@@ -211,20 +239,19 @@ export async function sendContractSignedNotification(contract: Contract): Promis
 
   try {
     const info = await transporter.sendMail({
-      from: buildFrom(senderName, fromAddress),
+      from: buildFrom(fromName, fromAddress),
       to: clientEmail,
-      subject: `Contratto firmato con successo — ${senderName}`,
+      subject: `Contratto firmato con successo — ${fromName}`,
       html,
       attachments: attachments.length ? attachments : undefined,
     });
     console.log("✅ Notifica firma inviata, messageId:", info.messageId);
   } catch (error: any) {
-    // Notification failure must not break the signing flow — match prior behavior.
     console.error("❌ SMTP error (sendContractSignedNotification):", error?.message || error);
   }
 }
 
-// ---------- HTML templates (same look-and-feel as before, dynamic sender) ----------
+// ---------- HTML templates ----------
 
 function renderContractRequestHtml(opts: {
   clientName: string;
