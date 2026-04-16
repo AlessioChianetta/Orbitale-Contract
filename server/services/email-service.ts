@@ -140,11 +140,22 @@ function buildFrom(displayName: string, address: string): string {
 }
 
 function getBaseUrl(): string {
-  const base = process.env.BASE_URL || process.env.DEV_URL;
-  if (base) return base.replace(/\/$/, "");
-  if (process.env.NODE_ENV === "production") {
-    return `https://${process.env.REPL_SLUG || "workspace"}.${process.env.REPL_OWNER || "yirok79246"}.repl.co`;
+  // 1) Override esplicito (dominio custom o configurazione manuale)
+  const explicit = process.env.BASE_URL || process.env.DEV_URL;
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  // 2) In produzione: dominio reale del deploy (es. xxx.replit.app o custom domain)
+  if (process.env.NODE_ENV === "production" && process.env.REPLIT_DOMAINS) {
+    const first = process.env.REPLIT_DOMAINS.split(",")[0].trim();
+    if (first) return `https://${first}`;
   }
+
+  // 3) In dev su Replit: dominio pubblico del workspace
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+
+  // 4) Ultimo fallback: locale
   return "http://localhost:5000";
 }
 
