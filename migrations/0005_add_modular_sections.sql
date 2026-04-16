@@ -5,4 +5,4 @@ ALTER TABLE "contract_templates"
   ADD COLUMN IF NOT EXISTS "sections" jsonb DEFAULT '[]'::jsonb;
 
 ALTER TABLE "contracts"
-  ADD COLUMN IF NOT EXISTS "selected_section_ids" jsonb;
+  ADD COLUMN IF NOT EXISTS "selected_section_ids" jsonb DEFAULT '[]'::jsonb;
