@@ -219,6 +219,8 @@ export default function ProfessionalContractDocument({
     hasPaymentText,
     hasContent,
     hasModularSections,
+    showDedicatedModularBlock,
+    contentHasMarker,
     hasBonuses,
   ]);
 

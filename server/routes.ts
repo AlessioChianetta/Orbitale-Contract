@@ -455,7 +455,12 @@ export function registerRoutes(app: Express): Server {
         renewalDuration: original.renewalDuration ?? 12,
         isPercentagePartnership: original.isPercentagePartnership ?? false,
         partnershipPercentage: original.partnershipPercentage,
-        selectedSectionIds: original.selectedSectionIds ?? [],
+        // Preserve the original selection fedelmente: se il contratto
+        // originale non aveva una scelta esplicita (legacy `null`),
+        // manteniamo `null` così che rigenerazioni successive usino i
+        // `defaultSelectedIds` del template, coerentemente con il
+        // `generatedContent` appena duplicato.
+        selectedSectionIds: parseSelectedIds(original.selectedSectionIds),
         pdfPath: null,
       });
 
