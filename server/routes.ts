@@ -935,7 +935,7 @@ export function registerRoutes(app: Express): Server {
         vatId: contractCompanySettings.vatId,
         pec: contractCompanySettings.pec,
         contractTitle: contractCompanySettings.contractTitle,
-        logoUrl: (contractCompanySettings as any).logoUrl,
+        logoUrl: contractCompanySettings.logoUrl,
         otpMethod: contractCompanySettings.otpMethod,
       } : null;
 
@@ -1198,11 +1198,6 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid or expired OTP" });
       }
 
-      // Se abbiamo trovato un OTP valido, marcalo come usato
-      if (validOtp) {
-        await storage.markOtpAsUsed(validOtp.id);
-      }
-
       // Get seller's information (needed for company ID in template and contract queries)
       const seller = await storage.getUser(contract.sellerId);
 
@@ -1214,13 +1209,35 @@ export function registerRoutes(app: Express): Server {
       // ---------- ATOMIC SIGNING ----------
       // Generate the sealed PDF BEFORE marking the contract as signed. If Puppeteer fails
       // we bail out with 500 and the contract stays in its previous status so the client
-      // can safely retry. Marking signed only after the PDF is persisted avoids leaving
-      // contracts in an inconsistent "signed but no sealed PDF" state.
+      // can safely retry. The OTP record is *not* consumed until PDF + DB commit succeed,
+      // so a client can retry with the same code after a transient Puppeteer failure.
       const now = new Date();
       const effectiveSignatures = signatures || {};
-      const auditLogsForPdf = await storage.getContractAuditLogs(contract.id);
       const template = await storage.getTemplate(contract.templateId, seller?.companyId);
       const pdfCompanySettings = await storage.getCompanySettings(seller?.companyId);
+
+      // Synthesize the "signed" audit entry in memory and include it in the audit trail
+      // passed to the PDF generator, so the sealed PDF records the signature event
+      // itself — even though the DB audit row is persisted only after the PDF succeeds.
+      const existingAuditLogs = await storage.getContractAuditLogs(contract.id);
+      const signedAuditEntry = {
+        id: -1,
+        contractId: contract.id,
+        action: "signed",
+        userAgent: req.get("User-Agent") ?? null,
+        ipAddress: getRealClientIP(req),
+        metadata: {
+          emailUsedForSigning: emailAddress,
+          phoneNumber: phoneNumber || 'Telefono non disponibile',
+          signatureMethod: "otp_verification",
+          signatures: signatures,
+          consents: consents,
+          contactUsedForOTP: validOtp?.phoneNumber,
+          otpMethod: phoneNumber ? 'SMS' : 'Email'
+        },
+        timestamp: now,
+      };
+      const auditLogsForPdf = [...existingAuditLogs, signedAuditEntry];
 
       const contractForPdf = {
         id: contract.id,
@@ -1247,8 +1264,7 @@ export function registerRoutes(app: Express): Server {
         finalPdfPath = await generatePDF(contract.id, contract.generatedContent, auditLogsForPdf, contractForPdf, pdfCompanySettings);
       } catch (pdfError: any) {
         console.error(`❌ PDF generation failed during signing of contract ${contract.id}:`, pdfError?.message || pdfError);
-        // Restore the already-consumed OTP so the user can retry (best-effort; do not
-        // block the response on this). Without this the client would be locked out.
+        // OTP was NOT marked as used yet, so the client can safely resubmit.
         return res.status(500).json({
           message: "Errore nella generazione del PDF firmato. Riprova tra qualche istante."
         });
@@ -1262,24 +1278,21 @@ export function registerRoutes(app: Express): Server {
         pdfPath: finalPdfPath,
       });
 
-      console.log(`✅ Contratto ${contract.id} firmato e sigillato - Status: ${signedContract.status}`);
-
-      // Log signature with detailed information (after the commit, so audit reflects reality)
+      // Commit the signature audit log (same payload that was baked into the PDF).
       await storage.createAuditLog({
-        contractId: contract.id,
-        action: "signed",
-        userAgent: req.get("User-Agent"),
-        ipAddress: getRealClientIP(req),
-        metadata: {
-          emailUsedForSigning: emailAddress,
-          phoneNumber: phoneNumber || 'Telefono non disponibile',
-          signatureMethod: "otp_verification",
-          signatures: signatures,
-          consents: consents,
-          contactUsedForOTP: validOtp?.phoneNumber,
-          otpMethod: phoneNumber ? 'SMS' : 'Email'
-        },
+        contractId: signedAuditEntry.contractId,
+        action: signedAuditEntry.action,
+        userAgent: signedAuditEntry.userAgent ?? undefined,
+        ipAddress: signedAuditEntry.ipAddress,
+        metadata: signedAuditEntry.metadata,
       });
+
+      // Only now consume the OTP: both PDF and DB commits succeeded.
+      if (validOtp) {
+        await storage.markOtpAsUsed(validOtp.id);
+      }
+
+      console.log(`✅ Contratto ${contract.id} firmato e sigillato - Status: ${signedContract.status}`);
 
       // Get the updated contract with the PDF path
       const updatedContract = await storage.getContract(contract.id, seller?.companyId);

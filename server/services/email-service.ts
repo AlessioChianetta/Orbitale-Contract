@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import nodemailer, { Transporter } from 'nodemailer';
-import { Contract, CompanySettings } from '@shared/schema';
+import { Contract, CompanySettings, InsertAuditLog } from '@shared/schema';
 import { storage } from "../storage";
 
 /**
@@ -322,12 +322,15 @@ export async function sendOTPEmail(email: string, otpCode: string, companyId?: n
 
 async function recordEmailFailure(contractId: number | undefined, stage: string, errorMessage: string): Promise<void> {
   if (!contractId) return;
+  const entry: InsertAuditLog = {
+    contractId,
+    action: "email_failed",
+    userAgent: null,
+    ipAddress: null,
+    metadata: { stage, error: errorMessage, at: new Date().toISOString() },
+  };
   try {
-    await storage.createAuditLog({
-      contractId,
-      action: "email_failed",
-      metadata: { stage, error: errorMessage, at: new Date().toISOString() },
-    } as any);
+    await storage.createAuditLog(entry);
   } catch (auditErr) {
     console.error("⚠️  Failed to write email-failure audit log:", auditErr);
   }
