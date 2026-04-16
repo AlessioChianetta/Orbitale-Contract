@@ -11,6 +11,7 @@ interface CoFillDialogProps {
   open: boolean;
   onClose: () => void;
   initialData: Record<string, any>;
+  contractId?: number | null;
   onSessionStart: (token: string) => void;
   onSessionEnd: () => void;
   activeToken: string | null;
@@ -18,7 +19,7 @@ interface CoFillDialogProps {
 }
 
 export default function CoFillDialog({
-  open, onClose, initialData, onSessionStart, onSessionEnd, activeToken, clientConnected,
+  open, onClose, initialData, contractId, onSessionStart, onSessionEnd, activeToken, clientConnected,
 }: CoFillDialogProps) {
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
@@ -46,7 +47,7 @@ export default function CoFillDialog({
   const startSession = async () => {
     setCreating(true);
     try {
-      const res = await apiRequest("POST", "/api/co-fill/sessions", { initialData });
+      const res = await apiRequest("POST", "/api/co-fill/sessions", { initialData, contractId: contractId ?? undefined });
       const json = await res.json();
       onSessionStart(json.token);
       toast({ title: "Link generato", description: "Condividilo con il cliente per iniziare." });

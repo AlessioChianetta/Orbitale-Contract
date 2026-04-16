@@ -4,7 +4,11 @@ import { WebSocketServer, WebSocket } from "ws";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema } from "@shared/schema";
+import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, type InsertCoFillSession, type User } from "@shared/schema";
+// @ts-ignore - no shipped types
+import cookie from "cookie";
+// @ts-ignore - no shipped types
+import signature from "cookie-signature";
 import { generatePDF } from "./services/pdf-generator-new";
 import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany } from "./services/email-service";
 import { generateOTP, sendOTP } from "./services/otp-service";
@@ -1506,17 +1510,37 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/co-fill/sessions", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const bodySchema = z.object({
+        initialData: z.record(z.any()).optional(),
+        contractId: z.number().int().positive().optional().nullable(),
+      });
+      const parsed = bodySchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: "Invalid body" });
+
+      // If a contractId is provided, verify it belongs to this seller's company
+      let contractId: number | null = null;
+      if (parsed.data.contractId) {
+        const contract = await storage.getContract(parsed.data.contractId, user.companyId);
+        if (!contract) {
+          return res.status(403).json({ message: "Contratto non autorizzato" });
+        }
+        contractId = contract.id;
+      }
+
       const token = nanoid(32);
       const expiresAt = new Date(Date.now() + CO_FILL_TTL_HOURS * 60 * 60 * 1000);
-      const initialData = (req.body?.initialData && typeof req.body.initialData === "object") ? req.body.initialData : {};
-      const created = await storage.createCoFillSession({
+      const insert: InsertCoFillSession = {
         token,
-        companyId: req.user.companyId,
-        sellerId: req.user.id,
-        currentData: initialData,
+        companyId: user.companyId,
+        sellerId: user.id,
+        contractId,
+        currentData: parsed.data.initialData || {},
         status: "active",
         expiresAt,
-      } as any);
+      };
+      const created = await storage.createCoFillSession(insert);
+      coFillAudit("session_created", { token, sellerId: user.id, companyId: user.companyId, contractId });
       res.status(201).json({ token: created.token, expiresAt: created.expiresAt, status: created.status });
     } catch (error) {
       console.error("Co-fill create error:", error);
@@ -1538,11 +1562,13 @@ export function registerRoutes(app: Express): Server {
 
   app.delete("/api/co-fill/sessions/:token", requireAuth, async (req, res) => {
     try {
-      const ok = await storage.terminateCoFillSession(req.params.token, req.user.companyId, req.user.id);
+      const user = req.user as User;
+      const ok = await storage.terminateCoFillSession(req.params.token, user.companyId, user.id);
       if (!ok) return res.status(404).json({ message: "Session not found" });
       // Notify connected peers
       coFillBroadcast(req.params.token, { type: "terminated" });
       coFillCloseAll(req.params.token);
+      coFillAudit("session_terminated", { token: req.params.token, sellerId: user.id });
       res.json({ message: "Session terminated" });
     } catch (error) {
       res.status(500).json({ message: "Failed to terminate session" });
@@ -1572,10 +1598,57 @@ export function registerRoutes(app: Express): Server {
 
   // WebSocket server for /ws/co-fill/:token
   const wss = new WebSocketServer({ noServer: true });
-  type CoFillPeer = { ws: WebSocket; role: "seller" | "client"; clientId: string };
+  type CoFillPeerRole = "seller" | "client";
+  type CoFillPeer = {
+    ws: WebSocket;
+    role: CoFillPeerRole;
+    clientId: string;
+    userId?: number;
+    ip: string;
+    rate: { windowStart: number; count: number };
+  };
   const coFillRooms = new Map<string, Set<CoFillPeer>>();
 
-  function coFillBroadcast(token: string, msg: any, exceptClientId?: string) {
+  // Connection rate limiter: max 5 new connections / 10s per IP
+  const coFillConnRate = new Map<string, { windowStart: number; count: number }>();
+  const CONN_WINDOW_MS = 10_000;
+  const CONN_MAX = 5;
+  function checkConnRate(ip: string): boolean {
+    const now = Date.now();
+    const r = coFillConnRate.get(ip);
+    if (!r || now - r.windowStart > CONN_WINDOW_MS) {
+      coFillConnRate.set(ip, { windowStart: now, count: 1 });
+      return true;
+    }
+    r.count++;
+    return r.count <= CONN_MAX;
+  }
+  // Per-peer message rate: max 30 messages / 1s
+  const MSG_WINDOW_MS = 1000;
+  const MSG_MAX = 30;
+  function checkMsgRate(peer: CoFillPeer): boolean {
+    const now = Date.now();
+    if (now - peer.rate.windowStart > MSG_WINDOW_MS) {
+      peer.rate.windowStart = now;
+      peer.rate.count = 1;
+      return true;
+    }
+    peer.rate.count++;
+    return peer.rate.count <= MSG_MAX;
+  }
+
+  function coFillAudit(event: string, data: Record<string, unknown>) {
+    console.log(`[CO-FILL AUDIT] ${event} ${JSON.stringify({ ts: new Date().toISOString(), ...data })}`);
+  }
+
+  type CoFillOutgoing =
+    | { type: "init"; clientId: string; currentData: Record<string, unknown> }
+    | { type: "presence"; sellers: number; clients: number }
+    | { type: "update"; field: string; value: unknown; from: CoFillPeerRole; clientId: string }
+    | { type: "terminated" }
+    | { type: "pong" };
+
+  function coFillBroadcast(token: string, msg: CoFillOutgoing, exceptClientId?: string) {
     const room = coFillRooms.get(token);
     if (!room) return;
     const data = JSON.stringify(msg);
@@ -1592,11 +1665,38 @@ export function registerRoutes(app: Express): Server {
     }
     coFillRooms.delete(token);
   }
-  function coFillPresence(token: string) {
+  function coFillPresence(token: string): CoFillOutgoing {
     const room = coFillRooms.get(token);
     const roles = { seller: 0, client: 0 };
     if (room) for (const p of room) roles[p.role]++;
     return { type: "presence", sellers: roles.seller, clients: roles.client };
+  }
+
+  // Read authenticated user from session cookie on a raw upgrade request
+  async function getUserFromUpgradeReq(req: { headers: { cookie?: string } }): Promise<User | null> {
+    try {
+      const raw = req.headers.cookie;
+      if (!raw) return null;
+      const cookies = cookie.parse(raw) as Record<string, string>;
+      const signed = cookies["connect.sid"];
+      if (!signed || !signed.startsWith("s:")) return null;
+      const unsigned = signature.unsign(signed.slice(2), process.env.SESSION_SECRET || "");
+      if (!unsigned) return null;
+      const sessionData = await new Promise<Record<string, unknown> | null>((resolve) => {
+        storage.sessionStore.get(unsigned, (err, sess) => {
+          if (err || !sess) return resolve(null);
+          resolve(sess as Record<string, unknown>);
+        });
+      });
+      if (!sessionData) return null;
+      const passportData = sessionData.passport as { user?: number } | undefined;
+      const userId = passportData?.user;
+      if (!userId) return null;
+      const user = await storage.getUser(userId);
+      return user || null;
+    } catch {
+      return null;
+    }
   }
 
   httpServer.on("upgrade", async (req, socket, head) => {
@@ -1605,33 +1705,80 @@ export function registerRoutes(app: Express): Server {
       const m = url.pathname.match(/^\/ws\/co-fill\/([A-Za-z0-9_-]+)$/);
       if (!m) return; // let other upgrade handlers (e.g. Vite HMR) handle it
       const token = m[1];
-      const role = url.searchParams.get("role") === "seller" ? "seller" : "client";
+      const ip = (req.socket.remoteAddress || "unknown").replace(/^::ffff:/, "");
+
+      if (!checkConnRate(ip)) {
+        coFillAudit("rate_limited_connect", { token, ip });
+        socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      const requestedRole: CoFillPeerRole = url.searchParams.get("role") === "seller" ? "seller" : "client";
       const sess = await storage.getCoFillSessionByToken(token);
       if (!sess || sess.status !== "active" || sess.expiresAt < new Date()) {
+        coFillAudit("connect_rejected", { token, ip, reason: "invalid_session" });
         socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
         socket.destroy();
         return;
       }
-      wss.handleUpgrade(req, socket as any, head, (ws) => {
+
+      // Seller role REQUIRES authenticated session + ownership
+      let authedUserId: number | undefined;
+      if (requestedRole === "seller") {
+        const user = await getUserFromUpgradeReq(req);
+        if (!user || user.id !== sess.sellerId || user.companyId !== sess.companyId) {
+          coFillAudit("connect_rejected", { token, ip, reason: "seller_unauthorized" });
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        authedUserId = user.id;
+      }
+
+      wss.handleUpgrade(req, socket, head, (ws) => {
         const clientId = nanoid(12);
-        const peer: CoFillPeer = { ws, role, clientId };
+        const peer: CoFillPeer = {
+          ws,
+          role: requestedRole,
+          clientId,
+          userId: authedUserId,
+          ip,
+          rate: { windowStart: Date.now(), count: 0 },
+        };
         let room = coFillRooms.get(token);
         if (!room) { room = new Set(); coFillRooms.set(token, room); }
         room.add(peer);
 
+        coFillAudit("peer_connected", { token, ip, role: peer.role, userId: authedUserId, clientId });
+
         // Send initial state and presence
-        ws.send(JSON.stringify({ type: "init", clientId, currentData: sess.currentData || {} }));
+        const currentData = (sess.currentData as Record<string, unknown>) || {};
+        ws.send(JSON.stringify({ type: "init", clientId, currentData } satisfies CoFillOutgoing));
         coFillBroadcast(token, coFillPresence(token));
 
         ws.on("message", async (raw) => {
-          let msg: any;
+          if (!checkMsgRate(peer)) {
+            coFillAudit("rate_limited_msg", { token, clientId, ip });
+            try { ws.close(1008, "rate limit"); } catch {}
+            return;
+          }
+          let msg: { type?: string; field?: string; value?: unknown };
           try { msg = JSON.parse(String(raw)); } catch { return; }
-          if (msg?.type === "update" && msg.field && typeof msg.field === "string") {
+          if (msg?.type === "update" && typeof msg.field === "string") {
             // Persist single-field update merged into currentData
             const current = await storage.getCoFillSessionByToken(token);
             if (!current || current.status !== "active") return;
-            const merged = { ...((current.currentData as any) || {}), [msg.field]: msg.value };
+            const currentMap = (current.currentData as Record<string, unknown>) || {};
+            const merged = { ...currentMap, [msg.field]: msg.value };
             await storage.updateCoFillSessionData(token, merged);
+            coFillAudit("field_update", {
+              token,
+              clientId,
+              role: peer.role,
+              userId: peer.userId,
+              field: msg.field,
+            });
             coFillBroadcast(token, {
               type: "update",
               field: msg.field,
@@ -1640,7 +1787,7 @@ export function registerRoutes(app: Express): Server {
               clientId: peer.clientId,
             }, peer.clientId);
           } else if (msg?.type === "ping") {
-            try { ws.send(JSON.stringify({ type: "pong" })); } catch {}
+            try { ws.send(JSON.stringify({ type: "pong" } satisfies CoFillOutgoing)); } catch {}
           }
         });
 
@@ -1648,6 +1795,7 @@ export function registerRoutes(app: Express): Server {
           room?.delete(peer);
           if (room && room.size === 0) coFillRooms.delete(token);
           coFillBroadcast(token, coFillPresence(token));
+          coFillAudit("peer_disconnected", { token, clientId, role: peer.role, userId: peer.userId });
         });
       });
     } catch (err) {

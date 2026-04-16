@@ -171,6 +171,7 @@ export const coFillSessions = pgTable("co_fill_sessions", {
   token: text("token").notNull().unique(),
   companyId: integer("company_id").notNull().references(() => companySettings.id),
   sellerId: integer("seller_id").notNull().references(() => users.id),
+  contractId: integer("contract_id").references(() => contracts.id),
   currentData: jsonb("current_data").default({}).notNull(),
   status: text("status", { enum: ["active", "terminated", "expired"] }).notNull().default("active"),
   expiresAt: timestamp("expires_at").notNull(),

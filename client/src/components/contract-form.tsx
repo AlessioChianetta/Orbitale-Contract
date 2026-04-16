@@ -582,6 +582,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       open={coFillDialogOpen}
       onClose={() => setCoFillDialogOpen(false)}
       initialData={form.getValues("clientData") || {}}
+      contractId={isEditing && contract ? contract.id : null}
       activeToken={coFillToken}
       clientConnected={coFillClientConnected}
       onSessionStart={(token) => setCoFillToken(token)}
