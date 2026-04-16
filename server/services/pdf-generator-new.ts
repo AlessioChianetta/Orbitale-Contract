@@ -2,7 +2,6 @@ import puppeteer, { Browser } from 'puppeteer';
 import fs from 'fs/promises';
 import path from 'path';
 import { AuditLog } from '@shared/schema';
-import { resolveSelectedSections, renderSectionsHtml, SECTIONS_MARKER } from '@shared/sections';
 
 // Singleton Puppeteer browser: launch once, reuse across PDF generations.
 // Auto-resets if the underlying process dies or disconnects.

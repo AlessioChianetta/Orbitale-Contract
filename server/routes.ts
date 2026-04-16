@@ -1258,7 +1258,11 @@ export function registerRoutes(app: Express): Server {
         generatedContent: contract.generatedContent,
         clientData: contract.clientData,
         totalValue: contract.totalValue,
-        template: template,
+        // Sorgente unica: il generatore PDF usa `template.content` per il
+        // corpo del contratto; passiamo qui il `generatedContent` già
+        // risolto dal server (placeholder + sezioni modulari iniettate),
+        // garantendo parità assoluta con preview e client-view.
+        template: template ? { ...template, content: contract.generatedContent } : template,
         status: "signed",
         signatures: effectiveSignatures,
         signedAt: now,
