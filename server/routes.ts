@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { z } from "zod";
@@ -1498,7 +1499,162 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ====================================================================
+  // Co-fill (compilazione condivisa cliente-venditore in tempo reale)
+  // ====================================================================
+  const CO_FILL_TTL_HOURS = 24;
+
+  app.post("/api/co-fill/sessions", requireAuth, async (req, res) => {
+    try {
+      const token = nanoid(32);
+      const expiresAt = new Date(Date.now() + CO_FILL_TTL_HOURS * 60 * 60 * 1000);
+      const initialData = (req.body?.initialData && typeof req.body.initialData === "object") ? req.body.initialData : {};
+      const created = await storage.createCoFillSession({
+        token,
+        companyId: req.user.companyId,
+        sellerId: req.user.id,
+        currentData: initialData,
+        status: "active",
+        expiresAt,
+      } as any);
+      res.status(201).json({ token: created.token, expiresAt: created.expiresAt, status: created.status });
+    } catch (error) {
+      console.error("Co-fill create error:", error);
+      res.status(500).json({ message: "Failed to create co-fill session" });
+    }
+  });
+
+  app.get("/api/co-fill/sessions/:token", requireAuth, async (req, res) => {
+    try {
+      const sess = await storage.getCoFillSessionByToken(req.params.token);
+      if (!sess || sess.companyId !== req.user.companyId || sess.sellerId !== req.user.id) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+      res.json({ token: sess.token, status: sess.status, expiresAt: sess.expiresAt, currentData: sess.currentData });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch session" });
+    }
+  });
+
+  app.delete("/api/co-fill/sessions/:token", requireAuth, async (req, res) => {
+    try {
+      const ok = await storage.terminateCoFillSession(req.params.token, req.user.companyId, req.user.id);
+      if (!ok) return res.status(404).json({ message: "Session not found" });
+      // Notify connected peers
+      coFillBroadcast(req.params.token, { type: "terminated" });
+      coFillCloseAll(req.params.token);
+      res.json({ message: "Session terminated" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to terminate session" });
+    }
+  });
+
+  // Public endpoint (no auth) — used by the client device to bootstrap
+  app.get("/api/co-fill/public/:token", async (req, res) => {
+    try {
+      const sess = await storage.getCoFillSessionByToken(req.params.token);
+      if (!sess) return res.status(404).json({ message: "Sessione non trovata" });
+      if (sess.status !== "active") return res.status(410).json({ message: "Sessione non più attiva" });
+      if (sess.expiresAt < new Date()) return res.status(410).json({ message: "Sessione scaduta" });
+      const company = await storage.getCompanySettings(sess.companyId);
+      res.json({
+        token: sess.token,
+        currentData: sess.currentData || {},
+        expiresAt: sess.expiresAt,
+        companyName: company?.companyName || "",
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to load session" });
+    }
+  });
+
   const httpServer = createServer(app);
+
+  // WebSocket server for /ws/co-fill/:token
+  const wss = new WebSocketServer({ noServer: true });
+  type CoFillPeer = { ws: WebSocket; role: "seller" | "client"; clientId: string };
+  const coFillRooms = new Map<string, Set<CoFillPeer>>();
+
+  function coFillBroadcast(token: string, msg: any, exceptClientId?: string) {
+    const room = coFillRooms.get(token);
+    if (!room) return;
+    const data = JSON.stringify(msg);
+    for (const peer of room) {
+      if (exceptClientId && peer.clientId === exceptClientId) continue;
+      if (peer.ws.readyState === WebSocket.OPEN) peer.ws.send(data);
+    }
+  }
+  function coFillCloseAll(token: string) {
+    const room = coFillRooms.get(token);
+    if (!room) return;
+    for (const peer of room) {
+      try { peer.ws.close(1000, "session terminated"); } catch {}
+    }
+    coFillRooms.delete(token);
+  }
+  function coFillPresence(token: string) {
+    const room = coFillRooms.get(token);
+    const roles = { seller: 0, client: 0 };
+    if (room) for (const p of room) roles[p.role]++;
+    return { type: "presence", sellers: roles.seller, clients: roles.client };
+  }
+
+  httpServer.on("upgrade", async (req, socket, head) => {
+    try {
+      const url = new URL(req.url || "", `http://${req.headers.host}`);
+      const m = url.pathname.match(/^\/ws\/co-fill\/([A-Za-z0-9_-]+)$/);
+      if (!m) return; // let other upgrade handlers (e.g. Vite HMR) handle it
+      const token = m[1];
+      const role = url.searchParams.get("role") === "seller" ? "seller" : "client";
+      const sess = await storage.getCoFillSessionByToken(token);
+      if (!sess || sess.status !== "active" || sess.expiresAt < new Date()) {
+        socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+      wss.handleUpgrade(req, socket as any, head, (ws) => {
+        const clientId = nanoid(12);
+        const peer: CoFillPeer = { ws, role, clientId };
+        let room = coFillRooms.get(token);
+        if (!room) { room = new Set(); coFillRooms.set(token, room); }
+        room.add(peer);
+
+        // Send initial state and presence
+        ws.send(JSON.stringify({ type: "init", clientId, currentData: sess.currentData || {} }));
+        coFillBroadcast(token, coFillPresence(token));
+
+        ws.on("message", async (raw) => {
+          let msg: any;
+          try { msg = JSON.parse(String(raw)); } catch { return; }
+          if (msg?.type === "update" && msg.field && typeof msg.field === "string") {
+            // Persist single-field update merged into currentData
+            const current = await storage.getCoFillSessionByToken(token);
+            if (!current || current.status !== "active") return;
+            const merged = { ...((current.currentData as any) || {}), [msg.field]: msg.value };
+            await storage.updateCoFillSessionData(token, merged);
+            coFillBroadcast(token, {
+              type: "update",
+              field: msg.field,
+              value: msg.value,
+              from: peer.role,
+              clientId: peer.clientId,
+            }, peer.clientId);
+          } else if (msg?.type === "ping") {
+            try { ws.send(JSON.stringify({ type: "pong" })); } catch {}
+          }
+        });
+
+        ws.on("close", () => {
+          room?.delete(peer);
+          if (room && room.size === 0) coFillRooms.delete(token);
+          coFillBroadcast(token, coFillPresence(token));
+        });
+      });
+    } catch (err) {
+      try { socket.destroy(); } catch {}
+    }
+  });
+
   return httpServer;
 }
 

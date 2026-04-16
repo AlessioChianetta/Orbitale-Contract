@@ -166,6 +166,22 @@ export const companySettingsRelations = relations(companySettings, ({ many }) =>
   users: many(users),
 }));
 
+export const coFillSessions = pgTable("co_fill_sessions", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  companyId: integer("company_id").notNull().references(() => companySettings.id),
+  sellerId: integer("seller_id").notNull().references(() => users.id),
+  currentData: jsonb("current_data").default({}).notNull(),
+  status: text("status", { enum: ["active", "terminated", "expired"] }).notNull().default("active"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const coFillSessionsRelations = relations(coFillSessions, ({ one }) => ({
+  seller: one(users, { fields: [coFillSessions.sellerId], references: [users.id] }),
+  company: one(companySettings, { fields: [coFillSessions.companyId], references: [companySettings.id] }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -229,6 +245,13 @@ export type OtpCode = typeof otpCodes.$inferSelect;
 export type InsertOtpCode = z.infer<typeof insertOtpCodeSchema>;
 export type CompanySettings = typeof companySettings.$inferSelect;
 export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
+
+export const insertCoFillSessionSchema = createInsertSchema(coFillSessions).omit({
+  id: true,
+  createdAt: true,
+});
+export type CoFillSession = typeof coFillSessions.$inferSelect;
+export type InsertCoFillSession = z.infer<typeof insertCoFillSessionSchema>;
 
 export const signatureSchema = z.object({
   contract: z.string().optional(),

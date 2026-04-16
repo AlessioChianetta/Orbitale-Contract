@@ -14,6 +14,7 @@ import ClientView from "@/pages/client-view";
 import CompanySettings from "./pages/company-settings";
 import UserManagement from "./pages/user-management";
 import ContractView from "./pages/contract-view";
+import CoFillPage from "@/pages/co-fill-page";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
       <ProtectedRoute path="/user-management" component={UserManagement} />
       <Route path="/contratto" component={ContractView} />
       <Route path="/client/:code" component={ClientView} />
+      <Route path="/co-fill/:token" component={CoFillPage} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>

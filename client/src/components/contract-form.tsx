@@ -16,7 +16,8 @@ import ProfessionalContractDocument from "./professional-contract-document";
 import PaymentCalculatorAdvanced from "./payment-calculator-advanced";
 import EmailConfigBanner, { useEmailStatus } from "./email-config-banner";
 import MissingDataPanel from "./missing-data-panel";
-import type { RequiredClientField } from "@/lib/required-client-fields";
+import CoFillDialog from "./co-fill-dialog";
+import { REQUIRED_CLIENT_FIELDS, type RequiredClientField } from "@/lib/required-client-fields";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF } from "@/lib/validation-utils";
 
 const contractFormSchema = z.object({
@@ -138,6 +139,16 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<{ template: any; companySettings: any; generatedContent: string } | null>(null);
+
+  // Co-fill (real-time client-seller fill) state
+  const [coFillDialogOpen, setCoFillDialogOpen] = useState(false);
+  const [coFillToken, setCoFillToken] = useState<string | null>(null);
+  const [coFillClientConnected, setCoFillClientConnected] = useState(false);
+  const [coFillHighlight, setCoFillHighlight] = useState<Record<string, number>>({});
+  const coFillWsRef = useRef<WebSocket | null>(null);
+  const coFillClientIdRef = useRef<string>("");
+  const coFillApplyingRef = useRef<boolean>(false);
+  const coFillReconnectRef = useRef<any>(null);
 
   const scrollToSection = useCallback((sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -444,6 +455,117 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const currentIsPercentageMode = form.watch("isPercentagePartnership") || false;
   const watchedClientData = form.watch("clientData");
 
+  // ====================================================================
+  // Co-fill WebSocket: connect when seller has an active token, mirror data
+  // ====================================================================
+  useEffect(() => {
+    if (!coFillToken) return;
+    let cancelled = false;
+
+    const flash = (field: string) => {
+      setCoFillHighlight((prev) => ({ ...prev, [field]: Date.now() }));
+      setTimeout(() => {
+        setCoFillHighlight((prev) => {
+          const cp = { ...prev };
+          delete cp[field];
+          return cp;
+        });
+      }, 2000);
+    };
+
+    const connect = () => {
+      if (cancelled) return;
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${proto}//${window.location.host}/ws/co-fill/${coFillToken}?role=seller`);
+      coFillWsRef.current = ws;
+
+      ws.onopen = () => {};
+      ws.onclose = () => {
+        coFillWsRef.current = null;
+        setCoFillClientConnected(false);
+        if (!cancelled && coFillToken) {
+          if (coFillReconnectRef.current) clearTimeout(coFillReconnectRef.current);
+          coFillReconnectRef.current = setTimeout(connect, 2000);
+        }
+      };
+      ws.onerror = () => { try { ws.close(); } catch {} };
+      ws.onmessage = (evt) => {
+        let msg: any;
+        try { msg = JSON.parse(evt.data); } catch { return; }
+        if (msg.type === "init") {
+          coFillClientIdRef.current = msg.clientId;
+          // Apply server-side current data to form (for fields the seller cares about)
+          coFillApplyingRef.current = true;
+          try {
+            const cd = msg.currentData || {};
+            for (const f of REQUIRED_CLIENT_FIELDS) {
+              if (cd[f.key] !== undefined && cd[f.key] !== null && cd[f.key] !== "") {
+                form.setValue(`clientData.${f.key}` as any, cd[f.key], { shouldDirty: true });
+              }
+            }
+          } finally {
+            setTimeout(() => { coFillApplyingRef.current = false; }, 50);
+          }
+        } else if (msg.type === "update" && msg.field) {
+          if (msg.clientId && msg.clientId === coFillClientIdRef.current) return;
+          coFillApplyingRef.current = true;
+          try {
+            form.setValue(`clientData.${msg.field}` as any, msg.value ?? "", { shouldDirty: true });
+          } finally {
+            setTimeout(() => { coFillApplyingRef.current = false; }, 50);
+          }
+          flash(msg.field);
+        } else if (msg.type === "presence") {
+          setCoFillClientConnected((msg.clients || 0) > 0);
+        } else if (msg.type === "terminated") {
+          setCoFillToken(null);
+        }
+      };
+    };
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (coFillReconnectRef.current) clearTimeout(coFillReconnectRef.current);
+      if (coFillWsRef.current) try { coFillWsRef.current.close(); } catch {}
+      coFillWsRef.current = null;
+    };
+  }, [coFillToken, form]);
+
+  // When the seller edits a watched field, push the change to the WS (debounced).
+  useEffect(() => {
+    if (!coFillToken) return;
+    const debouncers: Record<string, any> = {};
+    const sub = form.watch((value, info) => {
+      if (!info?.name || info.type !== "change") return;
+      if (!info.name.startsWith("clientData.")) return;
+      if (coFillApplyingRef.current) return;
+      const field = info.name.slice("clientData.".length);
+      const allowed = REQUIRED_CLIENT_FIELDS.some((f) => f.key === field);
+      if (!allowed) return;
+      const fieldValue = (value as any)?.clientData?.[field] ?? "";
+      if (debouncers[field]) clearTimeout(debouncers[field]);
+      debouncers[field] = setTimeout(() => {
+        const ws = coFillWsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "update", field, value: fieldValue }));
+        }
+      }, 350);
+    });
+    return () => {
+      sub.unsubscribe();
+      for (const k in debouncers) clearTimeout(debouncers[k]);
+    };
+  }, [coFillToken, form]);
+
+  const coFillFieldClass = useCallback(
+    (field: string) =>
+      coFillHighlight[field]
+        ? "ring-2 ring-violet-400 border-violet-500 bg-violet-50 transition-all duration-300"
+        : "",
+    [coFillHighlight],
+  );
+
   const jumpToClientField = useCallback((field: RequiredClientField) => {
     scrollToSection(field.sectionId);
     setTimeout(() => {
@@ -455,6 +577,16 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   }, [scrollToSection]);
 
   return (
+    <>
+    <CoFillDialog
+      open={coFillDialogOpen}
+      onClose={() => setCoFillDialogOpen(false)}
+      initialData={form.getValues("clientData") || {}}
+      activeToken={coFillToken}
+      clientConnected={coFillClientConnected}
+      onSessionStart={(token) => setCoFillToken(token)}
+      onSessionEnd={() => setCoFillToken(null)}
+    />
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-[1280px] w-[95vw] max-h-[95vh] p-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-white flex flex-col">
         {/* Header */}
@@ -576,10 +708,42 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
             {/* Section 2: Client Data */}
             <div id="section-client" className="border-t border-gray-100 pt-8 mt-8">
-              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
-                <Users className="mr-3 h-5 w-5 text-indigo-600" />
-                Dati Cliente/Committente
-              </h3>
+              <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                <h3 className="text-xl font-semibold text-slate-900 flex items-center">
+                  <Users className="mr-3 h-5 w-5 text-indigo-600" />
+                  Dati Cliente/Committente
+                </h3>
+                <div className="flex items-center gap-2">
+                  {coFillToken && (
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${
+                        coFillClientConnected
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 bg-slate-50 text-slate-500"
+                      }`}
+                      data-testid="badge-cofill-status"
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          coFillClientConnected ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+                        }`}
+                      />
+                      {coFillClientConnected ? "Cliente connesso" : "In attesa cliente"}
+                    </span>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    onClick={() => setCoFillDialogOpen(true)}
+                    data-testid="button-open-cofill"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    {coFillToken ? "Gestisci link cliente" : "Compila con il cliente"}
+                  </Button>
+                </div>
+              </div>
               <div className="space-y-8">
                 {/* Dati Azienda/Società */}
                 <div>
@@ -597,7 +761,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.societa")}
                         placeholder="Nome della società"
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("societa")}`}
                       />
                       {form.formState.errors.clientData?.societa && (
                         <p className="text-sm text-red-600 mt-1">
@@ -615,7 +779,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.sede")}
                         placeholder="Città sede legale"
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("sede")}`}
                       />
                       {form.formState.errors.clientData?.sede && (
                         <p className="text-sm text-red-600 mt-1">
@@ -633,7 +797,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.indirizzo")}
                         placeholder="Via, numero civico, CAP"
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("indirizzo")}`}
                       />
                       {form.formState.errors.clientData?.indirizzo && (
                         <p className="text-sm text-red-600 mt-1">
@@ -706,7 +870,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                               : vatValidation.isValid === false 
                               ? 'border-red-400 focus:border-red-500' 
                               : ''
-                          }`}
+                          } ${coFillFieldClass("p_iva")}`}
                         />
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
                           {vatValidation.isValidating && (
@@ -773,7 +937,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.email")}
                         placeholder="email@esempio.com"
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("email")}`}
                       />
                       {form.formState.errors.clientData?.email && (
                         <p className="text-sm text-red-600 mt-1">
@@ -805,7 +969,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.cellulare")}
                         placeholder="+39 333 123 4567"
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("cellulare")}`}
                       />
                       {form.formState.errors.clientData?.cellulare && (
                         <p className="text-sm text-red-600 mt-1">
@@ -832,7 +996,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.cliente_nome")}
                         placeholder="Nome e cognome del referente"
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("cliente_nome")}`}
                       />
                       {form.formState.errors.clientData?.cliente_nome && (
                         <p className="text-sm text-red-600 mt-1">
@@ -850,7 +1014,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.nato_a")}
                         placeholder="Luogo di nascita"
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("nato_a")}`}
                       />
                       {form.formState.errors.clientData?.nato_a && (
                         <p className="text-sm text-red-600 mt-1">
@@ -868,7 +1032,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         type="date"
                         {...form.register("clientData.data_nascita")}
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("data_nascita")}`}
                       />
                       {form.formState.errors.clientData?.data_nascita && (
                         <p className="text-sm text-red-600 mt-1">
@@ -886,7 +1050,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.residente_a")}
                         placeholder="Città di residenza"
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("residente_a")}`}
                       />
                       {form.formState.errors.clientData?.residente_a && (
                         <p className="text-sm text-red-600 mt-1">
@@ -904,7 +1068,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {...form.register("clientData.indirizzo_residenza")}
                         placeholder="Via, numero civico, CAP"
                         disabled={createContractMutation.isPending}
-                        className={inputClass}
+                        className={`${inputClass} ${coFillFieldClass("indirizzo_residenza")}`}
                       />
                       {form.formState.errors.clientData?.indirizzo_residenza && (
                         <p className="text-sm text-red-600 mt-1">
@@ -1599,5 +1763,6 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         );
       })()}
     </Dialog>
+    </>
   );
 }

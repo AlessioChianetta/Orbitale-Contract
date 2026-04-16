@@ -1,11 +1,12 @@
 import { 
-  users, contractTemplates, contracts, auditLogs, otpCodes, companySettings,
+  users, contractTemplates, contracts, auditLogs, otpCodes, companySettings, coFillSessions,
   type User, type InsertUser, 
   type ContractTemplate, type InsertContractTemplate,
   type Contract, type InsertContract,
   type AuditLog, type InsertAuditLog,
   type OtpCode, type InsertOtpCode,
-  type CompanySettings, type InsertCompanySettings
+  type CompanySettings, type InsertCompanySettings,
+  type CoFillSession, type InsertCoFillSession
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, inArray, sql } from "drizzle-orm";
@@ -56,6 +57,13 @@ export interface IStorage {
   getCompanySettings(companyId: number): Promise<CompanySettings | undefined>;
   updateCompanySettings(settings: InsertCompanySettings, companyId: number): Promise<CompanySettings>;
   createCompany(settings: InsertCompanySettings): Promise<CompanySettings>;
+
+  // Co-fill session methods
+  createCoFillSession(session: InsertCoFillSession): Promise<CoFillSession>;
+  getCoFillSessionByToken(token: string): Promise<CoFillSession | undefined>;
+  updateCoFillSessionData(token: string, data: any): Promise<CoFillSession | undefined>;
+  terminateCoFillSession(token: string, companyId: number, sellerId: number): Promise<boolean>;
+  listActiveCoFillSessionsForSeller(companyId: number, sellerId: number): Promise<CoFillSession[]>;
 
   sessionStore: session.Store;
 }
@@ -411,6 +419,47 @@ export class DatabaseStorage implements IStorage {
       .values({ ...settings, updatedAt: new Date() })
       .returning();
     return newCompany;
+  }
+
+  // Co-fill session methods
+  async createCoFillSession(input: InsertCoFillSession): Promise<CoFillSession> {
+    const [row] = await db.insert(coFillSessions).values(input).returning();
+    return row;
+  }
+
+  async getCoFillSessionByToken(token: string): Promise<CoFillSession | undefined> {
+    const [row] = await db.select().from(coFillSessions).where(eq(coFillSessions.token, token));
+    return row || undefined;
+  }
+
+  async updateCoFillSessionData(token: string, data: any): Promise<CoFillSession | undefined> {
+    const [row] = await db
+      .update(coFillSessions)
+      .set({ currentData: data })
+      .where(eq(coFillSessions.token, token))
+      .returning();
+    return row || undefined;
+  }
+
+  async terminateCoFillSession(token: string, companyId: number, sellerId: number): Promise<boolean> {
+    const result = await db
+      .update(coFillSessions)
+      .set({ status: "terminated" })
+      .where(and(
+        eq(coFillSessions.token, token),
+        eq(coFillSessions.companyId, companyId),
+        eq(coFillSessions.sellerId, sellerId),
+      ))
+      .returning({ id: coFillSessions.id });
+    return result.length > 0;
+  }
+
+  async listActiveCoFillSessionsForSeller(companyId: number, sellerId: number): Promise<CoFillSession[]> {
+    return await db.select().from(coFillSessions).where(and(
+      eq(coFillSessions.companyId, companyId),
+      eq(coFillSessions.sellerId, sellerId),
+      eq(coFillSessions.status, "active"),
+    ));
   }
 }
 
