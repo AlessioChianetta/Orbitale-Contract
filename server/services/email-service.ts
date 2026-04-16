@@ -320,17 +320,34 @@ export async function sendOTPEmail(email: string, otpCode: string, companyId?: n
   }
 }
 
+async function recordEmailFailure(contractId: number | undefined, stage: string, errorMessage: string): Promise<void> {
+  if (!contractId) return;
+  try {
+    await storage.createAuditLog({
+      contractId,
+      action: "email_failed",
+      metadata: { stage, error: errorMessage, at: new Date().toISOString() },
+    } as any);
+  } catch (auditErr) {
+    console.error("⚠️  Failed to write email-failure audit log:", auditErr);
+  }
+}
+
 export async function sendContractSignedNotification(contract: Contract): Promise<void> {
   const settings = await loadSettingsForSeller(contract.sellerId);
   if (!settings) {
-    console.warn("⚠️ Notifica firma: impostazioni azienda non trovate, skip.");
+    const msg = "Notifica firma: impostazioni azienda non trovate, skip.";
+    console.warn("⚠️ " + msg);
+    await recordEmailFailure(contract.id, "sendContractSignedNotification:no_settings", msg);
     return;
   }
   let transporter: Transporter, fromAddress: string, fromName: string;
   try {
     ({ transporter, fromAddress, fromName } = getTransporterForCompany(settings));
   } catch (e: any) {
-    console.warn("⚠️ Notifica firma: SMTP non configurato, skip.", e?.message || e);
+    const msg = `Notifica firma: SMTP non configurato: ${e?.message || e}`;
+    console.warn("⚠️ " + msg);
+    await recordEmailFailure(contract.id, "sendContractSignedNotification:smtp_config", msg);
     return;
   }
 
@@ -377,7 +394,9 @@ export async function sendContractSignedNotification(contract: Contract): Promis
     });
     console.log("✅ Notifica firma inviata, messageId:", info.messageId);
   } catch (error: any) {
-    console.error("❌ SMTP error (sendContractSignedNotification):", error?.message || error);
+    const msg = `SMTP error: ${error?.message || error}`;
+    console.error("❌ SMTP error (sendContractSignedNotification):", msg, { code: error?.code, responseCode: error?.responseCode });
+    await recordEmailFailure(contract.id, "sendContractSignedNotification:send", msg);
   }
 }
 

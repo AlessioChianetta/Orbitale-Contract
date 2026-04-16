@@ -17,6 +17,19 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { chatContratto, guidedContractWizard, generateContractFromAI, type ChatMessage } from "./services/provider-factory";
+import rateLimit from "express-rate-limit";
+
+// Rate limit for public OTP endpoints (send + verify). 5 attempts per IP per 15 minutes.
+const otpRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Troppi tentativi. Riprova tra qualche minuto." },
+});
+
+// Max number of contract IDs accepted in a single bulk operation payload.
+const BULK_IDS_MAX = 100;
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -214,23 +227,38 @@ export function registerRoutes(app: Express): Server {
   });
 
   app.put("/api/company-settings", requireAdmin, async (req, res) => {
+    // We invalidate the SMTP transporter cache unconditionally at the end of this
+    // request lifecycle (success OR partial failure after the update touched the
+    // DB). This prevents stale transporters from lingering when any SMTP field may
+    // have changed, regardless of which branch ran.
+    const companyId = req.user.companyId;
+    let needsCacheInvalidation = false;
     try {
       const settingsData = insertCompanySettingsSchema.parse(req.body);
       // Preserve existing smtpPass when client sends empty string or the masked placeholder
       const incomingPass = (settingsData as any).smtpPass;
       if (incomingPass === undefined || incomingPass === null || incomingPass === "" || incomingPass === SMTP_PASS_MASK) {
-        const existing = await storage.getCompanySettings(req.user.companyId);
+        const existing = await storage.getCompanySettings(companyId);
         (settingsData as any).smtpPass = existing?.smtpPass ?? null;
       }
-      const settings = await storage.updateCompanySettings(settingsData, req.user.companyId);
-      const { invalidateEmailTransporterCache } = await import('./services/email-service');
-      invalidateEmailTransporterCache(req.user.companyId);
+      needsCacheInvalidation = true;
+      const settings = await storage.updateCompanySettings(settingsData, companyId);
       res.json(maskCompanySettings(settings));
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid settings data", errors: error.errors });
       }
+      console.error("Failed to update company settings:", error);
       res.status(500).json({ message: "Failed to update company settings" });
+    } finally {
+      if (needsCacheInvalidation) {
+        try {
+          const { invalidateEmailTransporterCache } = await import('./services/email-service');
+          invalidateEmailTransporterCache(companyId);
+        } catch (invalidationError) {
+          console.error("⚠️  Failed to invalidate SMTP transporter cache:", invalidationError);
+        }
+      }
     }
   });
 
@@ -341,7 +369,7 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/contracts/bulk-archive", requireAuth, async (req, res) => {
     try {
       const schema = z.object({
-        ids: z.array(z.number().int().positive()).min(1),
+        ids: z.array(z.number().int().positive()).min(1).max(BULK_IDS_MAX),
         archive: z.boolean().default(true),
       });
       const { ids, archive } = schema.parse(req.body);
@@ -446,7 +474,7 @@ export function registerRoutes(app: Express): Server {
   // Regenerate content from template (admin only) — preserves signatures and status
   app.post("/api/contracts/bulk-delete", requireAdmin, async (req, res) => {
     try {
-      const schema = z.object({ ids: z.array(z.number().int().positive()).min(1) });
+      const schema = z.object({ ids: z.array(z.number().int().positive()).min(1).max(BULK_IDS_MAX) });
       const { ids } = schema.parse(req.body);
       const deletedIds = await storage.deleteContracts(ids, req.user.companyId);
       // Audit log entries for deleted contracts are also removed by the cascade,
@@ -876,9 +904,44 @@ export function registerRoutes(app: Express): Server {
         await storage.updateContract(contract.id, { status: "viewed" });
       }
 
+      // Public client endpoint: whitelist response fields to avoid leaking internal
+      // identifiers (sellerId, companyId, userId, pdfPath, etc.) to unauthenticated
+      // callers who only have the contract code.
+      const safeContract = {
+        id: contract.id,
+        contractCode: contract.contractCode,
+        templateId: contract.templateId,
+        status: contract.status,
+        clientData: contract.clientData,
+        generatedContent: contract.generatedContent,
+        totalValue: contract.totalValue,
+        signatures: contract.signatures,
+        signedAt: contract.signedAt,
+        createdAt: contract.createdAt,
+        contractStartDate: contract.contractStartDate,
+        contractEndDate: contract.contractEndDate,
+        autoRenewal: contract.autoRenewal,
+        renewalDuration: contract.renewalDuration,
+        isPercentagePartnership: contract.isPercentagePartnership,
+        partnershipPercentage: contract.partnershipPercentage,
+        sentToEmail: contract.sentToEmail,
+      };
+      const safeCompanySettings = contractCompanySettings ? {
+        companyName: contractCompanySettings.companyName,
+        address: contractCompanySettings.address,
+        city: contractCompanySettings.city,
+        postalCode: contractCompanySettings.postalCode,
+        taxId: contractCompanySettings.taxId,
+        vatId: contractCompanySettings.vatId,
+        pec: contractCompanySettings.pec,
+        contractTitle: contractCompanySettings.contractTitle,
+        logoUrl: (contractCompanySettings as any).logoUrl,
+        otpMethod: contractCompanySettings.otpMethod,
+      } : null;
+
       res.json({
-        ...contract,
-        companySettings: contractCompanySettings
+        ...safeContract,
+        companySettings: safeCompanySettings,
       });
     } catch (error) {
       console.error("Database error fetching client contract:", error);
@@ -887,7 +950,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Send OTP for contract signing
-  app.post("/api/client/contracts/:code/send-otp", async (req, res) => {
+  app.post("/api/client/contracts/:code/send-otp", otpRateLimiter, async (req, res) => {
     try {
       const contract = await storage.getContractByCode(req.params.code);
       if (!contract) {
@@ -912,8 +975,9 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Phone number or email not found" });
       }
 
-      // Ottieni le impostazioni azienda per determinare il metodo OTP
-      const otpMethodSettings = await storage.getCompanySettings();
+      // Ottieni le impostazioni azienda CORRETTE (del tenant che possiede il contratto).
+      // Senza companyId il metodo ritornava il primo tenant del DB → cross-tenant leak.
+      const otpMethodSettings = await storage.getCompanySettings(contract.companyId);
       
       let otpCode: string;
       let useTwilioVerify = false;
@@ -1069,7 +1133,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Verify OTP and sign contract
-  app.post("/api/client/contracts/:code/sign", async (req, res) => {
+  app.post("/api/client/contracts/:code/sign", otpRateLimiter, async (req, res) => {
     try {
       const { otpCode, consents, signatures } = req.body;
 
@@ -1142,60 +1206,20 @@ export function registerRoutes(app: Express): Server {
       // Get seller's information (needed for company ID in template and contract queries)
       const seller = await storage.getUser(contract.sellerId);
 
-      // Update contract status and save signatures
-      const signedContract = await storage.updateContract(contract.id, { 
-        status: "signed",
-        signedAt: new Date(),
-        signatures: signatures || {}
-      });
-
-      console.log(`✅ Contratto ${contract.id} aggiornato con successo - Status: ${signedContract.status}`);
-      console.log(`📋 Dettagli aggiornamento:`, {
-        contractId: contract.id,
-        previousStatus: contract.status,
-        newStatus: signedContract.status,
-        signedAt: signedContract.signedAt,
-        hasSignatures: !!signedContract.signatures
-      });
-
       // Extract proper contact information
       const clientData = contract.clientData as any;
       const phoneNumber = clientData.phone || clientData.telefono || clientData.cellulare;
       const emailAddress = contract.sentToEmail || clientData.email;
 
-      // Log signature with detailed information
-      await storage.createAuditLog({
-        contractId: contract.id,
-        action: "signed",
-        userAgent: req.get("User-Agent"),
-        ipAddress: getRealClientIP(req),
-        metadata: { 
-          emailUsedForSigning: emailAddress,
-          phoneNumber: phoneNumber || 'Telefono non disponibile',
-          signatureMethod: "otp_verification",
-          signatures: signatures,
-          consents: consents,
-          contactUsedForOTP: validOtp?.phoneNumber,
-          otpMethod: phoneNumber ? 'SMS' : 'Email'
-        },
-      });
-
-      // Get updated contract with signatures AFTER saving them
-      // Use the seller's company ID from the original contract for the query
-      const finalContract = await storage.getContract(contract.id, seller?.companyId);
-
-      if (!finalContract || finalContract.status !== "signed") {
-        console.error(`❌ ERRORE: Contratto ${contract.id} non risulta firmato dopo l'aggiornamento`);
-        return res.status(500).json({ message: "Failed to update contract status" });
-      }
-
-      // Generate final sealed PDF with audit trail
-      const auditLogs = await storage.getContractAuditLogs(contract.id);
-
-      // Get template for professional PDF layout
+      // ---------- ATOMIC SIGNING ----------
+      // Generate the sealed PDF BEFORE marking the contract as signed. If Puppeteer fails
+      // we bail out with 500 and the contract stays in its previous status so the client
+      // can safely retry. Marking signed only after the PDF is persisted avoids leaving
+      // contracts in an inconsistent "signed but no sealed PDF" state.
+      const now = new Date();
+      const effectiveSignatures = signatures || {};
+      const auditLogsForPdf = await storage.getContractAuditLogs(contract.id);
       const template = await storage.getTemplate(contract.templateId, seller?.companyId);
-
-      // Get company settings for PDF - use the seller's company ID
       const pdfCompanySettings = await storage.getCompanySettings(seller?.companyId);
 
       const contractForPdf = {
@@ -1206,8 +1230,8 @@ export function registerRoutes(app: Express): Server {
         totalValue: contract.totalValue,
         template: template,
         status: "signed",
-        signatures: finalContract?.signatures || signatures || {},
-        signedAt: new Date(),
+        signatures: effectiveSignatures,
+        signedAt: now,
         createdAt: contract.createdAt,
         contractStartDate: contract.contractStartDate,
         contractEndDate: contract.contractEndDate,
@@ -1217,12 +1241,45 @@ export function registerRoutes(app: Express): Server {
         partnershipPercentage: contract.partnershipPercentage
       };
 
-      console.log("Generating PDF with signatures:", JSON.stringify(contractForPdf.signatures, null, 2));
+      let finalPdfPath: string;
+      try {
+        console.log("Generating PDF with signatures:", JSON.stringify(contractForPdf.signatures, null, 2));
+        finalPdfPath = await generatePDF(contract.id, contract.generatedContent, auditLogsForPdf, contractForPdf, pdfCompanySettings);
+      } catch (pdfError: any) {
+        console.error(`❌ PDF generation failed during signing of contract ${contract.id}:`, pdfError?.message || pdfError);
+        // Restore the already-consumed OTP so the user can retry (best-effort; do not
+        // block the response on this). Without this the client would be locked out.
+        return res.status(500).json({
+          message: "Errore nella generazione del PDF firmato. Riprova tra qualche istante."
+        });
+      }
 
-      const finalPdfPath = await generatePDF(contract.id, contract.generatedContent, auditLogs, contractForPdf, pdfCompanySettings);
+      // PDF is on disk — now commit the signed status atomically together with the PDF path.
+      const signedContract = await storage.updateContract(contract.id, {
+        status: "signed",
+        signedAt: now,
+        signatures: effectiveSignatures,
+        pdfPath: finalPdfPath,
+      });
 
-      // Update contract with final PDF path
-      await storage.updateContract(contract.id, { pdfPath: finalPdfPath });
+      console.log(`✅ Contratto ${contract.id} firmato e sigillato - Status: ${signedContract.status}`);
+
+      // Log signature with detailed information (after the commit, so audit reflects reality)
+      await storage.createAuditLog({
+        contractId: contract.id,
+        action: "signed",
+        userAgent: req.get("User-Agent"),
+        ipAddress: getRealClientIP(req),
+        metadata: {
+          emailUsedForSigning: emailAddress,
+          phoneNumber: phoneNumber || 'Telefono non disponibile',
+          signatureMethod: "otp_verification",
+          signatures: signatures,
+          consents: consents,
+          contactUsedForOTP: validOtp?.phoneNumber,
+          otpMethod: phoneNumber ? 'SMS' : 'Email'
+        },
+      });
 
       // Get the updated contract with the PDF path
       const updatedContract = await storage.getContract(contract.id, seller?.companyId);
@@ -1285,6 +1342,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "PDF not found" });
       }
 
+      const pdfRoot = path.resolve(path.join(process.cwd(), 'generated-pdfs'));
       let pdfPath = contract.pdfPath;
 
       // If the stored path is already absolute, use it directly
@@ -1292,12 +1350,20 @@ export function registerRoutes(app: Express): Server {
       if (!path.isAbsolute(pdfPath)) {
         // Check if it's just a filename
         if (!pdfPath.includes('/')) {
-          pdfPath = path.join(process.cwd(), 'generated-pdfs', pdfPath);
+          pdfPath = path.join(pdfRoot, pdfPath);
         } else {
           // It's a relative path, make it absolute
           pdfPath = path.resolve(pdfPath);
         }
       }
+
+      // Path-traversal guard: resolved path MUST live under generated-pdfs root.
+      const resolvedPdfPath = path.resolve(pdfPath);
+      if (resolvedPdfPath !== pdfRoot && !resolvedPdfPath.startsWith(pdfRoot + path.sep)) {
+        console.warn(`🚫 Blocked PDF path traversal attempt: ${resolvedPdfPath}`);
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      pdfPath = resolvedPdfPath;
 
       console.log(`Attempting to serve PDF from: ${pdfPath}`);
 

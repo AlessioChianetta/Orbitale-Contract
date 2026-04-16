@@ -142,7 +142,17 @@ export function setupAuth(app: Express) {
         user: sanitizeUser(user),
         company: newCompany
       });
-    } catch (error) {
+    } catch (error: any) {
+      // PostgreSQL unique violation (e.g. race on username/email between the pre-check
+      // above and the INSERT). Respond 409 instead of letting the server throw 500.
+      if (error && (error.code === "23505" || error?.cause?.code === "23505")) {
+        const detail: string = error.detail || error?.cause?.detail || "";
+        let message = "Valore già in uso";
+        if (/username/i.test(detail)) message = "Username già in uso";
+        else if (/email/i.test(detail)) message = "Email già in uso";
+        else if (/tax_id|vat_id|unique_code|pec|company/i.test(detail)) message = "Azienda già registrata con questi dati";
+        return res.status(409).json({ message });
+      }
       console.error("Error creating company and admin:", error);
       res.status(500).json({ message: "Errore nella creazione dell'azienda" });
     }
