@@ -452,16 +452,6 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
         ${contractData.template?.name || contractData.templateName || company.contractTitle || 'Contratto'}
       </div>
 
-      ${contractData.regenerationNotice ? `
-      <div style="background-color: #fffbeb; border: 2px solid #f59e0b; border-radius: 8px; padding: 14px 18px; margin: 0 0 20px 0;">
-        <p style="margin: 0 0 4px 0; font-size: 11pt; font-weight: 700; color: #92400e;">⚠ DOCUMENTO RIGENERATO</p>
-        <p style="margin: 0; font-size: 9.5pt; color: #78350f; line-height: 1.5;">
-          Documento rigenerato il <strong>${formatDateSafe(contractData.regenerationNotice.regeneratedAt)}</strong>${contractData.regenerationNotice.originalSignedAt ? ` — firme originali apposte il <strong>${formatDateSafe(contractData.regenerationNotice.originalSignedAt)}</strong>` : ''}.${contractData.regenerationNotice.reason ? ` Motivo: ${contractData.regenerationNotice.reason}.` : ''}
-          Il presente PDF sostituisce la versione originale con contenuto aggiornato; le firme e il consenso OTP restano quelli apposti nella data di firma originale.
-        </p>
-      </div>
-      ` : ''}
-
       <!-- 2. DATI CLIENTE -->
       <h2 class="section-header commercial">DATI DEL CLIENTE / COMMITTENTE</h2>
       <table class="client-table">
@@ -667,6 +657,16 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           }
         </div>
       </div>
+
+      ${contractData.regenerationNotice ? `
+      <div style="background-color: #fffbeb; border: 2px solid #f59e0b; border-radius: 8px; padding: 14px 18px; margin: 32px 0 0 0; page-break-inside: avoid;">
+        <p style="margin: 0 0 4px 0; font-size: 11pt; font-weight: 700; color: #92400e;">⚠ DOCUMENTO RIGENERATO</p>
+        <p style="margin: 0; font-size: 9.5pt; color: #78350f; line-height: 1.5;">
+          Documento rigenerato il <strong>${formatDateSafe(contractData.regenerationNotice.regeneratedAt)}</strong>${contractData.regenerationNotice.originalSignedAt ? ` — firme originali apposte il <strong>${formatDateSafe(contractData.regenerationNotice.originalSignedAt)}</strong>` : ''}.${contractData.regenerationNotice.reason ? ` Motivo: ${contractData.regenerationNotice.reason}.` : ''}
+          Il presente PDF sostituisce la versione originale con contenuto aggiornato; le firme e il consenso OTP restano quelli apposti nella data di firma originale.
+        </p>
+      </div>
+      ` : ''}
 
     </body>
     </html>

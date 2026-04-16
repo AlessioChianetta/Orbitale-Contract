@@ -10,6 +10,7 @@ import { generateOTP, sendOTP } from "./services/otp-service";
 import { nanoid } from "nanoid";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { chatContratto, guidedContractWizard, generateContractFromAI, type ChatMessage } from "./services/provider-factory";
 
 export function registerRoutes(app: Express): Server {
@@ -410,12 +411,8 @@ export function registerRoutes(app: Express): Server {
       if (newPdfPath) updates.pdfPath = newPdfPath;
       await storage.updateContract(contractId, updates);
 
-      // Audit log with simple before/after hashes
-      const hash = (s: string) => {
-        let h = 0;
-        for (let i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
-        return h.toString(16);
-      };
+      // Audit log with cryptographic SHA-256 before/after hashes
+      const hash = (s: string) => crypto.createHash("sha256").update(s, "utf8").digest("hex");
       await storage.createAuditLog({
         contractId: contract.id,
         action: "content_regenerated",
