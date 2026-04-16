@@ -128,10 +128,21 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Company settings routes
+  const SMTP_PASS_MASK = "••••••••";
+  const maskCompanySettings = (settings: any) => {
+    if (!settings) return settings;
+    const { smtpPass, ...rest } = settings;
+    return {
+      ...rest,
+      smtpPass: null,
+      smtpPassConfigured: Boolean(smtpPass && String(smtpPass).length > 0),
+    };
+  };
+
   app.get("/api/company-settings", requireAdmin, async (req, res) => {
     try {
       const settings = await storage.getCompanySettings(req.user.companyId);
-      res.json(settings);
+      res.json(maskCompanySettings(settings));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch company settings" });
     }
@@ -140,10 +151,16 @@ export function registerRoutes(app: Express): Server {
   app.put("/api/company-settings", requireAdmin, async (req, res) => {
     try {
       const settingsData = insertCompanySettingsSchema.parse(req.body);
+      // Preserve existing smtpPass when client sends empty string or the masked placeholder
+      const incomingPass = (settingsData as any).smtpPass;
+      if (incomingPass === undefined || incomingPass === null || incomingPass === "" || incomingPass === SMTP_PASS_MASK) {
+        const existing = await storage.getCompanySettings(req.user.companyId);
+        (settingsData as any).smtpPass = existing?.smtpPass ?? null;
+      }
       const settings = await storage.updateCompanySettings(settingsData, req.user.companyId);
       const { invalidateEmailTransporterCache } = await import('./services/email-service');
       invalidateEmailTransporterCache(req.user.companyId);
-      res.json(settings);
+      res.json(maskCompanySettings(settings));
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid settings data", errors: error.errors });

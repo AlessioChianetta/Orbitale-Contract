@@ -12,7 +12,7 @@ import { insertCompanySettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Save, Upload, MessageSquare, Mail, Settings, Send, CheckCircle2, XCircle } from "lucide-react";
+import { Building2, Save, Upload, MessageSquare, Mail, Settings, Send, CheckCircle2, XCircle, KeyRound, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 const settingsFormSchema = insertCompanySettingsSchema;
@@ -22,6 +22,7 @@ export default function CompanySettings() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [changeSmtpPass, setChangeSmtpPass] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState<string>("");
   const [testResult, setTestResult] = useState<
     | { kind: "success"; message: string }
@@ -103,7 +104,7 @@ export default function CompanySettings() {
       smtpHost: settings?.smtpHost || "",
       smtpPort: settings?.smtpPort ?? 465,
       smtpUser: settings?.smtpUser || "",
-      smtpPass: settings?.smtpPass || "",
+      smtpPass: "",
       smtpSecure: settings?.smtpSecure ?? true,
       emailFromAddress: settings?.emailFromAddress || "",
       emailFromName: settings?.emailFromName || "",
@@ -133,7 +134,7 @@ export default function CompanySettings() {
         smtpHost: settings.smtpHost || "",
         smtpPort: settings.smtpPort ?? 465,
         smtpUser: settings.smtpUser || "",
-        smtpPass: settings.smtpPass || "",
+        smtpPass: "",
         smtpSecure: settings.smtpSecure ?? true,
         emailFromAddress: settings.emailFromAddress || "",
         emailFromName: settings.emailFromName || "",
@@ -168,6 +169,8 @@ export default function CompanySettings() {
         description: "Le impostazioni dell'azienda sono state aggiornate con successo"
       });
       setLogoFile(null);
+      setChangeSmtpPass(false);
+      form.setValue("smtpPass", "");
     },
     onError: (error: any) => {
       toast({
@@ -571,14 +574,62 @@ export default function CompanySettings() {
                 </div>
                 <div>
                   <Label htmlFor="smtpPass">Password SMTP *</Label>
-                  <Input
-                    id="smtpPass"
-                    type="password"
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                    {...form.register("smtpPass")}
-                    data-testid="input-smtp-pass"
-                  />
+                  {settings?.smtpPassConfigured && !changeSmtpPass ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        id="smtpPass"
+                        type="password"
+                        value="••••••••"
+                        readOnly
+                        disabled
+                        data-testid="input-smtp-pass-masked"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setChangeSmtpPass(true);
+                          form.setValue("smtpPass", "");
+                        }}
+                        data-testid="button-change-smtp-pass"
+                      >
+                        <KeyRound className="h-4 w-4 mr-1" />
+                        Cambia password
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        id="smtpPass"
+                        type="password"
+                        placeholder={settings?.smtpPassConfigured ? "Inserisci la nuova password" : "••••••••"}
+                        autoComplete="new-password"
+                        {...form.register("smtpPass")}
+                        data-testid="input-smtp-pass"
+                      />
+                      {settings?.smtpPassConfigured && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setChangeSmtpPass(false);
+                            form.setValue("smtpPass", "");
+                          }}
+                          data-testid="button-cancel-change-smtp-pass"
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Annulla
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    {settings?.smtpPassConfigured
+                      ? "La password salvata non viene mai mostrata. Lasciala invariata oppure cambiala esplicitamente."
+                      : "Inserisci la password del tuo account SMTP."}
+                  </p>
                 </div>
                 <div>
                   <Label htmlFor="emailFromAddress">Email mittente (From) *</Label>
