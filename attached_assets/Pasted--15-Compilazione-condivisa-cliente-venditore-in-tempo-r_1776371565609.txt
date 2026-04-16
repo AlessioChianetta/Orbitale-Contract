@@ -1,0 +1,37 @@
+#15 - Compilazione condivisa cliente-venditore in tempo reale
+What & Why
+Spesso il venditore è al telefono con il cliente mentre crea il contratto. Vogliamo permettere al venditore di generare un link "compila con me" da inviare al cliente: il cliente lo apre dal suo dispositivo, vede solo i campi anagrafici da compilare (società, nome, cognome, codice fiscale, data di nascita, indirizzo, email, ecc.) e mentre li scrive il venditore li vede apparire in tempo reale dentro il proprio form, senza dover ricaricare la pagina. Il venditore mantiene il controllo: vede chi sta scrivendo, può sovrascrivere e alla fine è lui a salvare/inviare il contratto.
+
+Il progetto ha già ws come dipendenza, quindi useremo WebSocket nativo (no socket.io) per il canale realtime.
+
+Done looks like
+Nel form di creazione contratto compare un pulsante "Compila con il cliente": apre un dialog con un link breve + QR code da condividere (WhatsApp, SMS, email).
+Il link punta a una nuova pagina pubblica tipo /co-fill/<token> che mostra solo i campi anagrafici cliente, senza prezzo / template / sezioni interne.
+Il cliente compila i campi: a ogni modifica (debounced ~400ms) i dati vengono spinti via WebSocket e il form del venditore aggiorna automaticamente i campi corrispondenti, evidenziandoli per ~2s (es. bordo viola lampeggiante) per segnalare visivamente l'aggiornamento.
+Anche al contrario: se il venditore modifica un campo, il cliente lo vede aggiornarsi sul proprio dispositivo.
+Header del form del venditore mostra un badge "Cliente connesso" quando c'è una sessione attiva, e si spegne quando il cliente chiude la pagina.
+Il token ha scadenza (es. 24h) ed è invalidabile dal venditore con un bottone "Termina sessione".
+La sessione è isolata per contratto: nessun altro venditore o cliente di altre aziende può connettersi anche conoscendo il pattern dell'URL (token random + verifica company-scoped).
+Out of scope
+Editing collaborativo "Google Docs-style" su campi diversi dai dati anagrafici cliente (no template, no prezzo, no payment plan).
+Conflict resolution avanzato: l'ultimo che scrive vince (last-write-wins per campo).
+Conservazione storica delle sessioni di co-compilazione.
+Autenticazione del cliente: chiunque ha il link può compilare (è intenzionale, come per i link di firma).
+Tasks
+Modello + storage sessione co-fill — Nuova entità co_fill_sessions con id token, contractId (nullable se contratto ancora bozza non salvata), companyId, sellerId, expiresAt, status. Endpoint REST per creare/terminare la sessione e leggere lo stato corrente.
+
+WebSocket server — Endpoint WS su /ws/co-fill/:token montato sull'http server di Express. Il server tiene in memoria, per token, i client connessi (venditore + cliente) e fa broadcast dei delta di clientData a tutti i peer tranni il mittente. Verifica auth: il venditore via session cookie + ownership, il cliente via token validità.
+
+Pagina pubblica /co-fill/:token — Pagina minimal con i soli campi anagrafici del cliente (riusa gli input/UX esistenti del form). Connette al WS, applica gli aggiornamenti in entrata, invia in uscita ogni modifica (debounced).
+
+Integrazione lato venditore — Nel form contratto: bottone "Compila con il cliente" che apre dialog con link + QRcode + bottone "Termina sessione". Hook che si connette al WS quando la sessione esiste, applica in entrata gli aggiornamenti del clientData via form.setValue, evidenzia il campo aggiornato per 2s, e invia in uscita le modifiche del venditore. Badge "Cliente connesso" basato su evento WS di presenza.
+
+Cleanup & sicurezza — Scadenza automatica delle sessioni (cron leggero on-demand al connect), generazione token cripto-sicuri, rate limit minimo sulle connessioni WS, log audit di apertura/chiusura sessione e di chi ha modificato cosa.
+
+Relevant files
+client/src/components/contract-form.tsx
+client/src/pages/client-view.tsx
+server/routes.ts
+server/index.ts
+shared/schema.ts
+package.json (ws già installato)
