@@ -387,6 +387,7 @@ Nota su "sections": sono blocchi MODULARI OPZIONALI che il venditore potrà atti
         content: String(s.content),
         defaultEnabled: s.defaultEnabled !== false,
         required: !!s.required,
+        order: idx,
       }));
     return {
       content: parsed.content || "",
