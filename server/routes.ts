@@ -74,18 +74,42 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Returns the data needed by the contract preview modal in the form
-  // (template + safe subset of company settings). Scoped to the user's company.
-  app.get("/api/contracts/preview-data/:templateId", requireAuth, async (req, res) => {
+  // Renders the contract preview without persisting anything to the DB.
+  // Runs the same `generateContractContent` pipeline used by POST/PUT
+  // /api/contracts so that what the seller previews is exactly what
+  // /generate at send time. Returns also the template object and a safe
+  // subset of company settings needed by the client-side renderer.
+  const previewContractSchema = z.object({
+    templateId: z.number().int().positive("templateId richiesto"),
+    clientData: z.record(z.any()).default({}),
+    totalValue: z.number().nullable().optional(),
+    isPercentagePartnership: z.boolean().optional(),
+    partnershipPercentage: z.number().nullable().optional(),
+    autoRenewal: z.boolean().optional(),
+    renewalDuration: z.number().int().positive().optional(),
+    contractStartDate: z.string().optional(),
+    contractEndDate: z.string().optional(),
+  });
+
+  app.post("/api/contracts/preview", requireAuth, async (req, res) => {
     try {
-      const templateId = parseInt(req.params.templateId);
-      if (Number.isNaN(templateId)) {
-        return res.status(400).json({ message: "Template ID non valido" });
-      }
-      const template = await storage.getTemplate(templateId, req.user.companyId);
+      const input = previewContractSchema.parse(req.body);
+      const template = await storage.getTemplate(input.templateId, req.user.companyId);
       if (!template) {
         return res.status(404).json({ message: "Template non trovato" });
       }
+      const generatedContent = await generateContractContent(
+        template.content,
+        input.clientData,
+        template,
+        input.autoRenewal,
+        input.renewalDuration,
+        input.totalValue ?? undefined,
+        input.isPercentagePartnership,
+        input.partnershipPercentage ?? undefined,
+        input.contractStartDate,
+        input.contractEndDate,
+      );
       const settings = await storage.getCompanySettings(req.user.companyId);
       const safeSettings = settings
         ? {
@@ -100,10 +124,13 @@ export function registerRoutes(app: Express): Server {
             logoUrl: settings.logoUrl,
           }
         : null;
-      res.json({ template, companySettings: safeSettings });
+      res.json({ template, generatedContent, companySettings: safeSettings });
     } catch (error) {
-      console.error("Preview-data error:", error);
-      res.status(500).json({ message: "Impossibile caricare l'anteprima" });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dati anteprima non validi", errors: error.errors });
+      }
+      console.error("Preview error:", error);
+      res.status(500).json({ message: "Impossibile generare l'anteprima" });
     }
   });
 

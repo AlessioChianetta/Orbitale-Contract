@@ -132,7 +132,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   // Preview modal state
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewData, setPreviewData] = useState<{ template: any; companySettings: any } | null>(null);
+  const [previewData, setPreviewData] = useState<{ template: any; companySettings: any; generatedContent: string } | null>(null);
 
   const scrollToSection = useCallback((sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -291,19 +291,50 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       scrollToSection("section-template");
       return;
     }
-    if (!values.clientData?.cliente_nome || !values.clientData?.societa) {
+    const cd: any = values.clientData || {};
+    if (!cd.societa || !cd.cliente_nome || !cd.email) {
       toast({
         title: "Compila i dati cliente",
-        description: "Inserisci almeno società e nome del referente per generare l'anteprima.",
+        description: "Servono almeno società, nome del referente ed email del cliente per generare l'anteprima.",
         variant: "destructive",
       });
       scrollToSection("section-client");
       return;
     }
+    if (values.isPercentagePartnership) {
+      if (!values.partnershipPercentage || values.partnershipPercentage <= 0) {
+        toast({
+          title: "Inserisci la percentuale di partnership",
+          description: "Per generare l'anteprima la percentuale deve essere maggiore di zero.",
+          variant: "destructive",
+        });
+        scrollToSection("section-payment");
+        return;
+      }
+    } else if (!values.totalValue || values.totalValue <= 0) {
+      toast({
+        title: "Inserisci il prezzo totale",
+        description: "Per generare l'anteprima il prezzo totale deve essere maggiore di zero.",
+        variant: "destructive",
+      });
+      scrollToSection("section-payment");
+      return;
+    }
 
     setPreviewLoading(true);
     try {
-      const res = await apiRequest("GET", `/api/contracts/preview-data/${templateId}`);
+      const payload = {
+        templateId,
+        clientData: cd,
+        totalValue: values.totalValue ? Math.round(values.totalValue * 100) : null,
+        isPercentagePartnership: !!values.isPercentagePartnership,
+        partnershipPercentage: values.partnershipPercentage ?? null,
+        autoRenewal: true,
+        renewalDuration: values.renewalDuration,
+        contractStartDate: values.contractStartDate,
+        contractEndDate: values.contractEndDate,
+      };
+      const res = await apiRequest("POST", "/api/contracts/preview", payload);
       const data = await res.json();
       setPreviewData(data);
       setPreviewOpen(true);
@@ -1464,7 +1495,12 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   hidePlaceholders
                   companySettings={previewData.companySettings || {}}
                   clientData={cd}
-                  template={previewData.template}
+                  template={{
+                    ...previewData.template,
+                    // Use the server-rendered HTML so the preview matches
+                    // exactly what the send pipeline produces.
+                    content: previewData.generatedContent || previewData.template?.content,
+                  }}
                   contract={{
                     createdAt: new Date().toISOString(),
                     status: "draft",
