@@ -153,11 +153,262 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/contracts", requireAuth, async (req, res) => {
     try {
       const sellerId = req.user.role === "seller" ? req.user.id : undefined;
-      const contracts = await storage.getContracts(req.user.companyId, sellerId);
+      const includeArchived = req.query.includeArchived === "true";
+      const contracts = await storage.getContracts(req.user.companyId, sellerId, includeArchived);
       res.json(contracts);
     } catch (error) {
       console.error("Database error fetching contracts:", error);
       res.status(500).json({ message: "Failed to fetch contracts" });
+    }
+  });
+
+  // Archive / unarchive contract
+  app.post("/api/contracts/:id/archive", requireAuth, async (req, res) => {
+    try {
+      const contractId = parseInt(req.params.id);
+      const contract = await storage.getContract(contractId, req.user.companyId);
+      if (!contract) return res.status(404).json({ message: "Contract not found" });
+      if (req.user.role === "seller" && contract.sellerId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const updated = await storage.setContractsArchived([contractId], req.user.companyId, true);
+      if (updated.length === 0) return res.status(404).json({ message: "Contract not found" });
+      await storage.createAuditLog({
+        contractId,
+        action: "archived",
+        userAgent: req.get("User-Agent"),
+        ipAddress: getRealClientIP(req),
+        metadata: { archivedBy: req.user.id },
+      });
+      res.json({ message: "Contract archived" });
+    } catch (error) {
+      console.error("Archive error:", error);
+      res.status(500).json({ message: "Failed to archive contract" });
+    }
+  });
+
+  app.post("/api/contracts/:id/unarchive", requireAuth, async (req, res) => {
+    try {
+      const contractId = parseInt(req.params.id);
+      const contract = await storage.getContract(contractId, req.user.companyId);
+      if (!contract) return res.status(404).json({ message: "Contract not found" });
+      if (req.user.role === "seller" && contract.sellerId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const updated = await storage.setContractsArchived([contractId], req.user.companyId, false);
+      if (updated.length === 0) return res.status(404).json({ message: "Contract not found" });
+      await storage.createAuditLog({
+        contractId,
+        action: "unarchived",
+        userAgent: req.get("User-Agent"),
+        ipAddress: getRealClientIP(req),
+        metadata: { unarchivedBy: req.user.id },
+      });
+      res.json({ message: "Contract restored" });
+    } catch (error) {
+      console.error("Unarchive error:", error);
+      res.status(500).json({ message: "Failed to restore contract" });
+    }
+  });
+
+  // Bulk archive / unarchive
+  app.post("/api/contracts/bulk-archive", requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        ids: z.array(z.number().int().positive()).min(1),
+        archive: z.boolean().default(true),
+      });
+      const { ids, archive } = schema.parse(req.body);
+
+      let allowedIds = ids;
+      if (req.user.role === "seller") {
+        const mine = await storage.getContracts(req.user.companyId, req.user.id, true);
+        const mineIds = new Set(mine.map((c: any) => c.id));
+        allowedIds = ids.filter(id => mineIds.has(id));
+      }
+
+      const updatedIds = await storage.setContractsArchived(allowedIds, req.user.companyId, archive);
+
+      for (const id of updatedIds) {
+        await storage.createAuditLog({
+          contractId: id,
+          action: archive ? "archived" : "unarchived",
+          userAgent: req.get("User-Agent"),
+          ipAddress: getRealClientIP(req),
+          metadata: { bulk: true, by: req.user.id },
+        });
+      }
+
+      res.json({
+        message: `${updatedIds.length} contratti ${archive ? "archiviati" : "ripristinati"}`,
+        count: updatedIds.length,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid payload", errors: error.errors });
+      }
+      console.error("Bulk archive error:", error);
+      res.status(500).json({ message: "Failed to bulk archive" });
+    }
+  });
+
+  // Duplicate contract
+  app.post("/api/contracts/:id/duplicate", requireAuth, async (req, res) => {
+    try {
+      const contractId = parseInt(req.params.id);
+      const original = await storage.getContract(contractId, req.user.companyId);
+      if (!original) return res.status(404).json({ message: "Contract not found" });
+      if (req.user.role === "seller" && original.sellerId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Regenerate content from current template so duplicate reflects any template edits
+      const template = await storage.getTemplate(original.templateId, req.user.companyId);
+      if (!template) return res.status(400).json({ message: "Template not found" });
+
+      const generatedContent = await generateContractContent(
+        template.content,
+        original.clientData,
+        template,
+        original.autoRenewal ?? undefined,
+        original.renewalDuration ?? undefined,
+        original.totalValue ?? undefined,
+        original.isPercentagePartnership ?? undefined,
+        original.partnershipPercentage ? Number(original.partnershipPercentage) : undefined,
+        original.contractStartDate ? original.contractStartDate.toISOString() : undefined,
+        original.contractEndDate ? original.contractEndDate.toISOString() : undefined,
+      );
+
+      const newContract = await storage.createContract({
+        templateId: original.templateId,
+        sellerId: req.user.id,
+        clientData: original.clientData as any,
+        generatedContent,
+        status: "draft",
+        contractCode: nanoid(16),
+        totalValue: original.totalValue ?? undefined,
+        sentToEmail: null as any,
+        signatures: null as any,
+        signedAt: null as any,
+        expiresAt: null as any,
+        contractStartDate: original.contractStartDate as any,
+        contractEndDate: original.contractEndDate as any,
+        autoRenewal: original.autoRenewal ?? false,
+        renewalDuration: original.renewalDuration ?? 12,
+        isPercentagePartnership: original.isPercentagePartnership ?? false,
+        partnershipPercentage: original.partnershipPercentage as any,
+        pdfPath: null as any,
+      } as any);
+
+      await storage.createAuditLog({
+        contractId: newContract.id,
+        action: "duplicated",
+        userAgent: req.get("User-Agent"),
+        ipAddress: getRealClientIP(req),
+        metadata: { duplicatedFrom: original.id, duplicatedBy: req.user.id },
+      });
+
+      res.json(newContract);
+    } catch (error) {
+      console.error("Duplicate error:", error);
+      res.status(500).json({ message: "Failed to duplicate contract" });
+    }
+  });
+
+  // Regenerate content from template (admin only) — preserves signatures and status
+  app.post("/api/contracts/:id/regenerate-content", requireAdmin, async (req, res) => {
+    try {
+      const contractId = parseInt(req.params.id);
+      const contract = await storage.getContract(contractId, req.user.companyId);
+      if (!contract) return res.status(404).json({ message: "Contract not found" });
+
+      const template = await storage.getTemplate(contract.templateId, req.user.companyId);
+      if (!template) return res.status(400).json({ message: "Template not found" });
+
+      const previousContent = contract.generatedContent || "";
+      const newContent = await generateContractContent(
+        template.content,
+        contract.clientData,
+        template,
+        contract.autoRenewal ?? undefined,
+        contract.renewalDuration ?? undefined,
+        contract.totalValue ?? undefined,
+        contract.isPercentagePartnership ?? undefined,
+        contract.partnershipPercentage ? Number(contract.partnershipPercentage) : undefined,
+        contract.contractStartDate ? contract.contractStartDate.toISOString() : undefined,
+        contract.contractEndDate ? contract.contractEndDate.toISOString() : undefined,
+      );
+
+      // Preserve signatures, signedAt, status; only update content
+      await storage.updateContract(contractId, { generatedContent: newContent });
+
+      // If contract is signed, regenerate the sealed PDF with a regeneration notice
+      let regeneratedPdf = false;
+      if (contract.status === "signed") {
+        try {
+          const auditLogs = await storage.getContractAuditLogs(contract.id);
+          const pdfCompanySettings = await storage.getCompanySettings(req.user.companyId);
+          const regenerationNotice = {
+            regeneratedAt: new Date(),
+            originalSignedAt: contract.signedAt,
+            reason: (req.body?.reason as string | undefined) || "Rigenerazione contenuto da template aggiornato",
+          };
+          const contractForPdf: any = {
+            id: contract.id,
+            templateName: template.name || 'Contratto',
+            generatedContent: newContent,
+            clientData: contract.clientData,
+            totalValue: contract.totalValue,
+            template,
+            status: "signed",
+            signatures: contract.signatures || {},
+            signedAt: contract.signedAt,
+            createdAt: contract.createdAt,
+            contractStartDate: contract.contractStartDate,
+            contractEndDate: contract.contractEndDate,
+            autoRenewal: contract.autoRenewal,
+            renewalDuration: contract.renewalDuration,
+            isPercentagePartnership: contract.isPercentagePartnership,
+            partnershipPercentage: contract.partnershipPercentage,
+            regenerationNotice,
+          };
+          const newPdfPath = await generatePDF(contract.id, newContent, auditLogs, contractForPdf, pdfCompanySettings);
+          await storage.updateContract(contractId, { pdfPath: newPdfPath });
+          regeneratedPdf = true;
+        } catch (pdfErr: any) {
+          console.error("PDF regeneration after content regen failed:", pdfErr);
+        }
+      }
+
+      // Audit log with simple before/after hashes
+      const hash = (s: string) => {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+        return h.toString(16);
+      };
+      await storage.createAuditLog({
+        contractId: contract.id,
+        action: "content_regenerated",
+        userAgent: req.get("User-Agent"),
+        ipAddress: getRealClientIP(req),
+        metadata: {
+          regeneratedBy: req.user.id,
+          reason: req.body?.reason || null,
+          beforeHash: hash(previousContent),
+          afterHash: hash(newContent),
+          beforeLength: previousContent.length,
+          afterLength: newContent.length,
+          pdfRegenerated: regeneratedPdf,
+          contractStatus: contract.status,
+          signaturesPreserved: !!contract.signatures,
+        },
+      });
+
+      const updated = await storage.getContract(contractId, req.user.companyId);
+      res.json({ message: "Contenuto rigenerato con successo", contract: updated, pdfRegenerated: regeneratedPdf });
+    } catch (error) {
+      console.error("Content regeneration error:", error);
+      res.status(500).json({ message: "Failed to regenerate content" });
     }
   });
 
@@ -903,7 +1154,7 @@ export function registerRoutes(app: Express): Server {
   // Get contract stats (for dashboards)
   app.get("/api/stats", requireAuth, async (req, res) => {
     try {
-      const contracts = await storage.getContracts(req.user.companyId, req.user.role === "seller" ? req.user.id : undefined);
+      const contracts = await storage.getContracts(req.user.companyId, req.user.role === "seller" ? req.user.id : undefined, false);
       const templates = await storage.getTemplates(req.user.companyId);
 
       const stats = {

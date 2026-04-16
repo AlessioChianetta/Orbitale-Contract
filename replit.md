@@ -1,4 +1,21 @@
-# Turbo Contract - Advanced Contract Management System
+# Turbo Contract
+
+## Recent changes (Task #1 — Contract Management + Dashboard Refactor)
+- Added `contracts.is_archived` column (BOOLEAN NOT NULL DEFAULT FALSE, indexed) via direct SQL.
+- `GET /api/contracts` now accepts `?includeArchived=true` (default excludes archived).
+- Stats (`/api/stats`) exclude archived contracts.
+- New endpoints:
+  - `POST /api/contracts/:id/archive` · `/unarchive`
+  - `POST /api/contracts/bulk-archive` `{ ids, archive }`
+  - `POST /api/contracts/:id/duplicate` — clones client data + values, new code (`nanoid(16)`), status `draft`, clears signatures.
+  - `POST /api/contracts/:id/regenerate-content` (admin only) — re-runs template merge, preserves `signatures`/`signedAt`/`status`, regenerates sealed PDF when signed with a "DOCUMENTO RIGENERATO" banner, creates `content_regenerated` audit log with before/after content hash.
+- Dashboard (`seller-dashboard.tsx`) refactored:
+  - 4 compact KPI cards in a single row.
+  - Multi-select checkboxes + bulk archive bar.
+  - Actions collapsed into a `DropdownMenu` (View / Edit / Copy link / Download / Regen PDF / Regen content / Duplicate / Archive).
+  - "Mostra archiviati" toggle; pagination (10/page); archived rows styled dimmed with badge.
+
+## Project goal - Advanced Contract Management System
 
 ## Overview
 

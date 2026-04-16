@@ -55,6 +55,7 @@ export const contracts = pgTable("contracts", {
   renewalDuration: integer("renewal_duration").default(12), // Duration in months
   isPercentagePartnership: boolean("is_percentage_partnership").default(false), // New: Partnership type
   partnershipPercentage: numeric("partnership_percentage", { precision: 5, scale: 2 }), // New: Revenue percentage (e.g., 15.50%)
+  isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

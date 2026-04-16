@@ -8,7 +8,7 @@ import {
   type CompanySettings, type InsertCompanySettings
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -35,11 +35,12 @@ export interface IStorage {
   deleteTemplate(id: number): Promise<void>;
 
   // Contract methods
-  getContracts(companyId: number, sellerId?: number): Promise<Contract[]>;
+  getContracts(companyId: number, sellerId?: number, includeArchived?: boolean): Promise<Contract[]>;
   getContract(id: number, companyId: number): Promise<Contract | undefined>;
   getContractByCode(code: string): Promise<Contract | undefined>;
   createContract(contract: InsertContract): Promise<Contract>;
-  updateContract(id: number, contract: Partial<InsertContract>): Promise<Contract>;
+  updateContract(id: number, contract: Partial<InsertContract> & { isArchived?: boolean }): Promise<Contract>;
+  setContractsArchived(ids: number[], companyId: number, isArchived: boolean): Promise<number[]>;
 
   // Audit log methods
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
@@ -206,69 +207,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Contract methods
-  async getContracts(companyId: number, sellerId?: number): Promise<Contract[]> {
+  async getContracts(companyId: number, sellerId?: number, includeArchived: boolean = false): Promise<Contract[]> {
     try {
-      if (sellerId) {
-        // Filter by both company and seller
-        return await db
-          .select({
-            id: contracts.id,
-            templateId: contracts.templateId,
-            sellerId: contracts.sellerId,
-            clientData: contracts.clientData,
-            generatedContent: contracts.generatedContent,
-            pdfPath: contracts.pdfPath,
-            status: contracts.status,
-            contractCode: contracts.contractCode,
-            totalValue: contracts.totalValue,
-            sentToEmail: contracts.sentToEmail,
-            signatures: contracts.signatures,
-            signedAt: contracts.signedAt,
-            expiresAt: contracts.expiresAt,
-            contractStartDate: contracts.contractStartDate,
-            contractEndDate: contracts.contractEndDate,
-            autoRenewal: contracts.autoRenewal,
-            renewalDuration: contracts.renewalDuration,
-            isPercentagePartnership: contracts.isPercentagePartnership,
-            partnershipPercentage: contracts.partnershipPercentage,
-            createdAt: contracts.createdAt,
-            updatedAt: contracts.updatedAt,
-          })
-          .from(contracts)
-          .innerJoin(users, eq(contracts.sellerId, users.id))
-          .where(and(eq(users.companyId, companyId), eq(contracts.sellerId, sellerId)))
-          .orderBy(desc(contracts.createdAt));
-      } else {
-        // Filter by company only
-        return await db
-          .select({
-            id: contracts.id,
-            templateId: contracts.templateId,
-            sellerId: contracts.sellerId,
-            clientData: contracts.clientData,
-            generatedContent: contracts.generatedContent,
-            pdfPath: contracts.pdfPath,
-            status: contracts.status,
-            contractCode: contracts.contractCode,
-            totalValue: contracts.totalValue,
-            sentToEmail: contracts.sentToEmail,
-            signatures: contracts.signatures,
-            signedAt: contracts.signedAt,
-            expiresAt: contracts.expiresAt,
-            contractStartDate: contracts.contractStartDate,
-            contractEndDate: contracts.contractEndDate,
-            autoRenewal: contracts.autoRenewal,
-            renewalDuration: contracts.renewalDuration,
-            isPercentagePartnership: contracts.isPercentagePartnership,
-            partnershipPercentage: contracts.partnershipPercentage,
-            createdAt: contracts.createdAt,
-            updatedAt: contracts.updatedAt,
-          })
-          .from(contracts)
-          .innerJoin(users, eq(contracts.sellerId, users.id))
-          .where(eq(users.companyId, companyId))
-          .orderBy(desc(contracts.createdAt));
-      }
+      const conditions = [eq(users.companyId, companyId)];
+      if (sellerId) conditions.push(eq(contracts.sellerId, sellerId));
+      if (!includeArchived) conditions.push(eq(contracts.isArchived, false));
+
+      return await db
+        .select()
+        .from(contracts)
+        .innerJoin(users, eq(contracts.sellerId, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(contracts.createdAt))
+        .then(rows => rows.map(r => r.contracts));
     } catch (error) {
       console.error("Database error in getContracts:", error);
       throw error;
@@ -276,36 +227,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getContract(id: number, companyId: number): Promise<Contract | undefined> {
-      // Filter contract by company - ensure it was created by a seller of this company
-      const [contract] = await db
-        .select({
-          id: contracts.id,
-          templateId: contracts.templateId,
-          sellerId: contracts.sellerId,
-          clientData: contracts.clientData,
-          generatedContent: contracts.generatedContent,
-          pdfPath: contracts.pdfPath,
-          status: contracts.status,
-          contractCode: contracts.contractCode,
-          totalValue: contracts.totalValue,
-          sentToEmail: contracts.sentToEmail,
-          signatures: contracts.signatures,
-          signedAt: contracts.signedAt,
-          expiresAt: contracts.expiresAt,
-          contractStartDate: contracts.contractStartDate,
-          contractEndDate: contracts.contractEndDate,
-          autoRenewal: contracts.autoRenewal,
-          renewalDuration: contracts.renewalDuration,
-          isPercentagePartnership: contracts.isPercentagePartnership,
-          partnershipPercentage: contracts.partnershipPercentage,
-          createdAt: contracts.createdAt,
-          updatedAt: contracts.updatedAt,
-        })
+      const [row] = await db
+        .select()
         .from(contracts)
         .innerJoin(users, eq(contracts.sellerId, users.id))
         .where(and(eq(contracts.id, id), eq(users.companyId, companyId)));
-      
-      return contract || undefined;
+
+      return row ? row.contracts : undefined;
+  }
+
+  async setContractsArchived(ids: number[], companyId: number, isArchived: boolean): Promise<number[]> {
+    if (ids.length === 0) return [];
+    // Only archive contracts belonging to this company (via seller join)
+    const eligible = await db
+      .select({ id: contracts.id })
+      .from(contracts)
+      .innerJoin(users, eq(contracts.sellerId, users.id))
+      .where(and(eq(users.companyId, companyId), inArray(contracts.id, ids)));
+    const eligibleIds = eligible.map(r => r.id);
+    if (eligibleIds.length === 0) return [];
+    await db.update(contracts)
+      .set({ isArchived, updatedAt: new Date() })
+      .where(inArray(contracts.id, eligibleIds));
+    return eligibleIds;
   }
 
   async getContractByCode(contractCode: string): Promise<any> {
