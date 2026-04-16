@@ -1949,20 +1949,32 @@ Il presente accordo prevede un modello di partnership basato su una percentuale 
 </div>
 `;
 
-    // Insert partnership clauses after the client data table but before custom content
-    const clientDataEndMarker = '</table>\n              </div>';
-    if (content.includes(clientDataEndMarker)) {
-      content = content.replace(clientDataEndMarker, clientDataEndMarker + '\n\n' + partnershipClauses);
+    // Insert partnership clauses using the explicit HTML comment marker defined by the
+    // template author. The previous "whitespace-exact match" fallback on "</table>\n              </div>"
+    // was too fragile: any change in the template's indentation silently dropped the clauses.
+    // NOTE: this legacy HTML-template path only runs for templates that contain
+    // `{{placeholder}}`-style tokens. The main PDF path (generateClientViewIdenticalHtml)
+    // already renders the partnership section natively and does not need this injection.
+    const clientDataMarker = '<!-- Client Data End -->';
+    if (content.includes(clientDataMarker)) {
+      content = content.replaceAll(
+        clientDataMarker,
+        clientDataMarker + '\n\n' + partnershipClauses
+      );
     } else {
-      // Fallback: add after client data section
-      content = content.replace(/<!-- Client Data End -->/g, '<!-- Client Data End -->\n\n' + partnershipClauses);
+      // No marker in the template → append partnership clauses at the very top of the
+      // template content so they are still visible (and the template author can choose
+      // where to place them explicitly by adding the marker).
+      content = partnershipClauses + '\n\n' + content;
     }
   }
 
-  // Replace placeholders with actual data
+  // Replace placeholders with actual data. Using `replaceAll` with a literal string
+  // avoids the RegExp pitfalls of special characters like `{}` (which act as
+  // quantifiers in regex mode) and removes the need for manual escaping.
   Object.keys(enhancedClientData).forEach(key => {
     const placeholder = `{{${key}}}`;
-    content = content.replace(new RegExp(placeholder, 'g'), String(enhancedClientData[key] || ''));
+    content = content.replaceAll(placeholder, String(enhancedClientData[key] ?? ''));
   });
 
   // Remove any remaining payment plan placeholders if in partnership mode

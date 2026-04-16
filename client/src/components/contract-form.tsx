@@ -419,36 +419,6 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     createContractMutation.mutate(filteredData);
   };
 
-  if (templatesLoading) {
-    return (
-      <Dialog open onOpenChange={() => onClose()}>
-        <DialogContent className="max-w-[1100px] rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0">
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mr-4" />
-            <span className="text-lg text-slate-700">Caricamento template...</span>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  if (templatesError) {
-    return (
-      <Dialog open onOpenChange={() => onClose()}>
-        <DialogContent className="max-w-[1100px] rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0">
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="text-red-500 mb-4">Errore nel caricamento dei template</div>
-              <Button onClick={() => window.location.reload()} className="rounded-xl">
-                Ricarica la pagina
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
   console.log("Templates loaded:", templates);
 
   const currentTotalValue = form.watch("totalValue") || 0;
@@ -575,6 +545,37 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       }
     }, 350);
   }, [scrollToSection]);
+
+  // Early returns must come AFTER all hooks to preserve hook order between renders.
+  if (templatesLoading) {
+    return (
+      <Dialog open onOpenChange={() => onClose()}>
+        <DialogContent className="max-w-[1100px] rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mr-4" />
+            <span className="text-lg text-slate-700">Caricamento template...</span>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (templatesError) {
+    return (
+      <Dialog open onOpenChange={() => onClose()}>
+        <DialogContent className="max-w-[1100px] rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0">
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="text-red-500 mb-4">Errore nel caricamento dei template</div>
+              <Button onClick={() => window.location.reload()} className="rounded-xl">
+                Ricarica la pagina
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <>

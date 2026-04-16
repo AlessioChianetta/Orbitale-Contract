@@ -70,4 +70,17 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
   });
+
+  // Graceful shutdown: close the singleton Puppeteer browser used by the PDF generator
+  // so we don't leak Chromium processes on SIGTERM/SIGINT.
+  const { closePdfBrowser } = await import("./services/pdf-generator-new");
+  const shutdown = async (signal: string) => {
+    log(`${signal} received, shutting down gracefully…`);
+    try { await closePdfBrowser(); } catch { /* noop */ }
+    server.close(() => process.exit(0));
+    // Safety net: force-exit if close hangs.
+    setTimeout(() => process.exit(0), 5000).unref();
+  };
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+  process.once("SIGINT", () => void shutdown("SIGINT"));
 })();

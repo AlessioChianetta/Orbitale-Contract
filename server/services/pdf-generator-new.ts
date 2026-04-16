@@ -1,22 +1,131 @@
-import puppeteer from 'puppeteer';
+import puppeteer, { Browser } from 'puppeteer';
 import fs from 'fs/promises';
 import path from 'path';
 import { AuditLog } from '@shared/schema';
 
-// Safe date formatting function to avoid "Invalid Date" issues
+// Singleton Puppeteer browser: launch once, reuse across PDF generations.
+// Auto-resets if the underlying process dies or disconnects.
+let browserInstance: Browser | null = null;
+let browserLaunchPromise: Promise<Browser> | null = null;
+
+function resolveChromiumPath(): string | undefined {
+  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
+  try {
+    const p = puppeteer.executablePath();
+    return p || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function getBrowser(): Promise<Browser> {
+  if (browserInstance && browserInstance.connected) {
+    return browserInstance;
+  }
+  if (browserLaunchPromise) {
+    return browserLaunchPromise;
+  }
+  const executablePath = resolveChromiumPath();
+  if (!executablePath) {
+    throw new Error(
+      'Chromium executable not found. Set CHROMIUM_PATH env var or install Puppeteer with a bundled Chromium.'
+    );
+  }
+  browserLaunchPromise = puppeteer.launch({
+    headless: true,
+    executablePath,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+      '--disable-gpu'
+    ]
+  }).then(b => {
+    b.on('disconnected', () => {
+      if (browserInstance === b) browserInstance = null;
+    });
+    browserInstance = b;
+    browserLaunchPromise = null;
+    return b;
+  }).catch(err => {
+    browserLaunchPromise = null;
+    throw err;
+  });
+  return browserLaunchPromise;
+}
+
+export async function closePdfBrowser(): Promise<void> {
+  if (browserInstance) {
+    const b = browserInstance;
+    browserInstance = null;
+    try { await b.close(); } catch { /* noop */ }
+  }
+}
+
+// Safe date formatting function to avoid "Invalid Date" issues.
+// Uses Europe/Rome timezone so CET/CEST is applied correctly in every season.
 function formatDateSafe(dateString?: string | Date): string {
   if (!dateString) return '';
   try {
     const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
     if (isNaN(date.getTime())) return '';
-    return date.toLocaleDateString('it-IT', { 
-      day: '2-digit', 
-      month: 'long', 
-      year: 'numeric' 
-    });
+    return new Intl.DateTimeFormat('it-IT', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Europe/Rome'
+    }).format(date);
   } catch {
     return '';
   }
+}
+
+// Format a short date (dd/mm/yyyy) in Europe/Rome timezone.
+function formatShortDateItalian(dateInput?: string | Date): string {
+  if (!dateInput) return '';
+  try {
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'Europe/Rome'
+    }).format(date);
+  } catch {
+    return '';
+  }
+}
+
+// Parse a date-only string (YYYY-MM-DD) as a *local* date to avoid the UTC-midnight
+// bug that pushes the day back by one in positive UTC offsets.
+function formatBirthDate(dateString?: string | Date): string {
+  if (!dateString) return '';
+  if (typeof dateString === 'string') {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateString);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+  return formatShortDateItalian(dateString);
+}
+
+// Lightweight HTML sanitizer to neutralize trivial XSS vectors that might leak from
+// user-authored template fields into the PDF renderer.
+function sanitizeHtml(input?: string): string {
+  if (!input) return '';
+  return String(input)
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/<link\b[^>]*>/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+    .replace(/javascript\s*:/gi, '');
 }
 
 export async function generatePDF(
@@ -26,23 +135,11 @@ export async function generatePDF(
   contractData?: any,
   companySettings?: any
 ): Promise<string> {
-  const browser = await puppeteer.launch({ 
-    headless: true,
-    executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium',
-    args: [
-      '--no-sandbox', 
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-gpu'
-    ]
-  });
+  const browser = await getBrowser();
+  let page: Awaited<ReturnType<Browser['newPage']>> | undefined;
 
   try {
-    const page = await browser.newPage();
+    page = await browser.newPage();
 
     // Use the new client-view identical layout
     const fullHtml = contractData ? 
@@ -98,7 +195,9 @@ export async function generatePDF(
 
     return filePath;
   } finally {
-    await browser.close();
+    if (page) {
+      try { await page.close(); } catch { /* noop */ }
+    }
   }
 }
 
@@ -161,7 +260,19 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
   const renewalDuration = contractData.renewalDuration || 12;
   const contractStartDate = contractData.contractStartDate || contractData.createdAt;
   const contractEndDate = contractData.contractEndDate;
-  const totalAmount = paymentPlan.reduce((sum: number, payment: any) => sum + parseFloat(payment.rata_importo || '0'), 0).toFixed(2);
+  // Parse amounts that may come in European format ("1.234,56") or JS format ("1234.56").
+  const parseAmount = (val: any): number => {
+    const s = String(val ?? '0').trim();
+    if (!s) return 0;
+    const normalized = s.includes(',')
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s;
+    const n = parseFloat(normalized);
+    return isNaN(n) ? 0 : n;
+  };
+  const totalAmount = paymentPlan
+    .reduce((sum: number, payment: any) => sum + parseAmount(payment.rata_importo), 0)
+    .toFixed(2);
 
   return `
     <!DOCTYPE html>
@@ -487,7 +598,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           <td><strong>Nato a</strong> ${client.nato_a || ''}</td>
         </tr>
         <tr>
-          <td><strong>Data di nascita</strong> ${client.data_nascita ? new Date(client.data_nascita).toLocaleDateString('it-IT') : ''}</td>
+          <td><strong>Data di nascita</strong> ${formatBirthDate(client.data_nascita)}</td>
           <td><strong>Residente a</strong> ${client.residente_a || ''}</td>
         </tr>
         <tr>
@@ -499,7 +610,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       ${hasCustomContent ? `
       <h2 class="section-header commercial">CONTENUTO PERSONALIZZATO</h2>
       <div class="template-content">
-        ${contractData.template.customContent}
+        ${sanitizeHtml(contractData.template.customContent)}
       </div>
       ` : ''}
 
@@ -566,15 +677,15 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       ${hasPaymentText ? `
       <h2 class="section-header payment">CONDIZIONI DI PAGAMENTO</h2>
       <div class="template-content">
-        ${contractData.template.paymentText}
+        ${sanitizeHtml(contractData.template.paymentText)}
       </div>
       ` : ''}
 
       <!-- 6. CORPO DEL CONTRATTO -->
       ${hasContent ? `
-      <h2 class="section-header legal" style="page-break-before: always;">CORPO DEL CONTRATTO</h2>
+      <h2 class="section-header legal" style="page-break-before: auto;">CORPO DEL CONTRATTO</h2>
       <div class="template-content">
-        ${contractData.template.content}
+        ${sanitizeHtml(contractData.template.content)}
       </div>
       ` : ''}
 
@@ -643,9 +754,9 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       </div>
 
       <div style="margin-top: 32px; page-break-inside: avoid;">
-        <p style="margin-bottom: 16px; font-size: 10pt; color: #374151;">Data ${new Date().toLocaleDateString('it-IT')} &nbsp;&nbsp; <strong>Firma Cliente/Committente</strong></p>
+        <p style="margin-bottom: 16px; font-size: 10pt; color: #374151;">Data ${formatShortDateItalian(new Date())} &nbsp;&nbsp; <strong>Firma Cliente/Committente</strong></p>
         <div class="signature-area">
-          ${contractData.status === 'signed' && contractData.signatures?.marketing ? 
+          ${(contractData.status === 'signed' || contractData.status === 'completed') && contractData.signatures?.marketing ? 
             (contractData.signatures.marketing.startsWith('data:image') ? 
               `<img src="${contractData.signatures.marketing}" alt="Firma" class="signature-image" />` :
               `<div class="signature-text">${contractData.signatures.marketing}</div>`
@@ -673,14 +784,31 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
   `;
 }
 
+function getStatusBadge(status?: string): { label: string; color: string } {
+  switch (status) {
+    case 'draft':     return { label: 'BOZZA',              color: '#6b7280' };
+    case 'sent':      return { label: 'INVIATO',            color: '#3b82f6' };
+    case 'viewed':    return { label: 'VISUALIZZATO',       color: '#8b5cf6' };
+    case 'signed':    return { label: '✓ FIRMATO',          color: '#10b981' };
+    case 'completed': return { label: '✓ FIRMATO E COMPLETATO', color: '#059669' };
+    default:          return { label: (status || 'SCONOSCIUTO').toUpperCase(), color: '#64748b' };
+  }
+}
+
 function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): string {
   if (!auditLogs || auditLogs.length === 0) {
     return '';
   }
 
-  const contractId = auditLogs[0]?.contractId || 'unknown';
-  const currentDate = new Date().toLocaleDateString('it-IT');
-  const currentTime = new Date().toLocaleTimeString('it-IT', { hour12: false });
+  const contractId = auditLogs[0]?.contractId || contractData?.id || 'unknown';
+  const now = new Date();
+  const currentDate = formatShortDateItalian(now);
+  const currentTime = new Intl.DateTimeFormat('it-IT', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false, timeZone: 'Europe/Rome'
+  }).format(now);
+  const docType = contractData?.template?.name || contractData?.templateName || 'Contratto';
+  const badge = getStatusBadge(contractData?.status);
 
   return `
     <div style="page-break-before: always; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #ffffff;">
@@ -702,12 +830,12 @@ function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): stri
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
           <div>
             <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em;">TIPOLOGIA DOCUMENTO</div>
-            <div style="font-size: 14px; font-weight: 600; color: #111827;">${contractData.template?.name || contractData.templateName || 'Contratto'}</div>
+            <div style="font-size: 14px; font-weight: 600; color: #111827;">${docType}</div>
           </div>
           <div>
             <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em;">STATO FINALE</div>
-            <div style="display: inline-block; background: #10b981; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">
-              ✓ FIRMATO E COMPLETATO
+            <div style="display: inline-block; background: ${badge.color}; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">
+              ${badge.label}
             </div>
           </div>
           <div>
@@ -797,11 +925,19 @@ function getActionColor(action: string): string {
   }
 }
 
-function formatTimestamp(timestamp: Date): string {
-  const date = new Date(timestamp);
-  // Converti da UTC a fuso orario italiano
-  const italianTime = new Date(date.getTime() + (2 * 60 * 60 * 1000)); // +2 ore per ora legale
-  return `${italianTime.toLocaleDateString('it-IT')} ${italianTime.toLocaleTimeString('it-IT', { hour12: false })} CET`;
+function formatTimestamp(timestamp: Date | string): string {
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (isNaN(date.getTime())) return '';
+  // Use Europe/Rome so CET/CEST is applied correctly year-round (no manual offset).
+  const datePart = new Intl.DateTimeFormat('it-IT', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    timeZone: 'Europe/Rome'
+  }).format(date);
+  const timePart = new Intl.DateTimeFormat('it-IT', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false, timeZone: 'Europe/Rome'
+  }).format(date);
+  return `${datePart} ${timePart} (Europe/Rome)`;
 }
 
 function generateAuditDetails(log: AuditLog): string {
@@ -824,8 +960,8 @@ function generateAuditDetails(log: AuditLog): string {
     }
   }
 
-  switch(log.action) {
-    case 'sent':
+  switch (log.action) {
+    case 'sent': {
       const sentToEmail = metadata.sentToEmail || 'Email non specificata';
       const sentBy = metadata.sentBy ? `Utente ID: ${metadata.sentBy}` : 'Sistema';
       return `
@@ -837,7 +973,8 @@ function generateAuditDetails(log: AuditLog): string {
           <strong>Browser:</strong> ${browserName}
         </div>
       `;
-    case 'viewed':
+    }
+    case 'viewed': {
       const accessMethod = metadata.accessMethod === 'email_link' ? 'Accesso via link email' : 'Accesso diretto via codice contratto';
       return `
         <div style="font-weight: 500;">👁️ Documento visualizzato dal cliente</div>
@@ -847,7 +984,8 @@ function generateAuditDetails(log: AuditLog): string {
           <strong>Browser:</strong> ${browserName}
         </div>
       `;
-    case 'otp_sent':
+    }
+    case 'otp_sent': {
       const phoneNumber = metadata.actualPhoneNumber || metadata.phoneNumber || 'Numero non disponibile';
       const otpMethod = metadata.method === 'sms' ? 'SMS' : 'Email';
       const twilioUsed = metadata.twilioVerify ? 'Twilio Verify' : 'Sistema personalizzato';
@@ -858,7 +996,8 @@ function generateAuditDetails(log: AuditLog): string {
           <strong>Sistema:</strong> ${twilioUsed}
         </div>
       `;
-    case 'signed':
+    }
+    case 'signed': {
       const signerEmail = metadata.emailUsedForSigning || metadata.emailFromContract || 'Email non disponibile';
       const phoneUsed = metadata.phoneNumber || 'Telefono non disponibile';
       const signatureMethod = metadata.signatureMethod || 'Metodo non specificato';
@@ -875,7 +1014,8 @@ function generateAuditDetails(log: AuditLog): string {
           <strong>Browser:</strong> ${browserName}
         </div>
       `;
-    case 'completed':
+    }
+    case 'completed': {
       return `
         <div style="font-weight: 500;">🎯 Processo di firma completato</div>
         <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
@@ -883,15 +1023,17 @@ function generateAuditDetails(log: AuditLog): string {
           <strong>Sistema:</strong> PDF finale generato con audit trail integrato
         </div>
       `;
-    default:
+    }
+    default: {
       return `
         <div style="font-weight: 500;">⚙️ ${log.action}</div>
         <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          ${metadata && Object.keys(metadata).length > 0 ? 
-            `<strong>Dettagli:</strong> ${JSON.stringify(metadata)}` : 
+          ${metadata && Object.keys(metadata).length > 0 ?
+            `<strong>Dettagli:</strong> ${JSON.stringify(metadata)}` :
             'Nessun dettaglio aggiuntivo'}<br>
           <strong>IP:</strong> ${ipAddress}
         </div>
       `;
+    }
   }
 }
