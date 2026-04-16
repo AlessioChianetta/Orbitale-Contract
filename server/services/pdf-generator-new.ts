@@ -1,5 +1,7 @@
 import puppeteer, { Browser } from 'puppeteer';
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
+import { execSync } from 'child_process';
 import path from 'path';
 import { AuditLog } from '@shared/schema';
 
@@ -9,13 +11,26 @@ let browserInstance: Browser | null = null;
 let browserLaunchPromise: Promise<Browser> | null = null;
 
 function resolveChromiumPath(): string | undefined {
-  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
+  if (process.env.CHROMIUM_PATH && existsSync(process.env.CHROMIUM_PATH)) {
+    return process.env.CHROMIUM_PATH;
+  }
   try {
     const p = puppeteer.executablePath();
-    return p || undefined;
+    if (p && existsSync(p)) return p;
   } catch {
-    return undefined;
+    // ignore and fall back to system chromium
   }
+  for (const cmd of ['chromium', 'chromium-browser', 'google-chrome', 'chrome']) {
+    try {
+      const resolved = execSync(`command -v ${cmd}`, { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim();
+      if (resolved && existsSync(resolved)) return resolved;
+    } catch {
+      // try next candidate
+    }
+  }
+  return undefined;
 }
 
 async function getBrowser(): Promise<Browser> {
