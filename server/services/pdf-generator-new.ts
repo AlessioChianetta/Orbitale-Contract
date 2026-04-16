@@ -2,7 +2,7 @@ import puppeteer, { Browser } from 'puppeteer';
 import fs from 'fs/promises';
 import path from 'path';
 import { AuditLog } from '@shared/schema';
-import { resolveSelectedSections } from '@shared/sections';
+import { resolveSelectedSections, renderSectionsHtml, SECTIONS_MARKER } from '@shared/sections';
 
 // Singleton Puppeteer browser: launch once, reuse across PDF generations.
 // Auto-resets if the underlying process dies or disconnects.
@@ -701,6 +701,8 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           contractData.selectedSectionIds
         );
         if (!resolved.length) return '';
+        const contentStr = contractData.template?.content || '';
+        if (contentStr.includes(SECTIONS_MARKER)) return '';
         return `
       <h2 class="section-header bonus">SERVIZI INCLUSI</h2>
       <div>
@@ -716,12 +718,23 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       })()}
 
       <!-- 6. CORPO DEL CONTRATTO -->
-      ${hasContent ? `
+      ${hasContent ? (() => {
+        const rawContent: string = contractData.template.content;
+        let finalContent = rawContent;
+        if (rawContent.includes(SECTIONS_MARKER)) {
+          const resolved = resolveSelectedSections(
+            contractData.template?.sections,
+            contractData.selectedSectionIds
+          );
+          finalContent = rawContent.split(SECTIONS_MARKER).join(renderSectionsHtml(resolved));
+        }
+        return `
       <h2 class="section-header legal" style="page-break-before: auto;">CORPO DEL CONTRATTO</h2>
       <div class="template-content">
-        ${sanitizeHtml(contractData.template.content)}
+        ${sanitizeHtml(finalContent)}
       </div>
-      ` : ''}
+      `;
+      })() : ''}
 
       <!-- 7. BONUS INCLUSI -->
       ${hasBonuses ? `

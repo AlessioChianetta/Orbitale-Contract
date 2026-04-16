@@ -268,6 +268,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
 <p><em>Resta inteso che in caso di inerzia del Cliente potrà essere emesso un rimborso entro 30 giorni dalla firma del contratto e avvenuto pagamento.</em></p>`,
       isActive: template?.isActive ?? true,
       predefinedBonuses: template?.predefinedBonuses || [],
+      sections: (template as any)?.sections || [],
       paymentOptions: template?.paymentOptions || {
         allowInstallments: true,
         maxInstallments: 36,
@@ -782,6 +783,12 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                                 placeholder="Contenuto HTML della sezione..."
                                 className="rounded-lg border-[#E5E7EB] font-mono text-xs"
                               />
+                              {!sec.content || !sec.content.trim() ? (
+                                <p className="mt-2 text-xs text-amber-600 flex items-center gap-1.5" data-testid={`warn-empty-${sec.id}`}>
+                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  Attenzione: questa sezione non ha contenuto. Aggiungi del testo o rimuovila.
+                                </p>
+                              ) : null}
                             </div>
                           );
                         })}

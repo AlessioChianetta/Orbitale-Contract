@@ -1493,6 +1493,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 <p className="text-sm text-slate-500 mb-6">
                   Seleziona le sezioni che vuoi includere in questo contratto. Le sezioni obbligatorie sono sempre incluse.
                 </p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-3">
                   {((selectedTemplate as any).sections as ModularSection[]).map((sec) => {
                     const selectedIds: string[] = form.watch("selectedSectionIds") ?? [];
@@ -1545,6 +1546,43 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                       </label>
                     );
                   })}
+                </div>
+                <div className="rounded-xl border border-sky-100 bg-gradient-to-br from-sky-50/70 to-white p-5 max-h-[520px] overflow-y-auto">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Gift className="h-4 w-4 text-sky-600" />
+                    <h4 className="text-sm font-semibold text-slate-800">Anteprima live</h4>
+                  </div>
+                  {(() => {
+                    const resolved = resolveSelectedSections(
+                      (selectedTemplate as any).sections,
+                      form.watch("selectedSectionIds") ?? null,
+                    );
+                    if (resolved.length === 0) {
+                      return (
+                        <p className="text-xs text-slate-500 italic">
+                          Nessuna sezione attiva. Spunta almeno un servizio per vederlo qui.
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="space-y-4">
+                        {resolved.map((sec) => (
+                          <div
+                            key={sec.id}
+                            className="rounded-lg border-l-4 border-sky-400 bg-white p-3 shadow-sm"
+                            data-testid={`preview-section-${sec.id}`}
+                          >
+                            <h5 className="text-sm font-semibold text-sky-900 mb-1.5">{sec.title}</h5>
+                            <div
+                              className="text-xs text-slate-700 leading-relaxed [&_p]:mb-2 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:pl-5 [&_ol]:list-decimal"
+                              dangerouslySetInnerHTML={{ __html: sec.content || "<em>Sezione senza contenuto</em>" }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
                 </div>
               </div>
             )}
@@ -1800,9 +1838,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   clientData={cd}
                   template={{
                     ...previewData.template,
-                    // Use the server-rendered HTML so the preview matches
-                    // exactly what the send pipeline produces.
-                    content: previewData.generatedContent || previewData.template?.content,
+                    // Usa il contenuto raw del template: le sezioni modulari
+                    // vengono rese dal prop `sections` per evitare il doppio
+                    // rendering (generatedContent contiene già l'iniezione).
+                    content: previewData.template?.content,
                   }}
                   contract={{
                     createdAt: new Date().toISOString(),

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { SECTIONS_MARKER, renderSectionsHtml, type ModularSection } from "@shared/sections";
 import {
   FileText,
   ChevronLeft,
@@ -148,6 +149,28 @@ export default function ProfessionalContractDocument({
   const hasCustomContent = !!template?.customContent;
   const hasPaymentText = !!template?.paymentText;
   const hasContent = !!template?.content;
+  const contentHasMarker = !!(template?.content && template.content.includes(SECTIONS_MARKER));
+  const modularSectionsHtml = useMemo(() => {
+    if (!hasModularSections) return "";
+    return renderSectionsHtml(
+      (modularSections || []).map((s) => ({
+        id: s.id,
+        title: s.title,
+        content: s.content,
+        defaultEnabled: true,
+        required: false,
+        order: 0,
+      })) as ModularSection[],
+    );
+  }, [modularSections, hasModularSections]);
+  const renderedContent = useMemo(() => {
+    if (!template?.content) return "";
+    if (contentHasMarker) {
+      return template.content.split(SECTIONS_MARKER).join(modularSectionsHtml);
+    }
+    return template.content;
+  }, [template?.content, contentHasMarker, modularSectionsHtml]);
+  const showDedicatedModularBlock = hasModularSections && !contentHasMarker;
   const renewalDuration = contract?.renewalDuration || 12;
 
   const sections = useMemo(() => {
@@ -161,6 +184,12 @@ export default function ProfessionalContractDocument({
         title: "Contenuto Personalizzato",
         icon: FileText,
       });
+    if (showDedicatedModularBlock)
+      s.push({
+        id: "servizi-inclusi",
+        title: "Servizi Inclusi",
+        icon: Gift,
+      });
     if (hasPaymentPlan || isPartnership)
       s.push({ id: "piano-pagamenti", title: "Piano Pagamenti", icon: Euro });
     if (hasPaymentText)
@@ -168,12 +197,6 @@ export default function ProfessionalContractDocument({
         id: "condizioni-pagamento",
         title: "Condizioni di Pagamento",
         icon: Euro,
-      });
-    if (hasModularSections)
-      s.push({
-        id: "servizi-inclusi",
-        title: "Servizi Inclusi",
-        icon: Gift,
       });
     if (hasContent)
       s.push({
@@ -621,7 +644,7 @@ export default function ProfessionalContractDocument({
           </section>
         )}
 
-        {hasModularSections && (
+        {showDedicatedModularBlock && (
           <section data-section="servizi-inclusi" className="space-y-4">
             <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-sky-500 pl-4">
               SERVIZI INCLUSI
@@ -652,7 +675,7 @@ export default function ProfessionalContractDocument({
             </h2>
             <div
               className="text-sm text-slate-700 leading-relaxed custom-content-section [&_p]:mb-4 [&_p]:leading-relaxed [&_ul]:my-4 [&_ul]:pl-6 [&_ol]:my-4 [&_ol]:pl-6 [&_li]:mb-2 [&_strong]:font-semibold [&_strong]:text-slate-900 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:my-5 [&_h1]:text-slate-900 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:my-4 [&_h2]:text-slate-900 [&_h3]:text-base [&_h3]:font-bold [&_h3]:my-3 [&_h3]:text-slate-900"
-              dangerouslySetInnerHTML={{ __html: template!.content! }}
+              dangerouslySetInnerHTML={{ __html: renderedContent }}
             />
           </section>
         )}
