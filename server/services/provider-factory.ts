@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import type { ModularSection } from "@shared/sections";
 
 const GEMINI_MODEL = "gemini-3-flash-preview";
 
@@ -327,7 +328,7 @@ export async function guidedContractWizard(
 export async function generateContractFromAI(
   summary: any,
   additionalInstructions?: string
-): Promise<{ content: string; customContent: string; paymentText: string; bonuses: any[]; sections: any[] }> {
+): Promise<{ content: string; customContent: string; paymentText: string; bonuses: any[]; sections: ModularSection[] }> {
   const client = getClient();
 
   const prompt = `Genera un contratto professionale completo basato su queste informazioni:
