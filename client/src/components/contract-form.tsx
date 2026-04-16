@@ -19,7 +19,7 @@ import MissingDataPanel from "./missing-data-panel";
 import CoFillDialog from "./co-fill-dialog";
 import { REQUIRED_CLIENT_FIELDS, type RequiredClientField } from "@/lib/required-client-fields";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF } from "@/lib/validation-utils";
-import { resolveSelectedSections, type ModularSection } from "@shared/sections";
+import { resolveSelectedSections, defaultSelectedIds, type ModularSection } from "@shared/sections";
 
 const contractFormSchema = z.object({
   templateId: z.number().min(1, "Seleziona un template"),
@@ -265,7 +265,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         totalValue: data.totalValue ? Math.round(data.totalValue * 100) : null,
         isPercentagePartnership: data.isPercentagePartnership || false,
         partnershipPercentage: data.partnershipPercentage || null,
-        selectedSectionIds: data.selectedSectionIds ?? [],
+        selectedSectionIds: Array.isArray(data.selectedSectionIds)
+          ? data.selectedSectionIds
+          : defaultSelectedIds(
+              (((selectedTemplate as any)?.sections) as ModularSection[]) || [],
+            ),
       };
 
       setIsSubmitting(true);
@@ -376,7 +380,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         renewalDuration: values.renewalDuration,
         contractStartDate: values.contractStartDate,
         contractEndDate: values.contractEndDate,
-        selectedSectionIds: values.selectedSectionIds ?? [],
+        selectedSectionIds: Array.isArray(values.selectedSectionIds)
+          ? values.selectedSectionIds
+          : defaultSelectedIds(
+              (((selectedTemplate as any)?.sections) as ModularSection[]) || [],
+            ),
       };
       const res = await apiRequest("POST", "/api/contracts/preview", payload);
       const data = await res.json();

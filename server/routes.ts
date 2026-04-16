@@ -934,6 +934,7 @@ export function registerRoutes(app: Express): Server {
         isPercentagePartnership: contract.isPercentagePartnership,
         partnershipPercentage: contract.partnershipPercentage,
         sentToEmail: contract.sentToEmail,
+        selectedSectionIds: contract.selectedSectionIds,
       };
       const safeCompanySettings = contractCompanySettings ? {
         companyName: contractCompanySettings.companyName,
@@ -1920,7 +1921,16 @@ async function generateContractContent(
   if (content.includes(SECTIONS_MARKER)) {
     content = content.replaceAll(SECTIONS_MARKER, sectionsHtml);
   } else if (sectionsHtml) {
-    content = sectionsHtml + "\n" + content;
+    // Fallback: inserisci le sezioni prima dei termini di pagamento.
+    // Cerchiamo il primo heading riconducibile al blocco pagamento; se assente,
+    // appendiamo in coda per non rompere la struttura del documento.
+    const paymentHeadingRegex = /<h[1-6][^>]*>[\s\S]*?(TERMINI\s+DI\s+PAGAMENTO|MODALIT[AÀ]\s+DI\s+PAGAMENTO|PAGAMENTO|CORRISPETTIVO)[\s\S]*?<\/h[1-6]>/i;
+    const match = content.match(paymentHeadingRegex);
+    if (match && typeof match.index === "number") {
+      content = content.slice(0, match.index) + sectionsHtml + "\n" + content.slice(match.index);
+    } else {
+      content = content + "\n" + sectionsHtml;
+    }
   }
 
   // Combine predefined bonuses from template with manual bonuses from client data

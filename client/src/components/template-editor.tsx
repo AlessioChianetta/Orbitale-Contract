@@ -678,22 +678,24 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                           </div>
                         )}
                         {(((form.watch("sections") as any[]) || []) as ModularSection[]).map((sec, index) => {
+                          const reindex = (arr: ModularSection[]): ModularSection[] =>
+                            arr.map((s, i) => ({ ...s, order: i }));
                           const updateSection = (patch: Partial<ModularSection>) => {
                             const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
                             current[index] = { ...current[index], ...patch };
-                            form.setValue("sections", current as any, { shouldDirty: true });
+                            form.setValue("sections", reindex(current) as any, { shouldDirty: true });
                           };
                           const removeSection = () => {
                             const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
                             current.splice(index, 1);
-                            form.setValue("sections", current as any, { shouldDirty: true });
+                            form.setValue("sections", reindex(current) as any, { shouldDirty: true });
                           };
                           const moveSection = (dir: -1 | 1) => {
                             const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
                             const to = index + dir;
                             if (to < 0 || to >= current.length) return;
                             [current[index], current[to]] = [current[to], current[index]];
-                            form.setValue("sections", current as any, { shouldDirty: true });
+                            form.setValue("sections", reindex(current) as any, { shouldDirty: true });
                           };
                           return (
                             <div
