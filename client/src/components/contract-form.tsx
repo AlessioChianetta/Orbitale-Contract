@@ -15,6 +15,8 @@ import DynamicFormFields from "./dynamic-form-fields";
 import ProfessionalContractDocument from "./professional-contract-document";
 import PaymentCalculatorAdvanced from "./payment-calculator-advanced";
 import EmailConfigBanner, { useEmailStatus } from "./email-config-banner";
+import MissingDataPanel from "./missing-data-panel";
+import type { RequiredClientField } from "@/lib/required-client-fields";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF } from "@/lib/validation-utils";
 
 const contractFormSchema = z.object({
@@ -440,10 +442,21 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
   const currentTotalValue = form.watch("totalValue") || 0;
   const currentIsPercentageMode = form.watch("isPercentagePartnership") || false;
+  const watchedClientData = form.watch("clientData");
+
+  const jumpToClientField = useCallback((field: RequiredClientField) => {
+    scrollToSection(field.sectionId);
+    setTimeout(() => {
+      const el = document.getElementById(field.key) as HTMLInputElement | null;
+      if (el) {
+        el.focus({ preventScroll: true });
+      }
+    }, 350);
+  }, [scrollToSection]);
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-[1100px] max-h-[95vh] p-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-white flex flex-col">
+      <DialogContent className="max-w-[1280px] w-[95vw] max-h-[95vh] p-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-white flex flex-col">
         {/* Header */}
         <div className="p-8 bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white flex-shrink-0">
           <DialogHeader>
@@ -504,9 +517,16 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           </div>
         </div>
 
-        {/* Scrollable content */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-8 bg-white">
-          <form id="contract-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
+        {/* Scrollable content + sidebar */}
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-8 bg-white">
+            <MissingDataPanel
+              variant="accordion"
+              className="lg:hidden mb-6"
+              clientData={watchedClientData}
+              onJumpToField={jumpToClientField}
+            />
+            <form id="contract-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
             {/* Section 1: Template Selection */}
             <div id="section-template">
               <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
@@ -1442,7 +1462,14 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
             {/* Spacer for sticky footer */}
             <div className="h-4" />
-          </form>
+            </form>
+          </div>
+          <MissingDataPanel
+            variant="sidebar"
+            className="hidden lg:flex w-[320px] flex-shrink-0"
+            clientData={watchedClientData}
+            onJumpToField={jumpToClientField}
+          />
         </div>
 
         {/* Footer - Sticky */}
