@@ -19,7 +19,11 @@ import MissingDataPanel from "./missing-data-panel";
 import CoFillDialog from "./co-fill-dialog";
 import { REQUIRED_CLIENT_FIELDS, type RequiredClientField } from "@/lib/required-client-fields";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF } from "@/lib/validation-utils";
-import { resolveSelectedSections, defaultSelectedIds, type ModularSection } from "@shared/sections";
+import { resolveSelectedSections, defaultSelectedIds, parseSections, type ModularSection } from "@shared/sections";
+
+function getTemplateSections(t: unknown): ModularSection[] {
+  return parseSections((t as { sections?: unknown } | null | undefined)?.sections);
+}
 
 const contractFormSchema = z.object({
   templateId: z.number().min(1, "Seleziona un template"),
@@ -220,7 +224,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       contractEndDate: contract?.contractEndDate ? new Date(contract.contractEndDate).toISOString().split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to 1 year from now
       isPercentagePartnership: contract?.isPercentagePartnership || false,
       partnershipPercentage: contract?.partnershipPercentage || undefined,
-      selectedSectionIds: (contract as any)?.selectedSectionIds || undefined,
+      selectedSectionIds: (contract as { selectedSectionIds?: string[] | null } | undefined)?.selectedSectionIds || undefined,
       clientData: contract?.clientData || {
         societa: "",
         sede: "",
@@ -268,7 +272,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         selectedSectionIds: Array.isArray(data.selectedSectionIds)
           ? data.selectedSectionIds
           : defaultSelectedIds(
-              (((selectedTemplate as any)?.sections) as ModularSection[]) || [],
+              getTemplateSections(selectedTemplate),
             ),
       };
 
@@ -383,7 +387,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         selectedSectionIds: Array.isArray(values.selectedSectionIds)
           ? values.selectedSectionIds
           : defaultSelectedIds(
-              (((selectedTemplate as any)?.sections) as ModularSection[]) || [],
+              getTemplateSections(selectedTemplate),
             ),
       };
       const res = await apiRequest("POST", "/api/contracts/preview", payload);
@@ -455,7 +459,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     }
     if (prevTemplateIdRef.current !== watchedTemplateId) {
       prevTemplateIdRef.current = watchedTemplateId;
-      form.setValue("selectedSectionIds", undefined as any, { shouldDirty: false });
+      form.setValue("selectedSectionIds", undefined, { shouldDirty: false });
     }
   }, [watchedTemplateId, isEditing, form]);
 
@@ -1501,7 +1505,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
             </div>
 
             {/* Section 4b: Sezioni modulari (servizi opzionali dal template) */}
-            {Array.isArray((selectedTemplate as any)?.sections) && (selectedTemplate as any).sections.length > 0 && (
+            {Array.isArray(getTemplateSections(selectedTemplate)) && getTemplateSections(selectedTemplate).length > 0 && (
               <div id="section-modular-sections" className="border-t border-gray-100 pt-8 mt-8">
                 <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-2">
                   <Gift className="mr-3 h-5 w-5 text-sky-600" />
@@ -1512,7 +1516,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 </p>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  {((selectedTemplate as any).sections as ModularSection[]).map((sec) => {
+                  {getTemplateSections(selectedTemplate).map((sec) => {
                     const selectedIds: string[] = form.watch("selectedSectionIds") ?? [];
                     const initialized = Array.isArray(form.getValues("selectedSectionIds"));
                     const isSelected = sec.required
@@ -1538,7 +1542,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                           onChange={(e) => {
                             const current: string[] = Array.isArray(form.getValues("selectedSectionIds"))
                               ? [...(form.getValues("selectedSectionIds") as string[])]
-                              : ((selectedTemplate as any).sections as ModularSection[])
+                              : getTemplateSections(selectedTemplate)
                                   .filter((s) => s.required || s.defaultEnabled)
                                   .map((s) => s.id);
                             const next = e.target.checked
@@ -1571,7 +1575,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   </div>
                   {(() => {
                     const resolved = resolveSelectedSections(
-                      (selectedTemplate as any).sections,
+                      getTemplateSections(selectedTemplate),
                       form.watch("selectedSectionIds") ?? null,
                     );
                     if (resolved.length === 0) {
@@ -1873,7 +1877,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   bonusList={bonusList}
                   usingCustomInstallments={usingCustomInstallments}
                   sections={resolveSelectedSections(
-                    (previewData.template as any)?.sections,
+                    getTemplateSections(previewData.template),
                     values.selectedSectionIds ?? null
                   ).map((s) => ({ id: s.id, title: s.title, content: s.content }))}
                 />

@@ -40,7 +40,7 @@ import AiContractChat from "./ai-contract-chat";
 import AiContractWizard from "./ai-contract-wizard";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
 import { getPartnershipContractHtml } from "@/data/partnership-contract-template";
-import { resolveSelectedSections, type ModularSection } from "@shared/sections";
+import { resolveSelectedSections, parseSections, type ModularSection } from "@shared/sections";
 
 const templateFormSchema = insertContractTemplateSchema.omit({ createdBy: true });
 type TemplateForm = z.infer<typeof templateFormSchema>;
@@ -271,7 +271,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
 <p><em>Resta inteso che in caso di inerzia del Cliente potrà essere emesso un rimborso entro 30 giorni dalla firma del contratto e avvenuto pagamento.</em></p>`,
       isActive: template?.isActive ?? true,
       predefinedBonuses: template?.predefinedBonuses || [],
-      sections: (template as any)?.sections || [],
+      sections: parseSections((template as { sections?: unknown })?.sections),
       paymentOptions: template?.paymentOptions || {
         allowInstallments: true,
         maxInstallments: 36,

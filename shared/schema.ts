@@ -2,6 +2,7 @@ import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric } fr
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { modularSectionsArraySchema } from "./sections";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -199,6 +200,7 @@ export const insertContractTemplateSchema = createInsertSchema(contractTemplates
   updatedAt: true,
 }).extend({
   paymentText: z.string().optional(),
+  sections: modularSectionsArraySchema.optional().default([]),
 });
 
 export const insertContractSchema = createInsertSchema(contracts).omit({
@@ -208,6 +210,7 @@ export const insertContractSchema = createInsertSchema(contracts).omit({
 }).extend({
   renewalDuration: z.number().min(1).max(60).default(12),
   partnershipPercentage: z.string().nullable().optional(),
+  selectedSectionIds: z.array(z.string()).nullable().optional(),
   contractStartDate: z.union([z.string(), z.date()]).nullable().optional().transform((val) => {
     if (typeof val === 'string') return new Date(val);
     return val;
