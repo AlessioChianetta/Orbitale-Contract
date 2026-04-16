@@ -50,6 +50,7 @@ import {
   Trash2,
 } from "lucide-react";
 import ContractForm from "@/components/contract-form";
+import EmailConfigBanner from "@/components/email-config-banner";
 import { Link } from "wouter";
 
 const PAGE_SIZE = 10;
@@ -399,6 +400,7 @@ export default function SellerDashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <EmailConfigBanner className="mb-4" />
         {/* Compact KPI row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <KpiCard label="Contratti Totali" value={stats?.totalContracts ?? 0} icon={<FileText className="h-4 w-4 text-indigo-600" />} tint="bg-indigo-50" />

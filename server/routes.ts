@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema } from "@shared/schema";
 import { generatePDF } from "./services/pdf-generator-new";
-import { sendContractEmail, sendContractSignedNotification, sendTestEmail } from "./services/email-service";
+import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany } from "./services/email-service";
 import { generateOTP, sendOTP } from "./services/otp-service";
 import { nanoid } from "nanoid";
 import path from "path";
@@ -226,6 +226,17 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid settings data", errors: error.errors });
       }
       res.status(500).json({ message: "Failed to update company settings" });
+    }
+  });
+
+  // Email configuration status (available to every authenticated user of the tenant)
+  app.get("/api/company-settings/email-status", requireAuth, async (req, res) => {
+    try {
+      const status = await getEmailConfigStatusForCompany(req.user.companyId);
+      res.json(status);
+    } catch (error) {
+      console.error("Failed to compute email config status:", error);
+      res.status(500).json({ message: "Failed to read email configuration status" });
     }
   });
 
@@ -610,9 +621,42 @@ export function registerRoutes(app: Express): Server {
         generatedContent,
       });
 
+      // If the client asked to send immediately, verify SMTP is configured BEFORE
+      // persisting any change, so that a "missing SMTP" case doesn't leave the
+      // contract half-saved with the client seeing an error.
+      let emailNotConfigured: { configured: boolean; missingFields: string[] } | null = null;
+      if (req.body.sendImmediately) {
+        const emailStatus = await getEmailConfigStatusForCompany(req.user.companyId);
+        if (!emailStatus.configured) {
+          emailNotConfigured = emailStatus;
+        }
+      }
+
       const updatedContract = await storage.updateContract(contractId, contractData);
 
+      // Log the update action (keep in sync with non-send path below)
+      await storage.createAuditLog({
+        contractId: contractId,
+        action: "updated",
+        userAgent: req.get("User-Agent"),
+        ipAddress: getRealClientIP(req),
+        metadata: {
+          updatedBy: req.user.id,
+          previousStatus: existingContract.status
+        },
+      });
+
+      if (emailNotConfigured) {
+        return res.json({
+          ...updatedContract,
+          message: "Contratto aggiornato, ma non inviato: configura l'email aziendale in Impostazioni Azienda → Configurazione Email per poterlo inviare.",
+          warning: "EMAIL_NOT_CONFIGURED",
+          emailConfig: emailNotConfigured,
+        });
+      }
+
       // Send email if contract is being sent immediately
+      let emailSendError: string | null = null;
       if (req.body.sendImmediately) {
         const emailToSend = req.body.sendToEmail || contractData.clientData?.email;
         console.log('🔄 Richiesta invio immediato contratto modificato');
@@ -645,20 +689,18 @@ export function registerRoutes(app: Express): Server {
           console.error("❌ ERRORE nell'invio email durante modifica contratto:");
           console.error("  - Errore:", emailError.message);
           console.error("  - Stack:", emailError.stack);
+          emailSendError = emailError?.message || "Errore sconosciuto durante l'invio email.";
         }
       }
 
-      // Log the update action
-      await storage.createAuditLog({
-        contractId: contractId,
-        action: "updated",
-        userAgent: req.get("User-Agent"),
-        ipAddress: getRealClientIP(req),
-        metadata: { 
-          updatedBy: req.user.id,
-          previousStatus: existingContract.status
-        },
-      });
+      if (emailSendError) {
+        return res.json({
+          ...updatedContract,
+          message: `Contratto aggiornato, ma l'invio email è fallito: ${emailSendError}`,
+          warning: "EMAIL_SEND_FAILED",
+          emailError: emailSendError,
+        });
+      }
 
       res.json({ 
         ...updatedContract, 
@@ -716,6 +758,16 @@ export function registerRoutes(app: Express): Server {
         console.log('📋 ID contratto:', contract.id);
         console.log('🔗 Codice contratto:', contractCode);
 
+        const emailStatus = await getEmailConfigStatusForCompany(req.user.companyId);
+        if (!emailStatus.configured) {
+          return res.status(201).json({
+            ...contract,
+            message: "Contratto creato come bozza. Configura l'email aziendale in Impostazioni Azienda → Configurazione Email per poterlo inviare.",
+            warning: "EMAIL_NOT_CONFIGURED",
+            emailConfig: emailStatus,
+          });
+        }
+
         try {
           await sendContractEmail(contract, contractCode, emailToSend);
           await storage.updateContract(contract.id, { 
@@ -741,9 +793,15 @@ export function registerRoutes(app: Express): Server {
           console.error("  - Errore:", emailError.message);
           console.error("  - Stack:", emailError.stack);
           // Don't fail the entire contract creation if email fails
-          // Mark as draft instead of sent
+          // Mark as draft instead of sent and surface a readable warning
           await storage.updateContract(contract.id, { status: "draft" });
           console.log('📝 Contratto mantenuto come "draft" a causa dell\'errore email');
+          return res.status(201).json({
+            ...contract,
+            message: `Contratto creato come bozza: invio email fallito (${emailError?.message || "errore SMTP sconosciuto"}).`,
+            warning: "EMAIL_SEND_FAILED",
+            emailError: emailError?.message || "Errore sconosciuto durante l'invio email.",
+          });
         }
       }
 
@@ -758,8 +816,7 @@ export function registerRoutes(app: Express): Server {
       } else {
         res.status(201).json({ 
           ...contract, 
-          message: "Contratto creato con successo. Email non inviata (configurare credenziali SMTP).",
-          warning: "Email non configurata"
+          message: "Contratto creato con successo." 
         });
       }
     } catch (error) {
@@ -953,7 +1010,26 @@ export function registerRoutes(app: Express): Server {
         // Usa il metodo tradizionale (email con codice personalizzato)
         // Forza l'uso dell'email se Twilio non è configurato
         const contactForOtp = (useOtpMethod === "email" || !useTwilioVerify) ? clientEmail : contactInfo;
-        await sendOTP(contactForOtp, otpCode, contract.companyId);
+
+        // Pre-controllo configurazione SMTP per evitare 500 generici
+        const emailStatus = await getEmailConfigStatusForCompany(contract.companyId);
+        if (!emailStatus.configured) {
+          return res.status(400).json({
+            message: "Il servizio di invio email non è ancora attivo. Contatta l'amministratore per completare la configurazione.",
+            code: "EMAIL_NOT_CONFIGURED",
+            missingFields: emailStatus.missingFields,
+          });
+        }
+
+        try {
+          await sendOTP(contactForOtp, otpCode, contract.companyId);
+        } catch (emailErr: any) {
+          console.error("❌ Errore invio OTP via email:", emailErr?.message || emailErr);
+          return res.status(400).json({
+            message: `Invio del codice OTP via email non riuscito: ${emailErr?.message || "errore SMTP sconosciuto"}.`,
+            code: "EMAIL_SEND_FAILED",
+          });
+        }
       }
 
       console.log(`[ROUTES] OTP sending completed`);

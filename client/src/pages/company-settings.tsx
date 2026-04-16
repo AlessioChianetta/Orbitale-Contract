@@ -14,6 +14,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Save, Upload, MessageSquare, Mail, Settings, Send, CheckCircle2, XCircle, KeyRound, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import EmailConfigBanner from "@/components/email-config-banner";
 
 const settingsFormSchema = insertCompanySettingsSchema;
 type SettingsForm = z.infer<typeof settingsFormSchema>;
@@ -164,6 +165,7 @@ export default function CompanySettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/company-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/company-settings/email-status"] });
       toast({
         title: "Impostazioni salvate",
         description: "Le impostazioni dell'azienda sono state aggiornate con successo"
@@ -536,6 +538,8 @@ export default function CompanySettings() {
                 <Mail className="h-5 w-5 text-blue-600" />
                 <h3 className="text-lg font-semibold">Configurazione Email (SMTP)</h3>
               </div>
+              <EmailConfigBanner />
+              
               <p className="text-sm text-gray-600">
                 Inserisci le credenziali del server SMTP del tuo provider (Aruba, Register.it, IONOS, ecc.).
                 Le email di contratto, OTP e notifica firma verranno inviate da questo mittente.

@@ -20,6 +20,33 @@ import { storage } from "../storage";
 
 const FALLBACK_DISPLAY_NAME = "Turbo Contract";
 
+export type EmailConfigStatus = { configured: boolean; missingFields: string[] };
+
+const EMAIL_REQUIRED_FIELDS: Array<keyof CompanySettings> = [
+  "smtpHost",
+  "smtpPort",
+  "smtpUser",
+  "smtpPass",
+  "emailFromAddress",
+];
+
+export function getEmailConfigStatus(settings: CompanySettings | null | undefined): EmailConfigStatus {
+  if (!settings) {
+    return { configured: false, missingFields: [...EMAIL_REQUIRED_FIELDS as string[]] };
+  }
+  const missingFields: string[] = [];
+  for (const f of EMAIL_REQUIRED_FIELDS) {
+    const v = settings[f];
+    if (v === null || v === undefined || v === "") missingFields.push(f as string);
+  }
+  return { configured: missingFields.length === 0, missingFields };
+}
+
+export async function getEmailConfigStatusForCompany(companyId?: number | null): Promise<EmailConfigStatus> {
+  const settings = companyId ? await storage.getCompanySettings(companyId) : null;
+  return getEmailConfigStatus(settings ?? null);
+}
+
 type CachedEntry = { transporter: Transporter; key: string };
 const transporterCache = new Map<number, CachedEntry>();
 

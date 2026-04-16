@@ -14,6 +14,7 @@ import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users,
 import DynamicFormFields from "./dynamic-form-fields";
 import ProfessionalContractDocument from "./professional-contract-document";
 import PaymentCalculatorAdvanced from "./payment-calculator-advanced";
+import EmailConfigBanner, { useEmailStatus } from "./email-config-banner";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF } from "@/lib/validation-utils";
 
 const contractFormSchema = z.object({
@@ -117,6 +118,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const { toast } = useToast();
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(contract?.templateId || null);
   const [sendImmediately, setSendImmediately] = useState(false);
+  const { data: emailStatus } = useEmailStatus();
+  const emailConfigured = emailStatus?.configured !== false;
   const [sendToEmail, setSendToEmail] = useState(contract?.sentToEmail || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPercentageMode, setIsPercentageMode] = useState(contract?.isPercentagePartnership || false);
@@ -265,9 +268,23 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       onClose();
     },
     onError: (error: any) => {
+      const raw = String(error?.message || "");
+      const cleaned = raw.replace(/^\d+:\s*/, "");
+      let description = cleaned;
+      let code: string | undefined;
+      try {
+        const parsed = JSON.parse(cleaned);
+        if (parsed?.message) description = parsed.message;
+        if (parsed?.code) code = parsed.code;
+      } catch {}
       toast({
-        title: isEditing ? "Errore nell'aggiornamento del contratto" : "Errore nella creazione del contratto",
-        description: error.message,
+        title:
+          code === "EMAIL_NOT_CONFIGURED"
+            ? "Email aziendale non configurata"
+            : isEditing
+            ? "Errore nell'aggiornamento del contratto"
+            : "Errore nella creazione del contratto",
+        description,
         variant: "destructive",
       });
     },
@@ -1380,13 +1397,23 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   </p>
                 </div>
 
+                {!emailConfigured && (
+                  <EmailConfigBanner compact className="mb-2" />
+                )}
+
                 <div
-                  className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
-                    sendImmediately
-                      ? "border-indigo-300 bg-indigo-50/30"
-                      : "border-gray-200 hover:border-gray-300"
+                  className={`p-5 rounded-xl border-2 transition-all duration-200 ${
+                    !emailConfigured
+                      ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-70"
+                      : sendImmediately
+                      ? "border-indigo-300 bg-indigo-50/30 cursor-pointer"
+                      : "border-gray-200 hover:border-gray-300 cursor-pointer"
                   }`}
-                  onClick={() => setSendImmediately(!sendImmediately)}
+                  onClick={() => {
+                    if (!emailConfigured) return;
+                    setSendImmediately(!sendImmediately);
+                  }}
+                  data-testid="toggle-send-immediately"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 mr-6">
@@ -1394,15 +1421,17 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         Invia immediatamente al cliente
                       </h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Il contratto verrà inviato subito dopo la generazione
+                        {emailConfigured
+                          ? "Il contratto verrà inviato subito dopo la generazione"
+                          : "Disponibile dopo aver configurato l'email aziendale"}
                       </p>
                     </div>
                     <div className="flex-shrink-0">
                       <div className={`w-14 h-7 rounded-full transition-all duration-300 relative ${
-                        sendImmediately ? "bg-indigo-600" : "bg-gray-200"
+                        emailConfigured && sendImmediately ? "bg-indigo-600" : "bg-gray-200"
                       }`}>
                         <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${
-                          sendImmediately ? "left-[30px]" : "left-0.5"
+                          emailConfigured && sendImmediately ? "left-[30px]" : "left-0.5"
                         }`} />
                       </div>
                     </div>
