@@ -12,8 +12,9 @@ import { insertCompanySettingsSchema } from "@shared/schema";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Save, Upload, MessageSquare, Mail, Settings, Send, CheckCircle2, XCircle, KeyRound, X } from "lucide-react";
+import { Building2, Save, Upload, MessageSquare, Mail, Settings, Send, CheckCircle2, XCircle, KeyRound, X, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { Link } from "wouter";
 import EmailConfigBanner from "@/components/email-config-banner";
 
 const settingsFormSchema = insertCompanySettingsSchema;
@@ -211,6 +212,12 @@ export default function CompanySettings() {
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="mb-6">
+        <Link href="/">
+          <Button variant="ghost" size="sm" className="mb-3 -ml-2" data-testid="button-back">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Torna alla dashboard
+          </Button>
+        </Link>
         <h1 className="text-3xl font-bold flex items-center">
           <Building2 className="mr-3 h-8 w-8" />
           Impostazioni Azienda
