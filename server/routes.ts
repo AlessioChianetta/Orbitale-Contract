@@ -5,7 +5,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, type InsertCoFillSession, type User } from "@shared/schema";
-import { resolveSelectedSections, renderSectionsHtml, SECTIONS_MARKER } from "@shared/sections";
+import { resolveSelectedSections, renderSectionsHtml, parseSelectedIds, SECTIONS_MARKER } from "@shared/sections";
 // @ts-ignore - no shipped types
 import cookie from "cookie";
 // @ts-ignore - no shipped types
@@ -434,7 +434,7 @@ export function registerRoutes(app: Express): Server {
         original.partnershipPercentage ? Number(original.partnershipPercentage) : undefined,
         original.contractStartDate ? original.contractStartDate.toISOString() : undefined,
         original.contractEndDate ? original.contractEndDate.toISOString() : undefined,
-        (original.selectedSectionIds as any) ?? null,
+        parseSelectedIds(original.selectedSectionIds),
       );
 
       const duplicatePayload = insertContractSchema.parse({
@@ -519,7 +519,7 @@ export function registerRoutes(app: Express): Server {
         contract.partnershipPercentage ? Number(contract.partnershipPercentage) : undefined,
         contract.contractStartDate ? contract.contractStartDate.toISOString() : undefined,
         contract.contractEndDate ? contract.contractEndDate.toISOString() : undefined,
-        (contract.selectedSectionIds as any) ?? null,
+        parseSelectedIds(contract.selectedSectionIds),
       );
 
       // For signed contracts, regenerate the sealed PDF FIRST so we can fail atomically
@@ -540,7 +540,10 @@ export function registerRoutes(app: Express): Server {
           generatedContent: newContent,
           clientData: contract.clientData,
           totalValue: contract.totalValue,
-          template,
+          // Unifichiamo la sorgente del corpo contratto: il PDF usa
+          // `template.content = generatedContent` così il rendering è
+          // identico a preview/client-view (sezioni modulari già risolte).
+          template: { ...template, content: newContent },
           status: "signed" as const,
           signatures: contract.signatures || {},
           signedAt: contract.signedAt,
@@ -1435,7 +1438,7 @@ export function registerRoutes(app: Express): Server {
         generatedContent: contract.generatedContent,
         clientData: contract.clientData,
         totalValue: contract.totalValue,
-        template: template,
+        template: template ? { ...template, content: contract.generatedContent } : template,
         status: "signed",
         signatures: contract.signatures || {},
         signedAt: contract.signedAt,

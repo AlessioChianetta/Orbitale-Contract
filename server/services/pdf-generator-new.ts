@@ -694,47 +694,19 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       </div>
       ` : ''}
 
-      <!-- 5b. SERVIZI INCLUSI (Sezioni Modulari) -->
-      ${(() => {
-        const resolved = resolveSelectedSections(
-          contractData.template?.sections,
-          contractData.selectedSectionIds
-        );
-        if (!resolved.length) return '';
-        const contentStr = contractData.template?.content || '';
-        if (contentStr.includes(SECTIONS_MARKER)) return '';
-        return `
-      <h2 class="section-header bonus">SERVIZI INCLUSI</h2>
-      <div>
-        ${resolved.map((sec) => `
-          <div class="bonus-item" style="page-break-inside: avoid;">
-            <p class="bonus-title">${sanitizeHtml(sec.title)}</p>
-            <div class="template-content" style="font-size: 10pt;">
-              ${sanitizeHtml(sec.content)}
-            </div>
-          </div>
-        `).join('')}
-      </div>`;
-      })()}
-
       <!-- 6. CORPO DEL CONTRATTO -->
-      ${hasContent ? (() => {
-        const rawContent: string = contractData.template.content;
-        let finalContent = rawContent;
-        if (rawContent.includes(SECTIONS_MARKER)) {
-          const resolved = resolveSelectedSections(
-            contractData.template?.sections,
-            contractData.selectedSectionIds
-          );
-          finalContent = rawContent.split(SECTIONS_MARKER).join(renderSectionsHtml(resolved));
-        }
-        return `
+      ${/* Sorgente unica: contractData.template.content contiene il
+          generatedContent già risolto dal server (placeholder sostituiti
+          + sezioni modulari iniettate in posizione deterministica prima
+          dei termini di pagamento, oppure al posto del marker
+          BLOCK:SECTIONS). Così PDF, preview e client-view rendono
+          identicamente lo stesso HTML finale. */''}
+      ${hasContent ? `
       <h2 class="section-header legal" style="page-break-before: auto;">CORPO DEL CONTRATTO</h2>
       <div class="template-content">
-        ${sanitizeHtml(finalContent)}
+        ${sanitizeHtml(contractData.template.content)}
       </div>
-      `;
-      })() : ''}
+      ` : ''}
 
       <!-- 7. BONUS INCLUSI -->
       ${hasBonuses ? `

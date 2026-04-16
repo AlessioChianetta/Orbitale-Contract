@@ -23,7 +23,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
-import { resolveSelectedSections } from "@shared/sections";
 
 // Componente per le aree di firma cliccabili con modalità avanzata
 function SignatureArea({
@@ -645,7 +644,14 @@ export default function ClientView() {
       mode="sign"
       companySettings={companySettings}
       clientData={clientData}
-      template={contract.template}
+      template={{
+        ...contract.template,
+        // Sorgente unica: usiamo `generatedContent` (HTML finale risolto
+        // dal server con placeholder e sezioni modulari già iniettate)
+        // così client-view, preview e PDF rendono identicamente.
+        content: (contract as { generatedContent?: string }).generatedContent
+          ?? contract.template?.content,
+      }}
       contract={{
         createdAt: contract.createdAt,
         signedAt: contract.signedAt,
@@ -659,10 +665,12 @@ export default function ClientView() {
       paymentPlan={paymentPlan}
       bonusList={bonusList}
       usingCustomInstallments={usingCustomInstallments}
-      sections={resolveSelectedSections(
-        (contract.template as { sections?: unknown } | null | undefined)?.sections,
-        (contract as { selectedSectionIds?: unknown }).selectedSectionIds
-      ).map((s) => ({ id: s.id, title: s.title, content: s.content }))}
+      /*
+       * `sections` prop non passato: il body del contratto in
+       * `template.content` è già il `generatedContent` con le sezioni
+       * modulari iniettate dal server. Passarle di nuovo causerebbe
+       * doppio rendering.
+       */
       signatureArea={
         <SignatureArea
           signatureId="marketing"
