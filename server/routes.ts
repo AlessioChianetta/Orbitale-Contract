@@ -1989,11 +1989,12 @@ Il presente accordo prevede un modello di partnership basato su una percentuale 
     if (Array.isArray(data)) {
       return data.map((item, index) => {
         let blockHtml = blockContent;
+        // Use literal-string replaceAll to avoid regex-meta pitfalls in placeholder keys.
         Object.keys(item).forEach(key => {
-          blockHtml = blockHtml.replace(new RegExp(`{{${key}}}`, 'g'), String(item[key]));
+          blockHtml = blockHtml.replaceAll(`{{${key}}}`, String(item[key] ?? ''));
         });
         // Add index-based replacements
-        blockHtml = blockHtml.replace(/{{rata_numero}}/g, String(index + 1));
+        blockHtml = blockHtml.replaceAll('{{rata_numero}}', String(index + 1));
         return blockHtml;
       }).join('');
     }
