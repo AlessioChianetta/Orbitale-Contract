@@ -16,6 +16,7 @@ interface AiContractWizardProps {
     customContent: string;
     paymentText: string;
     bonuses: any[];
+    sections?: any[];
     suggestedName?: string;
   }) => void;
 }
@@ -41,6 +42,7 @@ interface GeneratedContract {
   customContent: string;
   paymentText: string;
   bonuses: any[];
+  sections?: any[];
   suggestedName?: string;
 }
 

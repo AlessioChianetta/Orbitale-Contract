@@ -39,6 +39,7 @@ import AiContractChat from "./ai-contract-chat";
 import AiContractWizard from "./ai-contract-wizard";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
 import { getPartnershipContractHtml } from "@/data/partnership-contract-template";
+import { resolveSelectedSections, type ModularSection } from "@shared/sections";
 
 const templateFormSchema = insertContractTemplateSchema.omit({ createdBy: true });
 type TemplateForm = z.infer<typeof templateFormSchema>;
@@ -307,6 +308,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
     customContent: string;
     paymentText: string;
     bonuses: any[];
+    sections?: any[];
     suggestedName?: string;
   }) => {
     if (data.content) form.setValue("content", data.content);
@@ -314,6 +316,9 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
     if (data.paymentText) form.setValue("paymentText", data.paymentText);
     if (data.bonuses && data.bonuses.length > 0) {
       form.setValue("predefinedBonuses", data.bonuses);
+    }
+    if (Array.isArray(data.sections) && data.sections.length > 0) {
+      form.setValue("sections", data.sections as any);
     }
     if (data.suggestedName && !form.getValues("name")) {
       form.setValue("name", data.suggestedName);
@@ -463,6 +468,13 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                       >
                         <FileText className="h-3.5 w-3.5 mr-1.5" />
                         Contenuto
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="sections"
+                        className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
+                      >
+                        <List className="h-3.5 w-3.5 mr-1.5" />
+                        Sezioni Modulari
                       </TabsTrigger>
                       <TabsTrigger
                         value="bonuspay"
@@ -623,6 +635,158 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                     </div>
                   </TabsContent>
 
+                  <TabsContent value="sections" className="mt-0 space-y-6">
+                    <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      <div className="flex items-start justify-between gap-4 mb-1">
+                        <div>
+                          <h3 className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
+                            <List className="h-4 w-4 text-[#64748B]" />
+                            Sezioni Modulari
+                          </h3>
+                          <p className="text-sm text-[#94A3B8] mt-1">
+                            Definisci blocchi di testo opzionali (es. SEO, Gestione Social, Report mensile). Il venditore potrà sceglierli al momento della creazione del contratto.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isPending}
+                          onClick={() => {
+                            const current = ((form.watch("sections") as any[]) || []) as ModularSection[];
+                            const newSection: ModularSection = {
+                              id: `sec_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+                              title: "Nuova sezione",
+                              content: "<p>Contenuto della sezione...</p>",
+                              defaultEnabled: true,
+                              required: false,
+                              order: current.length,
+                            };
+                            form.setValue("sections", [...current, newSection] as any, { shouldDirty: true });
+                          }}
+                          className="rounded-xl border-[#E5E7EB] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700"
+                          data-testid="button-add-section"
+                        >
+                          + Aggiungi Sezione
+                        </Button>
+                      </div>
+
+                      <div className="mt-5 space-y-4">
+                        {(((form.watch("sections") as any[]) || []) as ModularSection[]).length === 0 && (
+                          <div className="text-center py-10 text-sm text-[#94A3B8] border border-dashed border-[#E5E7EB] rounded-xl">
+                            Nessuna sezione modulare definita. Aggiungi sezioni opzionali per rendere il template più flessibile.
+                          </div>
+                        )}
+                        {(((form.watch("sections") as any[]) || []) as ModularSection[]).map((sec, index) => {
+                          const updateSection = (patch: Partial<ModularSection>) => {
+                            const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
+                            current[index] = { ...current[index], ...patch };
+                            form.setValue("sections", current as any, { shouldDirty: true });
+                          };
+                          const removeSection = () => {
+                            const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
+                            current.splice(index, 1);
+                            form.setValue("sections", current as any, { shouldDirty: true });
+                          };
+                          const moveSection = (dir: -1 | 1) => {
+                            const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
+                            const to = index + dir;
+                            if (to < 0 || to >= current.length) return;
+                            [current[index], current[to]] = [current[to], current[index]];
+                            form.setValue("sections", current as any, { shouldDirty: true });
+                          };
+                          return (
+                            <div
+                              key={sec.id}
+                              className="rounded-xl border border-[#E5E7EB] bg-[#FAFBFC] p-4"
+                              data-testid={`section-editor-${sec.id}`}
+                            >
+                              <div className="flex items-center gap-2 mb-3">
+                                <Input
+                                  value={sec.title}
+                                  onChange={(e) => updateSection({ title: e.target.value })}
+                                  disabled={isPending}
+                                  placeholder="Titolo sezione"
+                                  className="flex-1 rounded-lg border-[#E5E7EB]"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={isPending}
+                                  onClick={() => moveSection(-1)}
+                                  className="h-8 w-8 p-0"
+                                  title="Sposta su"
+                                >
+                                  ↑
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={isPending}
+                                  onClick={() => moveSection(1)}
+                                  className="h-8 w-8 p-0"
+                                  title="Sposta giù"
+                                >
+                                  ↓
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={isPending}
+                                  onClick={removeSection}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  title="Elimina sezione"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                <Input
+                                  value={sec.description || ""}
+                                  onChange={(e) => updateSection({ description: e.target.value })}
+                                  disabled={isPending}
+                                  placeholder="Descrizione breve (opzionale)"
+                                  className="rounded-lg border-[#E5E7EB] text-sm"
+                                />
+                                <div className="flex items-center gap-4 pl-1">
+                                  <label className="flex items-center gap-2 text-xs text-[#475569]">
+                                    <Switch
+                                      checked={!!sec.defaultEnabled}
+                                      onCheckedChange={(v) => updateSection({ defaultEnabled: v })}
+                                      disabled={isPending || !!sec.required}
+                                    />
+                                    Attiva di default
+                                  </label>
+                                  <label className="flex items-center gap-2 text-xs text-[#475569]">
+                                    <Switch
+                                      checked={!!sec.required}
+                                      onCheckedChange={(v) =>
+                                        updateSection({ required: v, defaultEnabled: v ? true : sec.defaultEnabled })
+                                      }
+                                      disabled={isPending}
+                                    />
+                                    Obbligatoria
+                                  </label>
+                                </div>
+                              </div>
+                              <Textarea
+                                value={sec.content}
+                                onChange={(e) => updateSection({ content: e.target.value })}
+                                disabled={isPending}
+                                rows={6}
+                                placeholder="Contenuto HTML della sezione..."
+                                className="rounded-lg border-[#E5E7EB] font-mono text-xs"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </TabsContent>
+
                   <TabsContent value="bonuspay" className="mt-0 space-y-8">
                     <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                       <h3 className="text-base font-semibold text-[#0F172A] mb-4 flex items-center gap-2">
@@ -678,6 +842,10 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                               bonus_descrizione: bonus.description + (bonus.value ? ` (${bonus.value}${bonus.type === 'percentage' ? '%' : '€'})` : '')
                             }))
                           }
+                          sections={resolveSelectedSections(
+                            ((form.watch("sections") as any[]) || []) as ModularSection[],
+                            null
+                          ).map((s) => ({ id: s.id, title: s.title, content: s.content }))}
                         />
                       </div>
                     </div>

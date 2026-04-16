@@ -5,6 +5,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, type InsertCoFillSession, type User } from "@shared/schema";
+import { resolveSelectedSections, renderSectionsHtml, SECTIONS_MARKER } from "@shared/sections";
 // @ts-ignore - no shipped types
 import cookie from "cookie";
 // @ts-ignore - no shipped types
@@ -107,6 +108,7 @@ export function registerRoutes(app: Express): Server {
     renewalDuration: z.number().int().positive().optional(),
     contractStartDate: z.string().optional(),
     contractEndDate: z.string().optional(),
+    selectedSectionIds: z.array(z.string()).optional(),
   });
 
   app.post("/api/contracts/preview", requireAuth, async (req, res) => {
@@ -127,6 +129,7 @@ export function registerRoutes(app: Express): Server {
         input.partnershipPercentage ?? undefined,
         input.contractStartDate,
         input.contractEndDate,
+        input.selectedSectionIds ?? null,
       );
       const settings = await storage.getCompanySettings(req.user.companyId);
       const safeSettings = settings
@@ -431,6 +434,7 @@ export function registerRoutes(app: Express): Server {
         original.partnershipPercentage ? Number(original.partnershipPercentage) : undefined,
         original.contractStartDate ? original.contractStartDate.toISOString() : undefined,
         original.contractEndDate ? original.contractEndDate.toISOString() : undefined,
+        (original.selectedSectionIds as any) ?? null,
       );
 
       const duplicatePayload = insertContractSchema.parse({
@@ -451,6 +455,7 @@ export function registerRoutes(app: Express): Server {
         renewalDuration: original.renewalDuration ?? 12,
         isPercentagePartnership: original.isPercentagePartnership ?? false,
         partnershipPercentage: original.partnershipPercentage,
+        selectedSectionIds: original.selectedSectionIds ?? [],
         pdfPath: null,
       });
 
@@ -514,6 +519,7 @@ export function registerRoutes(app: Express): Server {
         contract.partnershipPercentage ? Number(contract.partnershipPercentage) : undefined,
         contract.contractStartDate ? contract.contractStartDate.toISOString() : undefined,
         contract.contractEndDate ? contract.contractEndDate.toISOString() : undefined,
+        (contract.selectedSectionIds as any) ?? null,
       );
 
       // For signed contracts, regenerate the sealed PDF FIRST so we can fail atomically
@@ -545,6 +551,7 @@ export function registerRoutes(app: Express): Server {
           renewalDuration: contract.renewalDuration,
           isPercentagePartnership: contract.isPercentagePartnership,
           partnershipPercentage: contract.partnershipPercentage,
+          selectedSectionIds: contract.selectedSectionIds,
           regenerationNotice,
         };
         try {
@@ -645,7 +652,8 @@ export function registerRoutes(app: Express): Server {
         req.body.isPercentagePartnership,
         req.body.partnershipPercentage,
         req.body.contractStartDate,
-        req.body.contractEndDate
+        req.body.contractEndDate,
+        req.body.selectedSectionIds ?? existingContract.selectedSectionIds ?? null,
       );
 
       // Validate the updated contract data
@@ -769,7 +777,8 @@ export function registerRoutes(app: Express): Server {
         req.body.isPercentagePartnership,
         req.body.partnershipPercentage,
         req.body.contractStartDate,
-        req.body.contractEndDate
+        req.body.contractEndDate,
+        req.body.selectedSectionIds ?? null,
       );
 
       // Now validate the complete contract data including generated content
@@ -1255,7 +1264,8 @@ export function registerRoutes(app: Express): Server {
         autoRenewal: contract.autoRenewal,
         renewalDuration: contract.renewalDuration,
         isPercentagePartnership: contract.isPercentagePartnership,
-        partnershipPercentage: contract.partnershipPercentage
+        partnershipPercentage: contract.partnershipPercentage,
+        selectedSectionIds: contract.selectedSectionIds,
       };
 
       let finalPdfPath: string;
@@ -1434,7 +1444,8 @@ export function registerRoutes(app: Express): Server {
         autoRenewal: contract.autoRenewal,
         renewalDuration: contract.renewalDuration,
         isPercentagePartnership: contract.isPercentagePartnership,
-        partnershipPercentage: contract.partnershipPercentage
+        partnershipPercentage: contract.partnershipPercentage,
+        selectedSectionIds: contract.selectedSectionIds,
       };
 
       const finalPdfPath = await generatePDF(contractId, contract.generatedContent, auditLogs, contractForPdf, pdfCompanySettings);
@@ -1896,9 +1907,21 @@ async function generateContractContent(
   isPercentagePartnership?: boolean,
   partnershipPercentage?: number | null,
   contractStartDate?: string,
-  contractEndDate?: string
+  contractEndDate?: string,
+  selectedSectionIds?: string[] | null
 ): Promise<string> {
   let content = templateContent;
+
+  // Inject modular sections. If template has a <!-- BLOCK:SECTIONS --> marker we
+  // replace it in place; otherwise the resolved HTML is appended so legacy
+  // placeholder-based templates still include the selected services.
+  const resolvedSections = resolveSelectedSections(template?.sections, selectedSectionIds ?? null);
+  const sectionsHtml = renderSectionsHtml(resolvedSections);
+  if (content.includes(SECTIONS_MARKER)) {
+    content = content.replaceAll(SECTIONS_MARKER, sectionsHtml);
+  } else if (sectionsHtml) {
+    content = sectionsHtml + "\n" + content;
+  }
 
   // Combine predefined bonuses from template with manual bonuses from client data
   let combinedBonusList = [];

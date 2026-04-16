@@ -146,6 +146,7 @@ export class DatabaseStorage implements IStorage {
             paymentText: contractTemplates.paymentText,
             predefinedBonuses: contractTemplates.predefinedBonuses,
             paymentOptions: contractTemplates.paymentOptions,
+            sections: contractTemplates.sections,
             isActive: contractTemplates.isActive,
             createdBy: contractTemplates.createdBy,
             createdAt: contractTemplates.createdAt,
@@ -176,6 +177,7 @@ export class DatabaseStorage implements IStorage {
           paymentText: contractTemplates.paymentText,
           predefinedBonuses: contractTemplates.predefinedBonuses,
           paymentOptions: contractTemplates.paymentOptions,
+          sections: contractTemplates.sections,
           isActive: contractTemplates.isActive,
           createdBy: contractTemplates.createdBy,
           createdAt: contractTemplates.createdAt,
@@ -303,6 +305,7 @@ export class DatabaseStorage implements IStorage {
         paymentText: result.template.paymentText,
         predefinedBonuses: result.template.predefinedBonuses,
         paymentOptions: result.template.paymentOptions,
+        sections: result.template.sections,
         isActive: result.template.isActive
       } : null
     };

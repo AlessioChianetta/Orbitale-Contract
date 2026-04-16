@@ -19,6 +19,7 @@ import MissingDataPanel from "./missing-data-panel";
 import CoFillDialog from "./co-fill-dialog";
 import { REQUIRED_CLIENT_FIELDS, type RequiredClientField } from "@/lib/required-client-fields";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF } from "@/lib/validation-utils";
+import { resolveSelectedSections, type ModularSection } from "@shared/sections";
 
 const contractFormSchema = z.object({
   templateId: z.number().min(1, "Seleziona un template"),
@@ -60,6 +61,7 @@ const contractFormSchema = z.object({
   contractEndDate: z.string().min(1, "Data fine contratto richiesta"),
   isPercentagePartnership: z.boolean().default(false),
   partnershipPercentage: z.number().min(0.01).max(100).optional(),
+  selectedSectionIds: z.array(z.string()).default([]).optional(),
 }).refine((data) => {
   if (data.isPercentagePartnership) {
     return data.partnershipPercentage !== undefined && data.partnershipPercentage > 0;
@@ -218,6 +220,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       contractEndDate: contract?.contractEndDate ? new Date(contract.contractEndDate).toISOString().split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to 1 year from now
       isPercentagePartnership: contract?.isPercentagePartnership || false,
       partnershipPercentage: contract?.partnershipPercentage || undefined,
+      selectedSectionIds: (contract as any)?.selectedSectionIds || undefined,
       clientData: contract?.clientData || {
         societa: "",
         sede: "",
@@ -262,6 +265,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         totalValue: data.totalValue ? Math.round(data.totalValue * 100) : null,
         isPercentagePartnership: data.isPercentagePartnership || false,
         partnershipPercentage: data.partnershipPercentage || null,
+        selectedSectionIds: data.selectedSectionIds ?? [],
       };
 
       setIsSubmitting(true);
@@ -372,6 +376,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         renewalDuration: values.renewalDuration,
         contractStartDate: values.contractStartDate,
         contractEndDate: values.contractEndDate,
+        selectedSectionIds: values.selectedSectionIds ?? [],
       };
       const res = await apiRequest("POST", "/api/contracts/preview", payload);
       const data = await res.json();
@@ -1470,6 +1475,72 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               </div>
             </div>
 
+            {/* Section 4b: Sezioni modulari (servizi opzionali dal template) */}
+            {Array.isArray((selectedTemplate as any)?.sections) && (selectedTemplate as any).sections.length > 0 && (
+              <div id="section-modular-sections" className="border-t border-gray-100 pt-8 mt-8">
+                <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-2">
+                  <Gift className="mr-3 h-5 w-5 text-sky-600" />
+                  Servizi Inclusi
+                </h3>
+                <p className="text-sm text-slate-500 mb-6">
+                  Seleziona le sezioni che vuoi includere in questo contratto. Le sezioni obbligatorie sono sempre incluse.
+                </p>
+                <div className="space-y-3">
+                  {((selectedTemplate as any).sections as ModularSection[]).map((sec) => {
+                    const selectedIds: string[] = form.watch("selectedSectionIds") ?? [];
+                    const initialized = Array.isArray(form.getValues("selectedSectionIds"));
+                    const isSelected = sec.required
+                      ? true
+                      : initialized
+                      ? selectedIds.includes(sec.id)
+                      : !!sec.defaultEnabled;
+                    return (
+                      <label
+                        key={sec.id}
+                        className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition ${
+                          isSelected
+                            ? "border-sky-400 bg-sky-50/60"
+                            : "border-gray-200 bg-white hover:bg-gray-50"
+                        } ${sec.required ? "opacity-90" : ""}`}
+                        data-testid={`section-modular-${sec.id}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                          checked={isSelected}
+                          disabled={!!sec.required || createContractMutation.isPending}
+                          onChange={(e) => {
+                            const current: string[] = Array.isArray(form.getValues("selectedSectionIds"))
+                              ? [...(form.getValues("selectedSectionIds") as string[])]
+                              : ((selectedTemplate as any).sections as ModularSection[])
+                                  .filter((s) => s.required || s.defaultEnabled)
+                                  .map((s) => s.id);
+                            const next = e.target.checked
+                              ? Array.from(new Set([...current, sec.id]))
+                              : current.filter((id) => id !== sec.id);
+                            form.setValue("selectedSectionIds", next, { shouldDirty: true });
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-slate-800 text-sm">{sec.title}</span>
+                            {sec.required && (
+                              <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-700 bg-sky-100 px-2 py-0.5 rounded">
+                                Obbligatoria
+                              </span>
+                            )}
+                          </div>
+                          {sec.description && (
+                            <p className="text-xs text-slate-500 mt-1">{sec.description}</p>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Section 5: Bonus */}
             <div id="section-bonus" className="border-t border-gray-100 pt-8 mt-8">
               <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
@@ -1737,6 +1808,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   paymentPlan={paymentPlan}
                   bonusList={bonusList}
                   usingCustomInstallments={usingCustomInstallments}
+                  sections={resolveSelectedSections(
+                    (previewData.template as any)?.sections,
+                    values.selectedSectionIds ?? null
+                  ).map((s) => ({ id: s.id, title: s.title, content: s.content }))}
                 />
               </div>
 

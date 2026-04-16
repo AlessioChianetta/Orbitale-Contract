@@ -67,6 +67,15 @@ interface ProfessionalContractDocumentProps {
   }>;
   bonusList?: Array<{ bonus_descrizione: string }>;
   usingCustomInstallments?: boolean;
+  /**
+   * Modular sections selected for this contract, already resolved from
+   * `template.sections` + `contract.selectedSectionIds` by the caller.
+   */
+  sections?: Array<{
+    id: string;
+    title: string;
+    content: string;
+  }>;
   signatureArea?: React.ReactNode;
   afterDocumentContent?: React.ReactNode;
   /**
@@ -118,6 +127,7 @@ export default function ProfessionalContractDocument({
   paymentPlan,
   bonusList,
   usingCustomInstallments,
+  sections: modularSections,
   signatureArea,
   afterDocumentContent,
   hidePlaceholders,
@@ -134,6 +144,7 @@ export default function ProfessionalContractDocument({
   const isPartnership =
     contract?.isPercentagePartnership && contract?.partnershipPercentage;
   const hasBonuses = bonusList && bonusList.length > 0;
+  const hasModularSections = !!(modularSections && modularSections.length > 0);
   const hasCustomContent = !!template?.customContent;
   const hasPaymentText = !!template?.paymentText;
   const hasContent = !!template?.content;
@@ -158,6 +169,12 @@ export default function ProfessionalContractDocument({
         title: "Condizioni di Pagamento",
         icon: Euro,
       });
+    if (hasModularSections)
+      s.push({
+        id: "servizi-inclusi",
+        title: "Servizi Inclusi",
+        icon: Gift,
+      });
     if (hasContent)
       s.push({
         id: "corpo-contratto",
@@ -178,6 +195,7 @@ export default function ProfessionalContractDocument({
     isPartnership,
     hasPaymentText,
     hasContent,
+    hasModularSections,
     hasBonuses,
   ]);
 
@@ -600,6 +618,30 @@ export default function ProfessionalContractDocument({
                 __html: template!.paymentText!,
               }}
             />
+          </section>
+        )}
+
+        {hasModularSections && (
+          <section data-section="servizi-inclusi" className="space-y-4">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-sky-500 pl-4">
+              SERVIZI INCLUSI
+            </h2>
+            <div className="space-y-6">
+              {modularSections!.map((sec) => (
+                <div
+                  key={sec.id}
+                  className="p-4 rounded-r-xl border-l-4 border-sky-500 bg-gradient-to-br from-sky-50/80 to-blue-50/40"
+                >
+                  <h3 className="text-base font-semibold text-sky-900 mb-2">
+                    {sec.title}
+                  </h3>
+                  <div
+                    className="text-sm text-slate-700 leading-relaxed [&_p]:mb-3 [&_p]:leading-relaxed [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:mb-1.5 [&_strong]:font-semibold [&_strong]:text-slate-900"
+                    dangerouslySetInnerHTML={{ __html: sec.content }}
+                  />
+                </div>
+              ))}
+            </div>
           </section>
         )}
 

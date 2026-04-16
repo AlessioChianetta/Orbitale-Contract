@@ -327,7 +327,7 @@ export async function guidedContractWizard(
 export async function generateContractFromAI(
   summary: any,
   additionalInstructions?: string
-): Promise<{ content: string; customContent: string; paymentText: string; bonuses: any[] }> {
+): Promise<{ content: string; customContent: string; paymentText: string; bonuses: any[]; sections: any[] }> {
   const client = getClient();
 
   const prompt = `Genera un contratto professionale completo basato su queste informazioni:
@@ -346,8 +346,20 @@ Rispondi con un JSON valido con questa struttura:
     {"description": "Descrizione bonus 1", "value": "100", "type": "fixed"},
     {"description": "Descrizione bonus 2", "value": "10", "type": "percentage"}
   ],
+  "sections": [
+    {
+      "id": "sec_seo",
+      "title": "Ottimizzazione SEO",
+      "description": "Attività SEO on-page e off-page",
+      "content": "<p>Dettagli del servizio SEO incluso...</p>",
+      "defaultEnabled": true,
+      "required": false
+    }
+  ],
   "suggestedName": "Nome suggerito per il template"
-}`;
+}
+
+Nota su "sections": sono blocchi MODULARI OPZIONALI che il venditore potrà attivare/disattivare per-cliente (es. "Gestione Social", "Report Mensile", "Consulenza Strategica"). Genera da 2 a 5 sezioni coerenti con il tipo di contratto. Ogni sezione deve avere id univoco (slug snake_case), titolo, descrizione breve, contenuto HTML autocontenuto. Usa defaultEnabled true per quelle tipiche, required true solo se strettamente indispensabile.`;
 
   const response = await client.models.generateContent({
     model: GEMINI_MODEL,
@@ -365,14 +377,27 @@ Rispondi con un JSON valido con questa struttura:
 
   try {
     const parsed = JSON.parse(responseText);
+    const rawSections = Array.isArray(parsed.sections) ? parsed.sections : [];
+    const sections = rawSections
+      .filter((s: any) => s && typeof s === "object" && typeof s.title === "string" && typeof s.content === "string")
+      .map((s: any, idx: number) => ({
+        id: typeof s.id === "string" && s.id.trim() ? s.id.trim() : `sec_${Date.now().toString(36)}_${idx}`,
+        title: String(s.title),
+        description: typeof s.description === "string" ? s.description : undefined,
+        content: String(s.content),
+        defaultEnabled: s.defaultEnabled !== false,
+        required: !!s.required,
+      }));
     return {
       content: parsed.content || "",
       customContent: parsed.customContent || "",
       paymentText: parsed.paymentText || "",
       bonuses: parsed.bonuses || [],
+      sections,
     };
   } catch {
     return {
+      sections: [],
       content: responseText,
       customContent: "",
       paymentText: "",

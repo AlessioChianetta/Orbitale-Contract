@@ -27,6 +27,7 @@ export const contractTemplates = pgTable("contract_templates", {
     maxInstallments: 36,
     paymentFrequencies: ["monthly", "quarterly", "annual"]
   }),
+  sections: jsonb("sections").default([]), // Array of modular sections: { id, title, content (HTML), defaultEnabled, required, order }
   isActive: boolean("is_active").default(true),
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
@@ -55,6 +56,7 @@ export const contracts = pgTable("contracts", {
   renewalDuration: integer("renewal_duration").default(12), // Duration in months
   isPercentagePartnership: boolean("is_percentage_partnership").default(false), // New: Partnership type
   partnershipPercentage: numeric("partnership_percentage", { precision: 5, scale: 2 }), // New: Revenue percentage (e.g., 15.50%)
+  selectedSectionIds: jsonb("selected_section_ids").default([]), // Array of section IDs selected for this contract
   isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

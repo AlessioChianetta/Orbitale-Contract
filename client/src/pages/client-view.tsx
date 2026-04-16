@@ -23,6 +23,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
+import { resolveSelectedSections } from "@shared/sections";
 
 // Componente per le aree di firma cliccabili con modalità avanzata
 function SignatureArea({
@@ -658,6 +659,10 @@ export default function ClientView() {
       paymentPlan={paymentPlan}
       bonusList={bonusList}
       usingCustomInstallments={usingCustomInstallments}
+      sections={resolveSelectedSections(
+        (contract.template as any)?.sections,
+        (contract as any).selectedSectionIds
+      ).map((s) => ({ id: s.id, title: s.title, content: s.content }))}
       signatureArea={
         <SignatureArea
           signatureId="marketing"
