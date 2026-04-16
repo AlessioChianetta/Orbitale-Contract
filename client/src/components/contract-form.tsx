@@ -389,9 +389,6 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   };
 
   const onSubmit = (data: ContractForm) => {
-    console.log("Form submitted with data:", data);
-    console.log("Form errors:", form.formState.errors);
-    
     // Filter out empty bonus and payment entries
     const filteredData = {
       ...data,
@@ -424,11 +421,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       },
     };
 
-    console.log("Filtered data being sent:", filteredData);
     createContractMutation.mutate(filteredData);
   };
-
-  console.log("Templates loaded:", templates);
 
   const currentTotalValue = form.watch("totalValue") || 0;
   const currentIsPercentageMode = form.watch("isPercentagePartnership") || false;
@@ -1290,7 +1284,6 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                       <PaymentCalculatorAdvanced
                         totalAmount={currentTotalValue}
                         onPaymentPlanChange={(paymentPlan) => {
-                          console.log("Calcolo automatico completato:", paymentPlan);
                           form.setValue("clientData.payment_plan", paymentPlan);
                         }}
                       />
