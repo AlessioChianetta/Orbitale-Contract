@@ -212,7 +212,7 @@ export default function CompanySettings() {
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="mb-6">
-        <Link href="/">
+        <Link href={user?.role === "admin" ? "/admin" : "/seller"}>
           <Button variant="ghost" size="sm" className="mb-3 -ml-2" data-testid="button-back">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Torna alla dashboard
