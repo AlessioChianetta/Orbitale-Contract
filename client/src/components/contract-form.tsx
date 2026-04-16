@@ -442,6 +442,23 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const watchedClientData = form.watch("clientData");
 
   // ====================================================================
+  // Reset della selezione sezioni modulari quando l'utente cambia template
+  // (solo in modalità creazione; se stiamo modificando un contratto esistente
+  // rispettiamo le selezioni persistite).
+  const watchedTemplateId = form.watch("templateId");
+  const prevTemplateIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (isEditing) return;
+    if (prevTemplateIdRef.current === null) {
+      prevTemplateIdRef.current = watchedTemplateId;
+      return;
+    }
+    if (prevTemplateIdRef.current !== watchedTemplateId) {
+      prevTemplateIdRef.current = watchedTemplateId;
+      form.setValue("selectedSectionIds", undefined as any, { shouldDirty: false });
+    }
+  }, [watchedTemplateId, isEditing, form]);
+
   // Co-fill WebSocket: connect when seller has an active token, mirror data
   // ====================================================================
   useEffect(() => {

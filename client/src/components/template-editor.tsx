@@ -33,6 +33,7 @@ import {
   CheckCircle,
   AlertCircle,
   Download,
+  GripVertical,
 } from "lucide-react";
 import BonusManager from "./bonus-manager";
 import AiContractChat from "./ai-contract-chat";
@@ -237,6 +238,8 @@ export default function TemplateEditor({ template, onClose }: TemplateEditorProp
   const isEditing = !!template;
   const [activeTab, setActiveTab] = useState("info");
   const [aiTab, setAiTab] = useState("wizard");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [sectionPreview, setSectionPreview] = useState<Record<string, boolean>>({});
 
   const form = useForm<TemplateForm>({
     resolver: zodResolver(templateFormSchema),
@@ -698,13 +701,48 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                             [current[index], current[to]] = [current[to], current[index]];
                             form.setValue("sections", reindex(current) as any, { shouldDirty: true });
                           };
+                          const reorderTo = (from: number, to: number) => {
+                            if (from === to || from < 0 || to < 0) return;
+                            const current = ([...(((form.watch("sections") as any[]) || []) as ModularSection[])]);
+                            if (from >= current.length || to >= current.length) return;
+                            const [moved] = current.splice(from, 1);
+                            current.splice(to, 0, moved);
+                            form.setValue("sections", reindex(current) as any, { shouldDirty: true });
+                          };
+                          const isPreviewing = !!sectionPreview[sec.id];
                           return (
                             <div
                               key={sec.id}
-                              className="rounded-xl border border-[#E5E7EB] bg-[#FAFBFC] p-4"
+                              draggable={!isPending}
+                              onDragStart={(e) => {
+                                setDragIndex(index);
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = "move";
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                if (dragIndex !== null && dragIndex !== index) {
+                                  reorderTo(dragIndex, index);
+                                }
+                                setDragIndex(null);
+                              }}
+                              onDragEnd={() => setDragIndex(null)}
+                              className={`rounded-xl border border-[#E5E7EB] bg-[#FAFBFC] p-4 transition ${
+                                dragIndex === index ? "opacity-60 ring-2 ring-indigo-300" : ""
+                              }`}
                               data-testid={`section-editor-${sec.id}`}
                             >
                               <div className="flex items-center gap-2 mb-3">
+                                <span
+                                  className="cursor-grab active:cursor-grabbing text-[#94A3B8] hover:text-[#475569] shrink-0"
+                                  title="Trascina per riordinare"
+                                  data-testid={`drag-handle-${sec.id}`}
+                                >
+                                  <GripVertical className="h-4 w-4" />
+                                </span>
                                 <Input
                                   value={sec.title}
                                   onChange={(e) => updateSection({ title: e.target.value })}
@@ -775,14 +813,49 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                                   </label>
                                 </div>
                               </div>
-                              <Textarea
-                                value={sec.content}
-                                onChange={(e) => updateSection({ content: e.target.value })}
-                                disabled={isPending}
-                                rows={6}
-                                placeholder="Contenuto HTML della sezione..."
-                                className="rounded-lg border-[#E5E7EB] font-mono text-xs"
-                              />
+                              <div className="rounded-lg border border-[#E5E7EB] overflow-hidden bg-white">
+                                <div className="flex items-center justify-end gap-1 px-2 py-1.5 bg-[#F8FAFC] border-b border-[#E5E7EB]">
+                                  <div className="flex items-center bg-white rounded-full p-0.5 border border-[#E5E7EB]">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSectionPreview((p) => ({ ...p, [sec.id]: false }))}
+                                      className={`flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-medium rounded-full transition ${
+                                        !isPreviewing ? "bg-indigo-50 text-indigo-700" : "text-[#64748B]"
+                                      }`}
+                                      data-testid={`section-code-${sec.id}`}
+                                    >
+                                      <Code className="h-3 w-3" />
+                                      Codice
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSectionPreview((p) => ({ ...p, [sec.id]: true }))}
+                                      className={`flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-medium rounded-full transition ${
+                                        isPreviewing ? "bg-indigo-50 text-indigo-700" : "text-[#64748B]"
+                                      }`}
+                                      data-testid={`section-preview-${sec.id}`}
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                      Anteprima
+                                    </button>
+                                  </div>
+                                </div>
+                                {isPreviewing ? (
+                                  <div
+                                    className="p-4 min-h-[140px] prose prose-sm max-w-none text-sm text-slate-700"
+                                    dangerouslySetInnerHTML={{ __html: sec.content || "<em>Nessun contenuto</em>" }}
+                                  />
+                                ) : (
+                                  <Textarea
+                                    value={sec.content}
+                                    onChange={(e) => updateSection({ content: e.target.value })}
+                                    disabled={isPending}
+                                    rows={6}
+                                    placeholder="Contenuto HTML della sezione..."
+                                    className="rounded-none border-0 font-mono text-xs focus-visible:ring-0"
+                                  />
+                                )}
+                              </div>
                               {!sec.content || !sec.content.trim() ? (
                                 <p className="mt-2 text-xs text-amber-600 flex items-center gap-1.5" data-testid={`warn-empty-${sec.id}`}>
                                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
