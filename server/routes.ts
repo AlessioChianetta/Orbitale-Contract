@@ -1836,16 +1836,26 @@ async function generateContractContent(
     combinedBonusList = [...combinedBonusList, ...clientData.bonus_list];
   }
 
-  // Format dates for display
+  // Format dates for display.
+  // - YYYY-MM-DD (date-only) strings are parsed as local dates to avoid the UTC-midnight
+  //   shift that would push the day back by one in positive UTC offsets.
+  // - Full timestamps are formatted in Europe/Rome so CET/CEST is correct year-round.
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+    if (dateOnly) {
+      const [, y, m, d] = dateOnly;
+      const months = ['gennaio','febbraio','marzo','aprile','maggio','giugno',
+                      'luglio','agosto','settembre','ottobre','novembre','dicembre'];
+      return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
+    }
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('it-IT', { 
-        day: '2-digit', 
-        month: 'long', 
-        year: 'numeric' 
-      });
+      if (isNaN(date.getTime())) return dateString;
+      return new Intl.DateTimeFormat('it-IT', {
+        day: '2-digit', month: 'long', year: 'numeric',
+        timeZone: 'Europe/Rome'
+      }).format(date);
     } catch {
       return dateString;
     }
@@ -1855,26 +1865,13 @@ async function generateContractContent(
   const usingCustomInstallments = clientData.rata_list && Array.isArray(clientData.rata_list) && clientData.rata_list.length > 0;
   const paymentPlanData = usingCustomInstallments ? clientData.rata_list : clientData.payment_plan || [];
 
-  // Format payment plan for template
+  // Format payment plan for template. Reuses the shared formatDate helper so the
+  // YYYY-MM-DD / UTC-shift and Europe/Rome timezone handling stay consistent.
   const formattedPaymentPlan = paymentPlanData.map((payment: any, index: number) => {
-    const formatPaymentDate = (dateString: string) => {
-      if (!dateString) return '';
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('it-IT', { 
-          day: '2-digit', 
-          month: 'long', 
-          year: 'numeric' 
-        });
-      } catch {
-        return dateString;
-      }
-    };
-
     return {
       rata_numero: index + 1,
       rata_importo: payment.rata_importo || payment.amount || '0.00',
-      rata_scadenza: formatPaymentDate(payment.rata_scadenza || payment.date || '')
+      rata_scadenza: formatDate(payment.rata_scadenza || payment.date || '')
     };
   });
 
