@@ -81,14 +81,29 @@ interface ProfessionalContractDocumentProps {
 function formatDateSafe(dateString?: string | Date): string {
   if (!dateString) return "";
   try {
+    // YYYY-MM-DD (date-only) va trattato come data locale, altrimenti
+    // `new Date("2026-04-16")` crea la mezzanotte UTC e, in timezone a ovest
+    // di Roma, può retrocedere di un giorno nella visualizzazione.
+    if (typeof dateString === "string") {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+      if (m) {
+        const [, y, mo, d] = m;
+        const months = [
+          "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+          "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+        ];
+        return `${d} ${months[parseInt(mo, 10) - 1]} ${y}`;
+      }
+    }
     const date =
       typeof dateString === "string" ? new Date(dateString) : dateString;
     if (isNaN(date.getTime())) return "";
-    return date.toLocaleDateString("it-IT", {
+    return new Intl.DateTimeFormat("it-IT", {
       day: "2-digit",
       month: "long",
       year: "numeric",
-    });
+      timeZone: "Europe/Rome",
+    }).format(date);
   } catch {
     return "";
   }

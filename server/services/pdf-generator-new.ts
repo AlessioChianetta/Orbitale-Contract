@@ -71,6 +71,18 @@ export async function closePdfBrowser(): Promise<void> {
 function formatDateSafe(dateString?: string | Date): string {
   if (!dateString) return '';
   try {
+    // Stringhe YYYY-MM-DD (date-only) trattate come data locale italiana:
+    // altrimenti `new Date("2026-04-16")` diventa mezzanotte UTC e in alcuni
+    // contesti può slittare di un giorno. Usiamo un parser esplicito.
+    if (typeof dateString === 'string') {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+      if (m) {
+        const [, y, mo, d] = m;
+        const months = ['gennaio','febbraio','marzo','aprile','maggio','giugno',
+                        'luglio','agosto','settembre','ottobre','novembre','dicembre'];
+        return `${d} ${months[parseInt(mo, 10) - 1]} ${y}`;
+      }
+    }
     const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
     if (isNaN(date.getTime())) return '';
     return new Intl.DateTimeFormat('it-IT', {
