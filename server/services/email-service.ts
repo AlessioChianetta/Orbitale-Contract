@@ -139,7 +139,7 @@ function buildFrom(displayName: string, address: string): string {
   return `"${safeName.replace(/"/g, "'")}" <${address}>`;
 }
 
-function getBaseUrl(): string {
+export function getBaseUrl(): string {
   // 1) Override esplicito (dominio custom o configurazione manuale)
   const explicit = process.env.BASE_URL || process.env.DEV_URL;
   if (explicit) return explicit.replace(/\/$/, "");
@@ -201,6 +201,85 @@ export async function sendContractEmail(
     console.error("❌ SMTP error (sendContractEmail):", error?.message || error);
     throw new Error(`Failed to send contract email: ${error?.message || error}`);
   }
+}
+
+export async function sendCoFillLinkEmail(opts: {
+  companyId: number;
+  to: string;
+  link: string;
+  clientName?: string | null;
+}): Promise<{ messageId?: string }> {
+  const { companyId, to, link, clientName } = opts;
+  if (!to || !/.+@.+\..+/.test(to)) {
+    throw new Error("Indirizzo email destinatario non valido.");
+  }
+  if (!link) {
+    throw new Error("Link co-fill mancante.");
+  }
+  const settings = await loadSettingsForCompany(companyId);
+  if (!settings) {
+    throw new Error("Impostazioni azienda non trovate per il tenant corrente.");
+  }
+  const { transporter, fromAddress, fromName } = getTransporterForCompany(settings);
+
+  const safeName = (clientName || "").trim() || "Cliente";
+  const subject = `Compila i tuoi dati per il contratto — ${fromName}`;
+  const html = renderCoFillLinkHtml({ clientName: safeName, link, senderName: fromName });
+  const text =
+    `Ciao ${safeName},\n\n` +
+    `${fromName} ti chiede di compilare alcuni dati per preparare il tuo contratto.\n` +
+    `Apri questo link sicuro dal tuo dispositivo per inserire le informazioni:\n${link}\n\n` +
+    `Il link è personale: non condividerlo con altre persone.`;
+
+  try {
+    const info = await transporter.sendMail({
+      from: buildFrom(fromName, fromAddress),
+      to,
+      subject,
+      html,
+      text,
+    });
+    console.log("✅ Email link co-fill inviata, messageId:", info.messageId);
+    return { messageId: info.messageId };
+  } catch (error: any) {
+    console.error("❌ SMTP error (sendCoFillLinkEmail):", error?.message || error);
+    throw enrichSmtpError(error, settings.smtpHost ?? "", settings.smtpPort ?? 0);
+  }
+}
+
+function renderCoFillLinkHtml(opts: { clientName: string; link: string; senderName: string }): string {
+  const { clientName, link, senderName } = opts;
+  return `
+    <!DOCTYPE html>
+    <html><head><style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background-color: #4F46E5; color: white; padding: 20px; text-align: center; }
+      .content { padding: 20px; background-color: #f9f9f9; }
+      .button { display: inline-block; background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+      .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+    </style></head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>${escapeHtml(senderName)}</h1>
+          <p>Compila i tuoi dati in pochi minuti</p>
+        </div>
+        <div class="content">
+          <h2>Ciao ${escapeHtml(clientName)},</h2>
+          <p>Per preparare il tuo contratto abbiamo bisogno di alcuni dati. Apri il link qui sotto dal tuo dispositivo e compila i campi richiesti: vedremo le informazioni in tempo reale e potremo aiutarti se serve.</p>
+          <div style="text-align: center;">
+            <a href="${escapeHtml(link)}" class="button">Compila i miei dati</a>
+          </div>
+          <p style="font-size: 12px; word-break: break-all;">Se il pulsante non funziona, copia e incolla questo link nel browser:<br/><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>
+          <p><em>Questo link è personale e sicuro. Non condividerlo con altre persone.</em></p>
+        </div>
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} ${escapeHtml(senderName)}. Tutti i diritti riservati.</p>
+        </div>
+      </div>
+    </body></html>
+  `;
 }
 
 export async function sendTestEmail(companyId: number, to: string): Promise<{ messageId?: string }> {

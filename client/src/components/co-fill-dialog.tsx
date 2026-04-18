@@ -3,9 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, Link as LinkIcon, X, Loader2, MessageCircle, QrCode, Wifi } from "lucide-react";
+import { Copy, Check, Link as LinkIcon, X, Loader2, MessageCircle, QrCode, Wifi, Mail, Send } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import EmailConfigBanner, { useEmailStatus } from "@/components/email-config-banner";
 
 interface CoFillDialogProps {
   open: boolean;
@@ -26,6 +27,11 @@ export default function CoFillDialog({
   const [creating, setCreating] = useState(false);
   const [terminating, setTerminating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [emailFormOpen, setEmailFormOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const { data: emailStatus } = useEmailStatus();
+  const emailConfigured = emailStatus?.configured ?? true;
 
   const link = useMemo(() => {
     if (!activeToken) return "";
@@ -43,7 +49,39 @@ export default function CoFillDialog({
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }, [link]);
 
-  useEffect(() => { if (!open) setCopied(false); }, [open]);
+  useEffect(() => {
+    if (!open) {
+      setCopied(false);
+      setEmailFormOpen(false);
+      setEmailTo("");
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && !emailTo) {
+      const prefill = initialData?.email;
+      if (typeof prefill === "string" && prefill.trim()) setEmailTo(prefill.trim());
+    }
+  }, [open, initialData, emailTo]);
+
+  const sendLinkByEmail = async () => {
+    if (!activeToken) return;
+    const trimmed = emailTo.trim();
+    if (!trimmed || !/.+@.+\..+/.test(trimmed)) {
+      toast({ title: "Email non valida", description: "Inserisci un indirizzo email corretto.", variant: "destructive" });
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      await apiRequest("POST", `/api/co-fill/sessions/${activeToken}/email`, { email: trimmed });
+      toast({ title: "Email inviata", description: `Link spedito a ${trimmed}.` });
+      setEmailFormOpen(false);
+    } catch (e: any) {
+      toast({ title: "Invio non riuscito", description: e?.message || "Riprova.", variant: "destructive" });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   const startSession = async () => {
     setCreating(true);
@@ -139,14 +177,65 @@ export default function CoFillDialog({
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <a href={whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center h-10 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm text-slate-700">
+              <a href={whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center h-10 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm text-slate-700" data-testid="link-cofill-whatsapp">
                 <MessageCircle className="h-4 w-4 mr-2 text-emerald-600" /> Invia su WhatsApp
               </a>
-              <Button variant="outline" onClick={endSession} disabled={terminating} className="h-10 rounded-xl text-red-600 hover:text-red-700">
-                {terminating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}
-                Termina sessione
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEmailFormOpen((v) => !v)}
+                disabled={!emailConfigured}
+                className="h-10 rounded-xl text-indigo-700 hover:text-indigo-800"
+                data-testid="button-cofill-email-toggle"
+              >
+                <Mail className="h-4 w-4 mr-2" /> Invia via email
               </Button>
             </div>
+
+            {!emailConfigured && (
+              <EmailConfigBanner compact />
+            )}
+
+            {emailFormOpen && emailConfigured && (
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 space-y-2">
+                <label className="text-xs font-medium text-slate-700">Email del cliente</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="email"
+                    inputMode="email"
+                    placeholder="cliente@esempio.it"
+                    value={emailTo}
+                    onChange={(e) => setEmailTo(e.target.value)}
+                    className="h-10 rounded-xl text-sm"
+                    data-testid="input-cofill-email"
+                  />
+                  <Button
+                    type="button"
+                    onClick={sendLinkByEmail}
+                    disabled={sendingEmail || !emailTo.trim()}
+                    className="h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700"
+                    data-testid="button-cofill-email-send"
+                  >
+                    {sendingEmail ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                    Invia
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Invieremo un'email con una breve introduzione e il link per compilare i dati.
+                </p>
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              onClick={endSession}
+              disabled={terminating}
+              className="w-full h-10 rounded-xl text-red-600 hover:text-red-700"
+              data-testid="button-cofill-end"
+            >
+              {terminating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}
+              Termina sessione
+            </Button>
           </div>
         )}
       </DialogContent>

@@ -11,7 +11,7 @@ import cookie from "cookie";
 // @ts-ignore - no shipped types
 import signature from "cookie-signature";
 import { generatePDF } from "./services/pdf-generator-new";
-import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany } from "./services/email-service";
+import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, getBaseUrl } from "./services/email-service";
 import { generateOTP, sendOTP } from "./services/otp-service";
 import { nanoid } from "nanoid";
 import path from "path";
@@ -1715,6 +1715,106 @@ export function registerRoutes(app: Express): Server {
       res.json({ message: "Session terminated" });
     } catch (error) {
       res.status(500).json({ message: "Failed to terminate session" });
+    }
+  });
+
+  // Send the co-fill link to the client via the tenant's SMTP pipeline
+  app.post("/api/co-fill/sessions/:token/email", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const bodySchema = z.object({
+        email: z.string().email("Email non valida"),
+      });
+      const parsed = bodySchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Body non valido" });
+      }
+
+      const sess = await storage.getCoFillSessionByToken(req.params.token);
+      if (!sess || sess.companyId !== user.companyId || sess.sellerId !== user.id) {
+        return res.status(404).json({ message: "Sessione non trovata" });
+      }
+      if (sess.status !== "active") {
+        return res.status(410).json({ message: "Sessione non più attiva" });
+      }
+      if (sess.expiresAt < new Date()) {
+        return res.status(410).json({ message: "Sessione scaduta" });
+      }
+
+      const emailStatus = await getEmailConfigStatusForCompany(user.companyId);
+      if (!emailStatus.configured) {
+        return res.status(412).json({
+          message: "Configurazione email aziendale incompleta. Completa le impostazioni SMTP per inviare il link via email.",
+          missingFields: emailStatus.missingFields,
+        });
+      }
+
+      const link = `${getBaseUrl()}/co-fill/${sess.token}`;
+
+      const currentData = (sess.currentData as Record<string, any>) || {};
+      const clientName = currentData.cliente_nome || currentData.nome || null;
+
+      try {
+        const result = await sendCoFillLinkEmail({
+          companyId: user.companyId,
+          to: parsed.data.email,
+          link,
+          clientName,
+        });
+
+        if (sess.contractId) {
+          try {
+            await storage.createAuditLog({
+              contractId: sess.contractId,
+              action: "co_fill_link_emailed",
+              userAgent: req.get("User-Agent"),
+              ipAddress: getRealClientIP(req),
+              metadata: {
+                token: sess.token,
+                sentTo: parsed.data.email,
+                sellerId: user.id,
+                messageId: result.messageId,
+                at: new Date().toISOString(),
+              },
+            });
+          } catch (auditErr) {
+            console.error("⚠️  Failed to write co-fill email audit log:", auditErr);
+          }
+        }
+
+        coFillAudit("link_emailed", {
+          token: sess.token,
+          sellerId: user.id,
+          companyId: user.companyId,
+          to: parsed.data.email,
+        });
+
+        res.json({ message: "Email inviata", to: parsed.data.email });
+      } catch (sendErr: any) {
+        console.error("Co-fill email send error:", sendErr);
+        if (sess.contractId) {
+          try {
+            await storage.createAuditLog({
+              contractId: sess.contractId,
+              action: "co_fill_link_email_failed",
+              userAgent: req.get("User-Agent"),
+              ipAddress: getRealClientIP(req),
+              metadata: {
+                token: sess.token,
+                attemptedTo: parsed.data.email,
+                error: sendErr?.message || String(sendErr),
+                at: new Date().toISOString(),
+              },
+            });
+          } catch (auditErr) {
+            console.error("⚠️  Failed to write co-fill email failure audit log:", auditErr);
+          }
+        }
+        res.status(502).json({ message: sendErr?.message || "Invio email non riuscito" });
+      }
+    } catch (error) {
+      console.error("Co-fill email endpoint error:", error);
+      res.status(500).json({ message: "Errore durante l'invio del link via email" });
     }
   });
 
