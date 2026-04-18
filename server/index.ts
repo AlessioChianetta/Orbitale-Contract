@@ -60,7 +60,7 @@ app.use((req, res, next) => {
   }
 
   // Use PORT from environment if set (e.g. on VPS), otherwise default to 5000
-  const port = parseInt(process.env.PORT || "5000", 10);
+  const port = parseInt(process.env.PORT || "5003", 10);
   server.listen({
     port,
     host: "0.0.0.0",
