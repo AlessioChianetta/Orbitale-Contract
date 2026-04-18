@@ -142,7 +142,7 @@ export const ITALIAN_PROVINCES: string[] = [
   "GE","GO","GR","IM","IS","SP","AQ","LT","LE","LC","LI","LO","LU","MC","MN","MS","MT","ME","MI",
   "MO","MB","NA","NO","NU","OR","PD","PA","PR","PV","PG","PU","PE","PC","PI","PT","PN","PZ","PO",
   "RG","RA","RC","RE","RI","RN","RM","RO","SA","SS","SV","SI","SR","SO","SU","TA","TE","TR","TO",
-  "TP","TN","TV","TS","UD","VA","VE","VB","VC","VR","VV","VI","VT",
+  "TP","TN","TV","TS","UD","VA","VE","VB","VC","VR","VV","VI","VT","OT","OG",
 ];
 
 // Detect if input is VAT or Tax Code

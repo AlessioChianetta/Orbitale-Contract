@@ -522,15 +522,18 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const watchIndirizzoForCopy = form.watch("clientData.indirizzo");
   useEffect(() => {
     if (!watchStessoIndirizzo) return;
-    const cur = form.getValues("clientData") as any;
-    if (cur.residente_a !== (watchSedeForCopy || "")) {
-      form.setValue("clientData.residente_a", (watchSedeForCopy || "") as any, { shouldDirty: true, shouldValidate: true });
+    const cur = form.getValues("clientData");
+    const sede = watchSedeForCopy || "";
+    const provSede = watchProvinciaSedeForCopy || "";
+    const indirizzo = watchIndirizzoForCopy || "";
+    if (cur.residente_a !== sede) {
+      form.setValue("clientData.residente_a", sede, { shouldDirty: true, shouldValidate: true });
     }
-    if (cur.provincia_residenza !== (watchProvinciaSedeForCopy || "")) {
-      form.setValue("clientData.provincia_residenza", (watchProvinciaSedeForCopy || "") as any, { shouldDirty: true });
+    if (cur.provincia_residenza !== provSede) {
+      form.setValue("clientData.provincia_residenza", provSede, { shouldDirty: true });
     }
-    if (cur.indirizzo_residenza !== (watchIndirizzoForCopy || "")) {
-      form.setValue("clientData.indirizzo_residenza", (watchIndirizzoForCopy || "") as any, { shouldDirty: true, shouldValidate: true });
+    if (cur.indirizzo_residenza !== indirizzo) {
+      form.setValue("clientData.indirizzo_residenza", indirizzo, { shouldDirty: true, shouldValidate: true });
     }
   }, [watchStessoIndirizzo, watchSedeForCopy, watchProvinciaSedeForCopy, watchIndirizzoForCopy, form]);
 
@@ -1141,9 +1144,13 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         disabled={createContractMutation.isPending}
                         className={`${inputClass} ${coFillFieldClass("email")}`}
                       />
-                      {form.formState.errors.clientData?.email && (
+                      {form.formState.errors.clientData?.email ? (
                         <p className="text-sm text-red-600 mt-1">
                           {form.formState.errors.clientData.email.message}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Usiamo questa email per inviarti il contratto da firmare.
                         </p>
                       )}
                     </div>

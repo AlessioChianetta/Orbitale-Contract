@@ -367,6 +367,9 @@ export default function CoFillPage() {
                 placeholder="email@esempio.com"
                 className={inputCls("email")}
               />
+              <p className="text-xs text-slate-500 mt-1">
+                Usiamo questa email per inviarti il contratto da firmare.
+              </p>
             </div>
 
             {!isPrivato && (
