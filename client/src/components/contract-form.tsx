@@ -734,7 +734,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     form.setValue("templateId", templateId);
                     setSelectedTemplateId(templateId);
                   }}
-                  disabled={createContractMutation.isPending || isEditing}
+                  disabled={createContractMutation.isPending || (isEditing && contract?.status !== "draft")}
                 >
                   <SelectTrigger className={`${inputClass} mt-1`}>
                     <SelectValue placeholder="Seleziona un template di contratto" />
