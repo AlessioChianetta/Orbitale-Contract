@@ -1655,7 +1655,7 @@ export function registerRoutes(app: Express): Server {
           contractCode: nanoid(16),
           status: "draft",
           coFillToken: token,
-        } as any);
+        });
         contractId = draft.id;
         await storage.createAuditLog({
           contractId: draft.id,
@@ -1666,7 +1666,7 @@ export function registerRoutes(app: Express): Server {
         });
       } else {
         // Reusing an existing contract: tag it with the new token so list UI can find it
-        await storage.updateContract(contractId, { coFillToken: token } as any);
+        await storage.updateContract(contractId, { coFillToken: token });
       }
 
       const insert: InsertCoFillSession = {
@@ -1914,7 +1914,7 @@ export function registerRoutes(app: Express): Server {
             // Mirror into the linked draft contract so the data survives reloads
             if (current.contractId) {
               try {
-                await storage.updateContract(current.contractId, { clientData: merged } as any);
+                await storage.updateContract(current.contractId, { clientData: merged });
               } catch (e) {
                 console.error("Failed to mirror co-fill update to contract", e);
               }

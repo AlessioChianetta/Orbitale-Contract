@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { REQUIRED_CLIENT_FIELDS, getMissingClientFields } from "@/lib/required-client-fields";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -570,15 +571,34 @@ export default function SellerDashboard() {
                       <div className="hidden sm:flex justify-center">
                         <div className="flex flex-col items-center gap-1">
                           {getStatusBadge(contract.status, contract.isArchived)}
-                          {contract.coFillToken && contract.status === "draft" && !contract.isArchived && (
-                            <span
-                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-indigo-50 text-indigo-600 border border-indigo-100"
-                              title="Bozza compilata dal cliente in tempo reale"
-                            >
-                              <Wifi className="h-3 w-3" />
-                              Co-fill
-                            </span>
-                          )}
+                          {contract.coFillToken && contract.status === "draft" && !contract.isArchived && (() => {
+                            const cd = (contract.clientData || {}) as Record<string, unknown>;
+                            const totalRequired = REQUIRED_CLIENT_FIELDS.length;
+                            const missing = getMissingClientFields(cd as Record<string, any>).length;
+                            const filled = totalRequired - missing;
+                            let label = "In attesa cliente";
+                            let cls = "bg-amber-50 text-amber-700 border-amber-100";
+                            let title = "Link co-fill generato, in attesa che il cliente compili";
+                            if (missing === 0) {
+                              label = "Pronto da inviare";
+                              cls = "bg-emerald-50 text-emerald-700 border-emerald-100";
+                              title = "Tutti i dati cliente sono compilati: puoi rivedere e inviare";
+                            } else if (filled > 0) {
+                              label = "Cliente sta compilando";
+                              cls = "bg-indigo-50 text-indigo-700 border-indigo-100";
+                              title = `Compilati ${filled} su ${totalRequired} campi richiesti`;
+                            }
+                            return (
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border ${cls}`}
+                                title={title}
+                                data-testid={`badge-cofill-${contract.id}`}
+                              >
+                                <Wifi className="h-3 w-3" />
+                                {label}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
 
