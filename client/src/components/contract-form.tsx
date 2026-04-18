@@ -412,10 +412,14 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       return;
     }
     const cd: any = values.clientData || {};
-    if (!cd.societa || !cd.cliente_nome || !cd.email) {
+    const isPrivato = (cd.tipo_cliente || "azienda") === "privato";
+    const referenteOk = isPrivato ? true : !!cd.cliente_nome;
+    if (!cd.societa || !referenteOk || !cd.email) {
       toast({
         title: "Compila i dati cliente",
-        description: "Servono almeno società, nome del referente ed email del cliente per generare l'anteprima.",
+        description: isPrivato
+          ? "Servono almeno cognome e nome del cliente ed email per generare l'anteprima."
+          : "Servono almeno società, nome del referente ed email del cliente per generare l'anteprima.",
         variant: "destructive",
       });
       scrollToSection("section-client");
