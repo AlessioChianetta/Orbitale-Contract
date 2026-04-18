@@ -4,8 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Wifi, WifiOff, ShieldCheck } from "lucide-react";
-import { REQUIRED_CLIENT_FIELDS } from "@/lib/required-client-fields";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Wifi, WifiOff, ShieldCheck, AlertTriangle } from "lucide-react";
+import { SYNCED_FIELD_KEYS, type ClientType } from "@/lib/required-client-fields";
+import {
+  validateItalianMobile,
+  looksLikeAddress,
+  ITALIAN_PROVINCES,
+  validateCodiceFiscale,
+  detectVATorCF,
+  validatePartitaIva,
+} from "@/lib/validation-utils";
 
 type SessionInfo = {
   token: string;
@@ -14,18 +23,12 @@ type SessionInfo = {
   companyName: string;
 };
 
-const FIELD_TYPE: Record<string, string> = {
-  email: "email",
-  cellulare: "tel",
-  data_nascita: "date",
-};
-
 export default function CoFillPage() {
   const { token } = useParams<{ token: string }>();
   const [info, setInfo] = useState<SessionInfo | null>(null);
   const [loadError, setLoadError] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<Record<string, string>>({});
+  const [data, setData] = useState<Record<string, any>>({});
   const [highlight, setHighlight] = useState<Record<string, number>>({});
   const [connected, setConnected] = useState(false);
   const [sellerOnline, setSellerOnline] = useState(false);
@@ -122,17 +125,29 @@ export default function CoFillPage() {
     ws.send(JSON.stringify({ type: "update", field, value }));
   };
 
-  const onChange = (field: string, value: string) => {
+  const onChange = (field: string, value: any) => {
     setData((prev) => ({ ...prev, [field]: value }));
     if (debouncersRef.current[field]) clearTimeout(debouncersRef.current[field]);
     debouncersRef.current[field] = setTimeout(() => sendUpdate(field, value), 350);
   };
 
+  // Effetto: stesso indirizzo → ribalta sede→residenza
+  const stessoIndirizzo = !!data.stesso_indirizzo;
+  useEffect(() => {
+    if (!stessoIndirizzo) return;
+    const updates: Record<string, any> = {};
+    if ((data.residente_a ?? "") !== (data.sede ?? "")) updates.residente_a = data.sede ?? "";
+    if ((data.provincia_residenza ?? "") !== (data.provincia_sede ?? "")) updates.provincia_residenza = data.provincia_sede ?? "";
+    if ((data.indirizzo_residenza ?? "") !== (data.indirizzo ?? "")) updates.indirizzo_residenza = data.indirizzo ?? "";
+    if (Object.keys(updates).length > 0) {
+      setData((prev) => ({ ...prev, ...updates }));
+      for (const k of Object.keys(updates)) sendUpdate(k, updates[k]);
+    }
+  }, [stessoIndirizzo, data.sede, data.provincia_sede, data.indirizzo]);
+
   const expiresLabel = useMemo(() => {
     if (!info?.expiresAt) return "";
-    try {
-      return new Date(info.expiresAt).toLocaleString("it-IT");
-    } catch { return ""; }
+    try { return new Date(info.expiresAt).toLocaleString("it-IT"); } catch { return ""; }
   }, [info?.expiresAt]);
 
   if (loading) {
@@ -174,6 +189,33 @@ export default function CoFillPage() {
     );
   }
 
+  const tipoCliente: ClientType = data.tipo_cliente === "privato" ? "privato" : "azienda";
+  const isPrivato = tipoCliente === "privato";
+
+  // Calcola validità inline (non bloccanti — il venditore vede e conferma)
+  const cellulareVal = (data.cellulare || "") as string;
+  const cellulareInvalid = cellulareVal.length > 0 && !validateItalianMobile(cellulareVal);
+
+  const pivaVal = ((data.p_iva || "") as string).toUpperCase().replace(/\s/g, "");
+  let pivaWarning = "";
+  if (pivaVal.length > 0) {
+    if (isPrivato) {
+      if (!validateCodiceFiscale(pivaVal)) pivaWarning = "Codice Fiscale non valido (16 caratteri).";
+    } else {
+      const t = detectVATorCF(pivaVal);
+      if (t === "vat" && !validatePartitaIva(pivaVal)) pivaWarning = "Partita IVA non valida.";
+      else if (t === "cf" && !validateCodiceFiscale(pivaVal)) pivaWarning = "Codice Fiscale non valido.";
+      else if (t === "unknown") pivaWarning = "Formato non riconosciuto.";
+    }
+  }
+
+  const inputCls = (field: string) =>
+    `h-11 rounded-xl transition-all duration-300 ${
+      highlight[field]
+        ? "border-2 border-violet-500 ring-2 ring-violet-200 bg-violet-50"
+        : "border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+    }`;
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white">
@@ -203,36 +245,267 @@ export default function CoFillPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 py-8">
+      <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+        {/* Toggle tipo cliente */}
         <Card className="rounded-2xl shadow-sm border border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-lg">Dati anagrafici</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {REQUIRED_CLIENT_FIELDS.map((f) => {
-              const isHl = !!highlight[f.key];
-              return (
-                <div key={f.key}>
-                  <Label className="text-sm font-medium text-slate-700 mb-1.5 block">
-                    {f.label}
-                  </Label>
-                  <Input
-                    type={FIELD_TYPE[f.key] || "text"}
-                    value={data[f.key] ?? ""}
-                    onChange={(e) => onChange(f.key, e.target.value)}
-                    className={`h-11 rounded-xl transition-all duration-300 ${
-                      isHl
-                        ? "border-2 border-violet-500 ring-2 ring-violet-200 bg-violet-50"
-                        : "border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                    }`}
-                  />
-                </div>
-              );
-            })}
+          <CardContent className="pt-6">
+            <Label className="text-sm font-medium text-slate-700 mb-2 block">Sei un'azienda o un privato?</Label>
+            <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-xl w-fit" data-testid="toggle-tipo-cliente-cofill">
+              {(["azienda", "privato"] as const).map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => onChange("tipo_cliente", opt)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    tipoCliente === opt
+                      ? "bg-white text-indigo-700 shadow-sm"
+                      : "text-slate-600 hover:text-slate-800"
+                  }`}
+                  data-testid={`button-tipo-${opt}-cofill`}
+                >
+                  {opt === "azienda" ? "Azienda" : "Privato"}
+                </button>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
-        <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+        {/* Dati azienda / privato */}
+        <Card className="rounded-2xl shadow-sm border border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg">{isPrivato ? "Dati cliente privato" : "Dati Azienda/Società"}</CardTitle>
+            <p className="text-xs text-slate-500 mt-1">
+              {isPrivato
+                ? "Servono per identificare il firmatario del contratto."
+                : "Dati fiscali dell'azienda intestataria del contratto."}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">
+                {isPrivato ? "Cognome e Nome" : "Nome società"}
+              </Label>
+              <Input
+                value={data.societa ?? ""}
+                onChange={(e) => onChange("societa", e.target.value)}
+                placeholder={isPrivato ? "Es. Mario Rossi" : "Nome della società"}
+                className={inputCls("societa")}
+              />
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">
+                {isPrivato ? "Città" : "Città sede legale"}
+              </Label>
+              <div className="grid grid-cols-[1fr_90px] gap-2">
+                <Input
+                  value={data.sede ?? ""}
+                  onChange={(e) => onChange("sede", e.target.value)}
+                  placeholder="Es. Milano"
+                  className={inputCls("sede")}
+                />
+                <Select value={(data.provincia_sede || "") as string} onValueChange={(v) => onChange("provincia_sede", v)}>
+                  <SelectTrigger className={inputCls("provincia_sede")}><SelectValue placeholder="PR" /></SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {ITALIAN_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {looksLikeAddress((data.sede || "") as string) && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Sembra un indirizzo. Inserisci solo la città (es. "Milano"), l'indirizzo va sotto.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Indirizzo</Label>
+              <Input
+                value={data.indirizzo ?? ""}
+                onChange={(e) => onChange("indirizzo", e.target.value)}
+                placeholder="Via, numero civico, CAP"
+                className={inputCls("indirizzo")}
+              />
+              {(data.indirizzo || "").length > 0 && !looksLikeAddress((data.indirizzo || "") as string) && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Inserisci via e numero civico (es. "Via Roma 12, 20100").
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">
+                {isPrivato ? "Codice Fiscale" : "Codice Fiscale / P.IVA"}
+              </Label>
+              <Input
+                value={data.p_iva ?? ""}
+                onChange={(e) => onChange("p_iva", e.target.value.toUpperCase().replace(/\s/g, ""))}
+                placeholder={isPrivato ? "16 caratteri" : "Codice Fiscale o Partita IVA"}
+                className={inputCls("p_iva")}
+              />
+              {pivaWarning && <p className="text-xs text-red-600 mt-1">{pivaWarning}</p>}
+            </div>
+
+            {!isPrivato && (
+              <div>
+                <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Codice Univoco / SDI (opzionale)</Label>
+                <Input
+                  value={data.codice_univoco ?? ""}
+                  onChange={(e) => onChange("codice_univoco", e.target.value)}
+                  placeholder="7 caratteri"
+                  className={inputCls("codice_univoco")}
+                />
+              </div>
+            )}
+
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Email</Label>
+              <Input
+                type="email" inputMode="email" autoComplete="email"
+                value={data.email ?? ""}
+                onChange={(e) => onChange("email", e.target.value)}
+                placeholder="email@esempio.com"
+                className={inputCls("email")}
+              />
+            </div>
+
+            {!isPrivato && (
+              <div>
+                <Label className="text-sm font-medium text-slate-700 mb-1.5 block">PEC (opzionale)</Label>
+                <Input
+                  value={data.pec ?? ""}
+                  onChange={(e) => onChange("pec", e.target.value)}
+                  placeholder="pec@esempio.com"
+                  className={inputCls("pec")}
+                />
+              </div>
+            )}
+
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Cellulare</Label>
+              <Input
+                type="tel" inputMode="tel" autoComplete="tel"
+                value={data.cellulare ?? ""}
+                onChange={(e) => onChange("cellulare", e.target.value)}
+                placeholder="+39 333 123 4567"
+                className={inputCls("cellulare")}
+              />
+              {cellulareInvalid ? (
+                <p className="text-xs text-red-600 mt-1">Inserisci un cellulare italiano valido.</p>
+              ) : (
+                <p className="text-xs text-slate-500 mt-1">Es. 333 123 4567 o +39 333 123 4567.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Dati anagrafici */}
+        <Card className="rounded-2xl shadow-sm border border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg">{isPrivato ? "Dati anagrafici" : "Dati del referente"}</CardTitle>
+            <p className="text-xs text-slate-500 mt-1">
+              {isPrivato
+                ? "Servono per la firma del contratto."
+                : "Dati di chi firmerà il contratto a nome dell'azienda."}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none" data-testid="checkbox-stesso-indirizzo-cofill">
+              <input
+                type="checkbox"
+                checked={stessoIndirizzo}
+                onChange={(e) => onChange("stesso_indirizzo", e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="text-sm text-slate-700">
+                {isPrivato
+                  ? "La residenza coincide con l'indirizzo sopra"
+                  : "La residenza del referente coincide con l'indirizzo dell'azienda"}
+              </span>
+            </label>
+
+            {!isPrivato && (
+              <div>
+                <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Nome e cognome del referente</Label>
+                <Input
+                  value={data.cliente_nome ?? ""}
+                  onChange={(e) => onChange("cliente_nome", e.target.value)}
+                  placeholder="Es. Mario Rossi"
+                  className={inputCls("cliente_nome")}
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Nato a</Label>
+                <Input
+                  value={data.nato_a ?? ""}
+                  onChange={(e) => onChange("nato_a", e.target.value)}
+                  placeholder="Luogo di nascita"
+                  className={inputCls("nato_a")}
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Data di nascita</Label>
+                <Input
+                  type="date"
+                  value={data.data_nascita ?? ""}
+                  onChange={(e) => onChange("data_nascita", e.target.value)}
+                  className={inputCls("data_nascita")}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Città di residenza</Label>
+              <div className="grid grid-cols-[1fr_90px] gap-2">
+                <Input
+                  value={data.residente_a ?? ""}
+                  onChange={(e) => onChange("residente_a", e.target.value)}
+                  placeholder="Es. Milano"
+                  disabled={stessoIndirizzo}
+                  className={`${inputCls("residente_a")} ${stessoIndirizzo ? "bg-slate-50" : ""}`}
+                />
+                <Select
+                  value={(data.provincia_residenza || "") as string}
+                  onValueChange={(v) => onChange("provincia_residenza", v)}
+                  disabled={stessoIndirizzo}
+                >
+                  <SelectTrigger className={`${inputCls("provincia_residenza")} ${stessoIndirizzo ? "bg-slate-50" : ""}`}>
+                    <SelectValue placeholder="PR" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {ITALIAN_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {!stessoIndirizzo && looksLikeAddress((data.residente_a || "") as string) && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Sembra un indirizzo. Inserisci solo la città.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Indirizzo di residenza</Label>
+              <Input
+                value={data.indirizzo_residenza ?? ""}
+                onChange={(e) => onChange("indirizzo_residenza", e.target.value)}
+                placeholder="Via, numero civico, CAP"
+                disabled={stessoIndirizzo}
+                className={`${inputCls("indirizzo_residenza")} ${stessoIndirizzo ? "bg-slate-50" : ""}`}
+              />
+              {!stessoIndirizzo && (data.indirizzo_residenza || "").length > 0 && !looksLikeAddress((data.indirizzo_residenza || "") as string) && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Inserisci via e numero civico.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center gap-2 text-xs text-slate-500">
           <ShieldCheck className="h-4 w-4 text-emerald-600" />
           I dati restano riservati: visibili solo al venditore con cui stai parlando.
         </div>
@@ -241,11 +514,12 @@ export default function CoFillPage() {
   );
 }
 
-function normalizeData(d: Record<string, any>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const f of REQUIRED_CLIENT_FIELDS) {
-    const v = d?.[f.key];
-    out[f.key] = v == null ? "" : String(v);
+function normalizeData(d: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const key of SYNCED_FIELD_KEYS) {
+    const v = d?.[key];
+    if (v === undefined || v === null) continue;
+    out[key] = v;
   }
   return out;
 }

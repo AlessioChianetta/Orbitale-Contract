@@ -17,8 +17,8 @@ import PaymentCalculatorAdvanced from "./payment-calculator-advanced";
 import EmailConfigBanner, { useEmailStatus } from "./email-config-banner";
 import MissingDataPanel from "./missing-data-panel";
 import CoFillDialog from "./co-fill-dialog";
-import { REQUIRED_CLIENT_FIELDS, type RequiredClientField } from "@/lib/required-client-fields";
-import { validatePartitaIva, validateCodiceFiscale, detectVATorCF } from "@/lib/validation-utils";
+import { REQUIRED_CLIENT_FIELDS, SYNCED_FIELD_KEYS, getRequiredClientFields, getClientType, type RequiredClientField, type ClientType } from "@/lib/required-client-fields";
+import { validatePartitaIva, validateCodiceFiscale, detectVATorCF, validateItalianMobile, looksLikeAddress, ITALIAN_PROVINCES } from "@/lib/validation-utils";
 import { resolveSelectedSections, defaultSelectedIds, parseSections, type ModularSection } from "@shared/sections";
 
 function getTemplateSections(t: unknown): ModularSection[] {
@@ -28,22 +28,31 @@ function getTemplateSections(t: unknown): ModularSection[] {
 const contractFormSchema = z.object({
   templateId: z.number().min(1, "Seleziona un template"),
   clientData: z.object({
-    // Company/Client info
-    societa: z.string().min(1, "Nome società richiesto"),
-    sede: z.string().min(1, "Sede richiesta"),
+    // Tipo cliente: "azienda" (default) o "privato"
+    tipo_cliente: z.enum(["azienda", "privato"]).default("azienda"),
+
+    // Company/Client info (per privato: societa = "Cognome e Nome")
+    societa: z.string().min(1, "Campo richiesto"),
+    sede: z.string().min(1, "Città richiesta"),
+    provincia_sede: z.string().optional(),
     indirizzo: z.string().min(1, "Indirizzo richiesto"),
     p_iva: z.string().min(1, "Codice Fiscale/P.IVA richiesto"),
     pec: z.string().optional(),
     email: z.string().email("Email non valida"),
-    cellulare: z.string().min(1, "Numero di cellulare richiesto"),
+    cellulare: z.string().min(1, "Numero di cellulare richiesto").refine(
+      (v) => validateItalianMobile(v),
+      "Inserisci un cellulare italiano valido (es. +39 333 123 4567)",
+    ),
     codice_univoco: z.string().optional(),
 
     // Personal info
-    cliente_nome: z.string().min(1, "Nome referente richiesto"),
+    cliente_nome: z.string().optional(),
     nato_a: z.string().min(1, "Luogo di nascita richiesto"),
-    residente_a: z.string().min(1, "Luogo di residenza richiuto"),
+    residente_a: z.string().min(1, "Città richiesta"),
+    provincia_residenza: z.string().optional(),
     indirizzo_residenza: z.string().min(1, "Indirizzo di residenza richiesto"),
     data_nascita: z.string().min(1, "Data di nascita richiesta"),
+    stesso_indirizzo: z.boolean().optional(),
 
     // Dynamic sections
     bonus_list: z.array(z.object({
@@ -111,6 +120,43 @@ const contractFormSchema = z.object({
 }, {
   message: "La data di fine contratto deve essere successiva o uguale alla data di inizio",
   path: ["contractEndDate"]
+}).superRefine((data, ctx) => {
+  // Validazione condizionale tipo_cliente
+  const tipo = data.clientData.tipo_cliente || "azienda";
+  if (tipo === "privato") {
+    // Per i privati il campo p_iva DEVE essere un Codice Fiscale valido (16 char)
+    const v = (data.clientData.p_iva || "").toUpperCase().replace(/\s/g, "");
+    if (!validateCodiceFiscale(v)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["clientData", "p_iva"],
+        message: "Per un cliente privato serve un Codice Fiscale valido (16 caratteri)",
+      });
+    }
+  } else {
+    // Per le aziende il referente è obbligatorio
+    if (!data.clientData.cliente_nome || !data.clientData.cliente_nome.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["clientData", "cliente_nome"],
+        message: "Nome del referente richiesto",
+      });
+    }
+    // Per le aziende il campo p_iva deve essere una P.IVA valida (11 cifre)
+    // oppure un Codice Fiscale valido (società di persone / ditta individuale).
+    const v = (data.clientData.p_iva || "").toUpperCase().replace(/\s/g, "");
+    const t = detectVATorCF(v);
+    const isValid =
+      (t === "vat" && validatePartitaIva(v)) ||
+      (t === "cf" && validateCodiceFiscale(v));
+    if (!isValid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["clientData", "p_iva"],
+        message: "Inserisci una Partita IVA (11 cifre) o un Codice Fiscale valido",
+      });
+    }
+  }
 });
 
 type ContractForm = z.infer<typeof contractFormSchema>;
@@ -200,7 +246,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
   const { data: templates = [], isLoading: templatesLoading, error: templatesError } = useQuery({
     queryKey: ["/api/templates"],
-    enabled: !isEditing, // 🚫 BLOCCA il caricamento quando siamo in modalità editing
+    // I template servono SEMPRE, anche in modifica bozza: senza la lista fresca
+    // il selettore mostra "Nessun template disponibile" su un refresh diretto
+    // e il salvataggio finisce in "Template not found".
+    enabled: true,
     retry: 3,
     onError: (error) => {
       console.error("Error fetching templates:", error);
@@ -236,9 +285,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         // `defaultSelectedIds` del template.
         return Array.isArray(raw) ? raw : undefined;
       })(),
-      clientData: contract?.clientData || {
+      clientData: {
+        tipo_cliente: "azienda" as const,
         societa: "",
         sede: "",
+        provincia_sede: "",
         indirizzo: "",
         p_iva: "",
         pec: "",
@@ -248,11 +299,14 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         cliente_nome: "",
         nato_a: "",
         residente_a: "",
+        provincia_residenza: "",
         indirizzo_residenza: "",
         data_nascita: "",
+        stesso_indirizzo: false,
         bonus_list: [],
         payment_plan: [{ rata_importo: "", rata_scadenza: "" }],
         rata_list: [],
+        ...(contract?.clientData || {}),
       },
     },
   });
@@ -460,6 +514,26 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const currentIsPercentageMode = form.watch("isPercentagePartnership") || false;
   const watchedClientData = form.watch("clientData");
 
+  // Effetto: quando "stesso indirizzo" è attivo, replica sede→residenza e
+  // mantiene i campi sincronizzati anche durante successive modifiche alla sede.
+  const watchStessoIndirizzo = form.watch("clientData.stesso_indirizzo");
+  const watchSedeForCopy = form.watch("clientData.sede");
+  const watchProvinciaSedeForCopy = form.watch("clientData.provincia_sede");
+  const watchIndirizzoForCopy = form.watch("clientData.indirizzo");
+  useEffect(() => {
+    if (!watchStessoIndirizzo) return;
+    const cur = form.getValues("clientData") as any;
+    if (cur.residente_a !== (watchSedeForCopy || "")) {
+      form.setValue("clientData.residente_a", (watchSedeForCopy || "") as any, { shouldDirty: true, shouldValidate: true });
+    }
+    if (cur.provincia_residenza !== (watchProvinciaSedeForCopy || "")) {
+      form.setValue("clientData.provincia_residenza", (watchProvinciaSedeForCopy || "") as any, { shouldDirty: true });
+    }
+    if (cur.indirizzo_residenza !== (watchIndirizzoForCopy || "")) {
+      form.setValue("clientData.indirizzo_residenza", (watchIndirizzoForCopy || "") as any, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [watchStessoIndirizzo, watchSedeForCopy, watchProvinciaSedeForCopy, watchIndirizzoForCopy, form]);
+
   // ====================================================================
   // Reset della selezione sezioni modulari quando l'utente cambia template
   // (solo in modalità creazione; se stiamo modificando un contratto esistente
@@ -520,9 +594,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           coFillApplyingRef.current = true;
           try {
             const cd = msg.currentData || {};
-            for (const f of REQUIRED_CLIENT_FIELDS) {
-              if (cd[f.key] !== undefined && cd[f.key] !== null && cd[f.key] !== "") {
-                form.setValue(`clientData.${f.key}` as any, cd[f.key], { shouldDirty: true });
+            for (const key of SYNCED_FIELD_KEYS) {
+              if (cd[key] !== undefined && cd[key] !== null) {
+                form.setValue(`clientData.${key}` as any, cd[key], { shouldDirty: true });
               }
             }
           } finally {
@@ -563,7 +637,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       if (!info.name.startsWith("clientData.")) return;
       if (coFillApplyingRef.current) return;
       const field = info.name.slice("clientData.".length);
-      const allowed = REQUIRED_CLIENT_FIELDS.some((f) => f.key === field);
+      const allowed = SYNCED_FIELD_KEYS.includes(field);
       if (!allowed) return;
       const fieldValue = (value as any)?.clientData?.[field] ?? "";
       if (debouncers[field]) clearTimeout(debouncers[field]);
@@ -803,21 +877,56 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 </div>
               </div>
               <div className="space-y-8">
-                {/* Dati Azienda/Società */}
+                {/* Toggle Privato / Azienda */}
+                {(() => {
+                  const tipoCliente: ClientType = (form.watch("clientData.tipo_cliente") as ClientType) || "azienda";
+                  return (
+                    <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-xl w-fit" data-testid="toggle-tipo-cliente">
+                      {(["azienda", "privato"] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => form.setValue("clientData.tipo_cliente", opt, { shouldDirty: true, shouldValidate: true })}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                            tipoCliente === opt
+                              ? "bg-white text-indigo-700 shadow-sm"
+                              : "text-slate-600 hover:text-slate-800"
+                          }`}
+                          data-testid={`button-tipo-${opt}`}
+                        >
+                          {opt === "azienda" ? "Azienda" : "Privato"}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Dati Azienda/Privato */}
+                {(() => {
+                  const tipoCliente: ClientType = (form.watch("clientData.tipo_cliente") as ClientType) || "azienda";
+                  const isPrivato = tipoCliente === "privato";
+                  const sedeWatch = (form.watch("clientData.sede") || "") as string;
+                  const indirizzoWatch = (form.watch("clientData.indirizzo") || "") as string;
+                  return (
                 <div>
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center">
+                  <h4 className="text-base font-semibold text-slate-800 mb-2 flex items-center">
                     <Building className="h-4 w-4 mr-2 text-slate-500" />
-                    Dati Azienda/Società
+                    {isPrivato ? "Dati cliente privato" : "Dati Azienda/Società"}
                   </h4>
+                  <p className="text-xs text-slate-500 mb-4">
+                    {isPrivato
+                      ? "Questi dati appariranno come intestazione del contratto."
+                      : "Inserisci i dati fiscali dell'azienda. La P.IVA o il CF è obbligatorio per la fatturazione."}
+                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div>
+                    <div className={isPrivato ? "md:col-span-2" : ""}>
                       <Label htmlFor="societa" className={labelClass}>
-                        Società *
+                        {isPrivato ? "Cognome e Nome *" : "Società *"}
                       </Label>
                       <Input
                         id="societa"
                         {...form.register("clientData.societa")}
-                        placeholder="Nome della società"
+                        placeholder={isPrivato ? "Es. Mario Rossi" : "Nome della società"}
                         disabled={createContractMutation.isPending}
                         className={`${inputClass} ${coFillFieldClass("societa")}`}
                       />
@@ -830,18 +939,43 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
                     <div>
                       <Label htmlFor="sede" className={labelClass}>
-                        Sede *
+                        {isPrivato ? "Città *" : "Città sede legale *"}
                       </Label>
-                      <Input
-                        id="sede"
-                        {...form.register("clientData.sede")}
-                        placeholder="Città sede legale"
-                        disabled={createContractMutation.isPending}
-                        className={`${inputClass} ${coFillFieldClass("sede")}`}
-                      />
+                      <div className="grid grid-cols-[1fr_90px] gap-2">
+                        <Input
+                          id="sede"
+                          {...form.register("clientData.sede")}
+                          placeholder="Es. Milano"
+                          disabled={createContractMutation.isPending}
+                          className={`${inputClass} ${coFillFieldClass("sede")}`}
+                        />
+                        <Select
+                          value={(form.watch("clientData.provincia_sede") || "") as string}
+                          onValueChange={(v) => form.setValue("clientData.provincia_sede", v, { shouldDirty: true })}
+                          disabled={createContractMutation.isPending}
+                        >
+                          <SelectTrigger
+                            className={`${inputClass} ${coFillFieldClass("provincia_sede")}`}
+                            data-testid="select-provincia-sede"
+                          >
+                            <SelectValue placeholder="PR" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            {ITALIAN_PROVINCES.map((p) => (
+                              <SelectItem key={p} value={p}>{p}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       {form.formState.errors.clientData?.sede && (
                         <p className="text-sm text-red-600 mt-1">
                           {form.formState.errors.clientData.sede.message}
+                        </p>
+                      )}
+                      {!form.formState.errors.clientData?.sede && looksLikeAddress(sedeWatch) && (
+                        <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Sembra un indirizzo. Inserisci solo il nome della città (es. "Milano"), l'indirizzo va nel campo sotto.
                         </p>
                       )}
                     </div>
@@ -862,11 +996,17 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                           {form.formState.errors.clientData.indirizzo.message}
                         </p>
                       )}
+                      {!form.formState.errors.clientData?.indirizzo && indirizzoWatch && !looksLikeAddress(indirizzoWatch) && (
+                        <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Inserisci via e numero civico (es. "Via Roma 12, 20100").
+                        </p>
+                      )}
                     </div>
 
                     <div>
                       <Label htmlFor="p_iva" className={labelClass}>
-                        Codice Fiscale / P.IVA *
+                        {isPrivato ? "Codice Fiscale *" : "Codice Fiscale / P.IVA *"}
                       </Label>
                       <div className="relative">
                         <Input
@@ -972,18 +1112,20 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                       )}
                     </div>
 
-                    <div>
-                      <Label htmlFor="codice_univoco" className={labelClass}>
-                        Codice Univoco
-                      </Label>
-                      <Input
-                        id="codice_univoco"
-                        {...form.register("clientData.codice_univoco")}
-                        placeholder="Codice univoco (opzionale)"
-                        disabled={createContractMutation.isPending}
-                        className={inputClass}
-                      />
-                    </div>
+                    {!isPrivato && (
+                      <div>
+                        <Label htmlFor="codice_univoco" className={labelClass}>
+                          Codice Univoco
+                        </Label>
+                        <Input
+                          id="codice_univoco"
+                          {...form.register("clientData.codice_univoco")}
+                          placeholder="Codice univoco (opzionale)"
+                          disabled={createContractMutation.isPending}
+                          className={inputClass}
+                        />
+                      </div>
+                    )}
 
                     <div>
                       <Label htmlFor="email" className={labelClass}>
@@ -992,6 +1134,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                       <Input
                         id="email"
                         type="email"
+                        inputMode="email"
+                        autoComplete="email"
                         {...form.register("clientData.email")}
                         placeholder="email@esempio.com"
                         disabled={createContractMutation.isPending}
@@ -1004,18 +1148,20 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                       )}
                     </div>
 
-                    <div>
-                      <Label htmlFor="pec" className={labelClass}>
-                        PEC
-                      </Label>
-                      <Input
-                        id="pec"
-                        {...form.register("clientData.pec")}
-                        placeholder="pec@esempio.com (opzionale)"
-                        disabled={createContractMutation.isPending}
-                        className={inputClass}
-                      />
-                    </div>
+                    {!isPrivato && (
+                      <div>
+                        <Label htmlFor="pec" className={labelClass}>
+                          PEC
+                        </Label>
+                        <Input
+                          id="pec"
+                          {...form.register("clientData.pec")}
+                          placeholder="pec@esempio.com (opzionale)"
+                          disabled={createContractMutation.isPending}
+                          className={inputClass}
+                        />
+                      </div>
+                    )}
 
                     <div>
                       <Label htmlFor="cellulare" className={labelClass}>
@@ -1024,44 +1170,83 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                       <Input
                         id="cellulare"
                         type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
                         {...form.register("clientData.cellulare")}
                         placeholder="+39 333 123 4567"
                         disabled={createContractMutation.isPending}
                         className={`${inputClass} ${coFillFieldClass("cellulare")}`}
                       />
-                      {form.formState.errors.clientData?.cellulare && (
+                      {form.formState.errors.clientData?.cellulare ? (
                         <p className="text-sm text-red-600 mt-1">
                           {form.formState.errors.clientData.cellulare.message}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Cellulare italiano (Es. 333 123 4567 o +39 333 123 4567).
                         </p>
                       )}
                     </div>
                   </div>
                 </div>
+                  );
+                })()}
 
-                {/* Dati Personali Referente */}
+                {/* Dati Personali Referente / Stesso indirizzo */}
+                {(() => {
+                  const tipoCliente: ClientType = (form.watch("clientData.tipo_cliente") as ClientType) || "azienda";
+                  const isPrivato = tipoCliente === "privato";
+                  const stessoIndirizzo = !!form.watch("clientData.stesso_indirizzo");
+                  const residenteWatch = (form.watch("clientData.residente_a") || "") as string;
+                  const indirizzoResWatch = (form.watch("clientData.indirizzo_residenza") || "") as string;
+
+                  return (
                 <div>
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center">
+                  <h4 className="text-base font-semibold text-slate-800 mb-2 flex items-center">
                     <User className="h-4 w-4 mr-2 text-slate-500" />
-                    Dati Personali Referente
+                    {isPrivato ? "Dati anagrafici" : "Dati Personali Referente"}
                   </h4>
+                  <p className="text-xs text-slate-500 mb-4">
+                    {isPrivato
+                      ? "Servono per identificare il firmatario del contratto."
+                      : "Dati del referente che firmerà il contratto a nome dell'azienda."}
+                  </p>
+
+                  {/* Stesso indirizzo della sede / azienda */}
+                  <label className="flex items-center gap-2 mb-4 cursor-pointer select-none" data-testid="checkbox-stesso-indirizzo">
+                    <input
+                      type="checkbox"
+                      {...form.register("clientData.stesso_indirizzo")}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      disabled={createContractMutation.isPending}
+                    />
+                    <span className="text-sm text-slate-700">
+                      {isPrivato
+                        ? "La residenza coincide con l'indirizzo di domicilio sopra"
+                        : "La residenza del referente coincide con l'indirizzo dell'azienda"}
+                    </span>
+                  </label>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="md:col-span-2">
-                      <Label htmlFor="cliente_nome" className={labelClass}>
-                        Signor./a *
-                      </Label>
-                      <Input
-                        id="cliente_nome"
-                        {...form.register("clientData.cliente_nome")}
-                        placeholder="Nome e cognome del referente"
-                        disabled={createContractMutation.isPending}
-                        className={`${inputClass} ${coFillFieldClass("cliente_nome")}`}
-                      />
-                      {form.formState.errors.clientData?.cliente_nome && (
-                        <p className="text-sm text-red-600 mt-1">
-                          {form.formState.errors.clientData.cliente_nome.message}
-                        </p>
-                      )}
-                    </div>
+                    {!isPrivato && (
+                      <div className="md:col-span-2">
+                        <Label htmlFor="cliente_nome" className={labelClass}>
+                          Signor./a *
+                        </Label>
+                        <Input
+                          id="cliente_nome"
+                          {...form.register("clientData.cliente_nome")}
+                          placeholder="Nome e cognome del referente"
+                          disabled={createContractMutation.isPending}
+                          className={`${inputClass} ${coFillFieldClass("cliente_nome")}`}
+                        />
+                        {form.formState.errors.clientData?.cliente_nome && (
+                          <p className="text-sm text-red-600 mt-1">
+                            {form.formState.errors.clientData.cliente_nome.message}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <div>
                       <Label htmlFor="nato_a" className={labelClass}>
@@ -1101,18 +1286,43 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
                     <div>
                       <Label htmlFor="residente_a" className={labelClass}>
-                        Residente a *
+                        Città di residenza *
                       </Label>
-                      <Input
-                        id="residente_a"
-                        {...form.register("clientData.residente_a")}
-                        placeholder="Città di residenza"
-                        disabled={createContractMutation.isPending}
-                        className={`${inputClass} ${coFillFieldClass("residente_a")}`}
-                      />
+                      <div className="grid grid-cols-[1fr_90px] gap-2">
+                        <Input
+                          id="residente_a"
+                          {...form.register("clientData.residente_a")}
+                          placeholder="Es. Milano"
+                          disabled={createContractMutation.isPending || stessoIndirizzo}
+                          className={`${inputClass} ${coFillFieldClass("residente_a")} ${stessoIndirizzo ? "bg-slate-50" : ""}`}
+                        />
+                        <Select
+                          value={(form.watch("clientData.provincia_residenza") || "") as string}
+                          onValueChange={(v) => form.setValue("clientData.provincia_residenza", v, { shouldDirty: true })}
+                          disabled={createContractMutation.isPending || stessoIndirizzo}
+                        >
+                          <SelectTrigger
+                            className={`${inputClass} ${coFillFieldClass("provincia_residenza")} ${stessoIndirizzo ? "bg-slate-50" : ""}`}
+                            data-testid="select-provincia-residenza"
+                          >
+                            <SelectValue placeholder="PR" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            {ITALIAN_PROVINCES.map((p) => (
+                              <SelectItem key={p} value={p}>{p}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       {form.formState.errors.clientData?.residente_a && (
                         <p className="text-sm text-red-600 mt-1">
                           {form.formState.errors.clientData.residente_a.message}
+                        </p>
+                      )}
+                      {!form.formState.errors.clientData?.residente_a && !stessoIndirizzo && looksLikeAddress(residenteWatch) && (
+                        <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Sembra un indirizzo. Inserisci solo il nome della città.
                         </p>
                       )}
                     </div>
@@ -1125,17 +1335,25 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         id="indirizzo_residenza"
                         {...form.register("clientData.indirizzo_residenza")}
                         placeholder="Via, numero civico, CAP"
-                        disabled={createContractMutation.isPending}
-                        className={`${inputClass} ${coFillFieldClass("indirizzo_residenza")}`}
+                        disabled={createContractMutation.isPending || stessoIndirizzo}
+                        className={`${inputClass} ${coFillFieldClass("indirizzo_residenza")} ${stessoIndirizzo ? "bg-slate-50" : ""}`}
                       />
                       {form.formState.errors.clientData?.indirizzo_residenza && (
                         <p className="text-sm text-red-600 mt-1">
                           {form.formState.errors.clientData.indirizzo_residenza.message}
                         </p>
                       )}
+                      {!form.formState.errors.clientData?.indirizzo_residenza && !stessoIndirizzo && indirizzoResWatch && !looksLikeAddress(indirizzoResWatch) && (
+                        <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Inserisci via e numero civico.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
+                  );
+                })()}
               </div>
             </div>
 

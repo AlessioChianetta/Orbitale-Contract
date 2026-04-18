@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { REQUIRED_CLIENT_FIELDS, getMissingClientFields } from "@/lib/required-client-fields";
+import { getRequiredClientFields, getClientType, getMissingClientFields } from "@/lib/required-client-fields";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -573,7 +573,7 @@ export default function SellerDashboard() {
                           {getStatusBadge(contract.status, contract.isArchived)}
                           {contract.coFillToken && contract.status === "draft" && !contract.isArchived && (() => {
                             const cd = (contract.clientData || {}) as Record<string, unknown>;
-                            const totalRequired = REQUIRED_CLIENT_FIELDS.length;
+                            const totalRequired = getRequiredClientFields(getClientType(cd as Record<string, any>)).length;
                             const missing = getMissingClientFields(cd as Record<string, any>).length;
                             const filled = totalRequired - missing;
                             let label = "In attesa cliente";

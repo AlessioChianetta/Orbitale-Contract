@@ -105,6 +105,46 @@ export async function lookupCompanyByVAT(vatNumber: string): Promise<{
   }
 }
 
+// ============================================================================
+// Italian mobile phone validation
+// Accepts: +39 333 123 4567, 0039 333 123 4567, 333 123 4567, +393331234567, etc.
+// Mobile prefix must start with 3, total 9 or 10 digits after optional country code.
+// ============================================================================
+export function validateItalianMobile(input: string): boolean {
+  if (!input) return false;
+  // Keep digits and leading + only
+  const cleaned = input.trim().replace(/[\s().-]/g, '');
+  // Strip optional country code +39 or 0039
+  const local = cleaned.replace(/^(?:\+39|0039)/, '');
+  return /^3\d{8,9}$/.test(local);
+}
+
+// ============================================================================
+// City vs address heuristic — used to warn the user when they typed a full
+// street into a "city" field (e.g. "Via Garibaldi 17" instead of "Milano").
+// ============================================================================
+const ADDRESS_KEYWORDS = /\b(via|viale|piazza|piazzale|corso|vicolo|strada|largo|lungomare|lungotevere|contrada|borgo)\b/i;
+export function looksLikeAddress(input: string): boolean {
+  if (!input) return false;
+  const v = input.trim();
+  if (!v) return false;
+  if (/\d/.test(v)) return true;
+  if (ADDRESS_KEYWORDS.test(v)) return true;
+  return false;
+}
+
+// ============================================================================
+// Italian provinces (sigle) — static list, used by the province select.
+// ============================================================================
+export const ITALIAN_PROVINCES: string[] = [
+  "AG","AL","AN","AO","AR","AP","AT","AV","BA","BT","BL","BN","BG","BI","BO","BZ","BS","BR","CA",
+  "CL","CB","CI","CE","CT","CZ","CH","CO","CS","CR","KR","CN","EN","FM","FE","FI","FG","FC","FR",
+  "GE","GO","GR","IM","IS","SP","AQ","LT","LE","LC","LI","LO","LU","MC","MN","MS","MT","ME","MI",
+  "MO","MB","NA","NO","NU","OR","PD","PA","PR","PV","PG","PU","PE","PC","PI","PT","PN","PZ","PO",
+  "RG","RA","RC","RE","RI","RN","RM","RO","SA","SS","SV","SI","SR","SO","SU","TA","TE","TR","TO",
+  "TP","TN","TV","TS","UD","VA","VE","VB","VC","VR","VV","VI","VT",
+];
+
 // Detect if input is VAT or Tax Code
 export function detectVATorCF(input: string): 'vat' | 'cf' | 'unknown' {
   const cleanInput = input.replace(/\s/g, '').toUpperCase();
