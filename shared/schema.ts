@@ -84,14 +84,6 @@ export const otpCodes = pgTable("otp_codes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const sessions = pgTable("sessions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  sessionToken: text("session_token").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
 export const companySettings = pgTable("company_settings", {
   id: serial("id").primaryKey(),
   companyName: text("company_name").notNull(),
