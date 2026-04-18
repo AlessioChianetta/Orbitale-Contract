@@ -1,0 +1,46 @@
+#7 - Co-fill cliente: bugfix bozza + qualità dati
+What & Why
+Dopo il primo giro reale di "Compila con il cliente" sono emersi 3 problemi concreti:
+
+Bug "Modifica bozza": la cliente ha compilato i dati e ora si vedono nel form (mirror co-fill OK), ma il selettore template è bloccato/vuoto: a volte mostra "Nessun template disponibile", a volte mostra opzioni che però al salvataggio vanno in errore. Causa identificata: la query /api/templates in contract-form.tsx ha enabled: !isEditing, quindi in modalità modifica i template vengono mostrati solo se React Query li ha ancora in cache, e su un refresh diretto non sono disponibili. Va corretto in modo che, sulle bozze (e in generale su contratti dove ha senso cambiare template), il selettore mostri sempre i template aggiornati.
+Errori di compilazione del cliente: la cliente reale ha confuso "Sede" con l'indirizzo (ha scritto "Piazza G. Garibaldi 17" invece di "Busto Arsizio"), ha duplicato l'indirizzo nelle due caselle "Indirizzo" e "Indirizzo di residenza", ecc. Servono indicazioni più chiare e validazioni che impediscano gli errori più ovvi.
+Cliente senza Partita IVA: oggi P.IVA / Codice Fiscale è un unico campo obbligatorio, ma alcuni clienti sono privati senza P.IVA e non sanno cosa scrivere. Serve un percorso esplicito "Privato" / "Azienda" che mostri i campi giusti per ognuno e valga sia nel form del venditore sia nella pagina co-fill del cliente.
+L'obiettivo è far chiudere senza sorprese il primo giro di contratti reali co-fill.
+
+Done looks like
+Bug "Modifica bozza" risolto: aprendo la bozza co-fill dalla lista, il selettore template carica sempre la lista aggiornata, mostra il template corrente come selezionato, permette di sceglierne un altro e il salvataggio rigenera correttamente il contenuto del contratto. Nessun errore "Nessun template disponibile" né "Template not found" al salvataggio.
+Toggle "Privato / Azienda" all'inizio dei dati cliente (sia nel form venditore sia nella pagina co-fill): scegliendo "Privato" il campo "Società" diventa "Cognome e Nome", "P.IVA" sparisce e resta solo il Codice Fiscale (validato come CF), "PEC" e "Codice univoco" spariscono. Scegliendo "Azienda" il comportamento resta quello attuale (P.IVA o CF accettati, PEC e Codice univoco mostrati come opzionali).
+"Sede" (sede legale): label esplicita "Città sede legale" + placeholder "Es. Milano", separata dalla provincia con un piccolo selettore di provincia a fianco. Validazione: se l'utente scrive un valore che contiene numeri o "via/piazza/corso/viale" appare un avviso inline che spiega "Qui va solo la città". Lo stesso vale per "Residente a".
+"Indirizzo" e "Indirizzo di residenza": un checkbox "Stessa della sede legale" / "Stesso dell'indirizzo società" che precompila e blocca il secondo campo, così il cliente non duplica a mano. Se sblocca, può inserire un indirizzo diverso. Placeholder esplicito "Via/Piazza, numero civico, CAP".
+"Cellulare": validazione formato italiano (con prefisso opzionale +39, 9-10 cifre) con messaggio chiaro in caso di errore.
+"Email": validazione formato già presente, oltre a un piccolo aiuto inline ("usiamo questa email per inviarti il contratto da firmare").
+Pagina co-fill cliente: stessi controlli e stesso toggle Privato/Azienda, con micro-istruzioni sopra ogni gruppo di campi ("Inserisci i dati della tua azienda" / "Inserisci i tuoi dati personali") così il cliente capisce cosa va dove.
+L'elenco dei campi obbligatori (REQUIRED_CLIENT_FIELDS) si aggiorna in base al toggle: per i privati la P.IVA non è più richiesta, il CF lo è.
+Nessuna regressione: contratti aziendali esistenti continuano a funzionare e a generare lo stesso PDF.
+Out of scope
+Auto-completamento città/provincia da database ISTAT (per ora basta selettore provincia statico + validazione testuale leggera).
+Lookup automatico anagrafica da Codice Fiscale (oggi facciamo già lookup da P.IVA per le aziende; per i privati si valida solo il formato).
+Riscrittura grafica dell'intero form: si interviene solo sui campi citati e sull'aggiunta del toggle.
+Modifiche al template del contratto / al PDF: i placeholder esistenti ({{societa}}, {{p_iva}}, ecc.) continuano a essere usati. Per i privati il template userà il campo "cognome e nome" come societa per non rompere i template esistenti.
+Steps
+Fix selettore template in modifica bozza — Rimuovere il flag enabled: !isEditing dalla query /api/templates in contract-form.tsx (o sostituirlo con un enabled che resti vero per le bozze) così la lista è sempre fresca. Verificare che il template attuale del contratto risulti pre-selezionato nel dropdown e che il salvataggio aggiorni correttamente la bozza generando il nuovo contenuto, senza errori "Template not found". Test sia in dev sia in produzione.
+
+Toggle Privato / Azienda — Aggiungere un selettore (radio o toggle iOS-style) "Privato / Azienda" all'inizio della sezione "Dati Cliente", persistito in clientData.tipo_cliente. In base al valore mostrare/nascondere i campi: per Privato sostituire "Società" con "Cognome e Nome" e nascondere PEC + Codice univoco; per entrambi mantenere Email e Cellulare obbligatori. Aggiornare validazione Zod e lista campi obbligatori coerentemente.
+
+Validatori "Sede" / "Residente a" / "Indirizzo" — Per "Sede" e "Residente a" mostrare label "Città" + placeholder esempio + warning inline non bloccante se il testo contiene numeri o parole tipo "via/piazza/corso/viale/strada". Aggiungere a fianco un select "Provincia" (sigla, lista statica delle 110 province italiane). Per gli indirizzi aggiungere checkbox "Stesso dell'indirizzo società/sede legale" che copia e blocca il campo gemello.
+
+Validatori telefono ed email — Validazione cellulare italiano (regex tollerante con +39 / 0039 / 3xx) con messaggio specifico, e micro-help text sotto email per spiegare a cosa serve. Riusare le utility esistenti se presenti, altrimenti aggiungerle a client/src/lib/validation-utils.
+
+Allineamento pagina co-fill cliente — Replicare toggle Privato/Azienda, validatori e checkbox "stesso indirizzo" anche in client/src/pages/co-fill-page.tsx, mantenendo lo stesso schema di campi e mantenendo il sync WebSocket campo-per-campo già esistente. Aggiungere micro-istruzioni introduttive sopra ogni gruppo per ridurre la confusione.
+
+Verifica end-to-end — Test manuale del flusso completo: venditore genera link con cliente "Privato", cliente compila, il venditore riapre la bozza, vede i dati corretti, può cambiare il template, modifica e salva; ripetere con cliente "Azienda". Verificare che PDF e anteprima generati restino coerenti per i template esistenti.
+
+Relevant files
+client/src/components/contract-form.tsx:151-340,720-1140
+client/src/components/co-fill-dialog.tsx
+client/src/pages/co-fill-page.tsx
+client/src/lib/required-client-fields.ts
+client/src/lib/validation-utils.ts
+server/routes.ts:629-720,1614-1730
+server/storage.ts
+shared/schema.ts:42,199-240
