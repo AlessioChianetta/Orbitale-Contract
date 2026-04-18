@@ -64,6 +64,7 @@ export interface IStorage {
   updateCoFillSessionData(token: string, data: any): Promise<CoFillSession | undefined>;
   terminateCoFillSession(token: string, companyId: number, sellerId: number): Promise<boolean>;
   listActiveCoFillSessionsForSeller(companyId: number, sellerId: number): Promise<CoFillSession[]>;
+  getActiveCoFillSessionByContractId(contractId: number): Promise<CoFillSession | undefined>;
 
   sessionStore: session.Store;
 }
@@ -463,6 +464,14 @@ export class DatabaseStorage implements IStorage {
       eq(coFillSessions.sellerId, sellerId),
       eq(coFillSessions.status, "active"),
     ));
+  }
+
+  async getActiveCoFillSessionByContractId(contractId: number): Promise<CoFillSession | undefined> {
+    const [row] = await db.select().from(coFillSessions).where(and(
+      eq(coFillSessions.contractId, contractId),
+      eq(coFillSessions.status, "active"),
+    )).orderBy(desc(coFillSessions.createdAt)).limit(1);
+    return row || undefined;
   }
 }
 

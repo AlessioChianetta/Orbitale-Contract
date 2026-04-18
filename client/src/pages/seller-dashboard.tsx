@@ -48,6 +48,7 @@ import {
   Files,
   Sparkles,
   Trash2,
+  Wifi,
 } from "lucide-react";
 import ContractForm from "@/components/contract-form";
 import EmailConfigBanner from "@/components/email-config-banner";
@@ -567,7 +568,18 @@ export default function SellerDashboard() {
                       </div>
 
                       <div className="hidden sm:flex justify-center">
-                        {getStatusBadge(contract.status, contract.isArchived)}
+                        <div className="flex flex-col items-center gap-1">
+                          {getStatusBadge(contract.status, contract.isArchived)}
+                          {contract.coFillToken && contract.status === "draft" && !contract.isArchived && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-indigo-50 text-indigo-600 border border-indigo-100"
+                              title="Bozza compilata dal cliente in tempo reale"
+                            >
+                              <Wifi className="h-3 w-3" />
+                              Co-fill
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="hidden sm:block text-right">

@@ -58,6 +58,7 @@ export const contracts = pgTable("contracts", {
   isPercentagePartnership: boolean("is_percentage_partnership").default(false), // New: Partnership type
   partnershipPercentage: numeric("partnership_percentage", { precision: 5, scale: 2 }), // New: Revenue percentage (e.g., 15.50%)
   selectedSectionIds: jsonb("selected_section_ids").default([]), // Array of section IDs selected for this contract
+  coFillToken: text("co_fill_token"), // Token of co-fill session that created/owns this draft (nullable)
   isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

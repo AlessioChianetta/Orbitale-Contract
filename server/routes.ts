@@ -1617,6 +1617,7 @@ export function registerRoutes(app: Express): Server {
       const bodySchema = z.object({
         initialData: z.record(z.any()).optional(),
         contractId: z.number().int().positive().optional().nullable(),
+        templateId: z.number().int().positive().optional().nullable(),
       });
       const parsed = bodySchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ message: "Invalid body" });
@@ -1633,6 +1634,41 @@ export function registerRoutes(app: Express): Server {
 
       const token = nanoid(32);
       const expiresAt = new Date(Date.now() + CO_FILL_TTL_HOURS * 60 * 60 * 1000);
+
+      // If no contractId, create a draft contract so client work is persisted
+      // even if the seller closes the form.
+      if (!contractId) {
+        let templateId = parsed.data.templateId || null;
+        if (!templateId) {
+          const tpls = await storage.getTemplates(user.companyId);
+          const firstActive = tpls.find(t => t.isActive) || tpls[0];
+          if (!firstActive) {
+            return res.status(400).json({ message: "Nessun template disponibile per creare la bozza" });
+          }
+          templateId = firstActive.id;
+        }
+        const draft = await storage.createContract({
+          templateId,
+          sellerId: user.id,
+          clientData: parsed.data.initialData || {},
+          generatedContent: "",
+          contractCode: nanoid(16),
+          status: "draft",
+          coFillToken: token,
+        } as any);
+        contractId = draft.id;
+        await storage.createAuditLog({
+          contractId: draft.id,
+          action: "co_fill_draft_created",
+          userAgent: req.get("User-Agent"),
+          ipAddress: getRealClientIP(req),
+          metadata: { sellerId: user.id, token },
+        });
+      } else {
+        // Reusing an existing contract: tag it with the new token so list UI can find it
+        await storage.updateContract(contractId, { coFillToken: token } as any);
+      }
+
       const insert: InsertCoFillSession = {
         token,
         companyId: user.companyId,
@@ -1644,7 +1680,7 @@ export function registerRoutes(app: Express): Server {
       };
       const created = await storage.createCoFillSession(insert);
       coFillAudit("session_created", { token, sellerId: user.id, companyId: user.companyId, contractId });
-      res.status(201).json({ token: created.token, expiresAt: created.expiresAt, status: created.status });
+      res.status(201).json({ token: created.token, expiresAt: created.expiresAt, status: created.status, contractId });
     } catch (error) {
       console.error("Co-fill create error:", error);
       res.status(500).json({ message: "Failed to create co-fill session" });
@@ -1875,6 +1911,14 @@ export function registerRoutes(app: Express): Server {
             const currentMap = (current.currentData as Record<string, unknown>) || {};
             const merged = { ...currentMap, [msg.field]: msg.value };
             await storage.updateCoFillSessionData(token, merged);
+            // Mirror into the linked draft contract so the data survives reloads
+            if (current.contractId) {
+              try {
+                await storage.updateContract(current.contractId, { clientData: merged } as any);
+              } catch (e) {
+                console.error("Failed to mirror co-fill update to contract", e);
+              }
+            }
             coFillAudit("field_update", {
               token,
               clientId,

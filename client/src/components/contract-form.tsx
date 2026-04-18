@@ -157,7 +157,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
   // Co-fill (real-time client-seller fill) state
   const [coFillDialogOpen, setCoFillDialogOpen] = useState(false);
-  const [coFillToken, setCoFillToken] = useState<string | null>(null);
+  const [coFillToken, setCoFillToken] = useState<string | null>(contract?.coFillToken || null);
+  // When the seller starts a co-fill from a "new contract" form, the server
+  // creates a draft contract and returns its id. We track it so subsequent
+  // saves go to PUT /api/contracts/:id instead of creating a duplicate.
+  const [draftContractId, setDraftContractId] = useState<number | null>(null);
   const [coFillClientConnected, setCoFillClientConnected] = useState(false);
   const [coFillHighlight, setCoFillHighlight] = useState<Record<string, number>>({});
   const coFillWsRef = useRef<WebSocket | null>(null);
@@ -286,6 +290,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       setIsSubmitting(true);
       if (isEditing) {
         return await apiRequest("PUT", `/api/contracts/${contract.id}`, contractData);
+      } else if (draftContractId) {
+        // A co-fill draft already exists server-side: update it instead of
+        // creating a duplicate contract.
+        return await apiRequest("PUT", `/api/contracts/${draftContractId}`, contractData);
       } else {
         return await apiRequest("POST", "/api/contracts", contractData);
       }
@@ -627,10 +635,14 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       open={coFillDialogOpen}
       onClose={() => setCoFillDialogOpen(false)}
       initialData={form.getValues("clientData") || {}}
-      contractId={isEditing && contract ? contract.id : null}
+      contractId={isEditing && contract ? contract.id : (draftContractId ?? null)}
+      templateId={selectedTemplateId ?? null}
       activeToken={coFillToken}
       clientConnected={coFillClientConnected}
-      onSessionStart={(token) => setCoFillToken(token)}
+      onSessionStart={(token, ctxContractId) => {
+        setCoFillToken(token);
+        if (!isEditing && ctxContractId) setDraftContractId(ctxContractId);
+      }}
       onSessionEnd={() => setCoFillToken(null)}
     />
     <Dialog open onOpenChange={() => onClose()}>
@@ -722,7 +734,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     form.setValue("templateId", templateId);
                     setSelectedTemplateId(templateId);
                   }}
-                  disabled={createContractMutation.isPending}
+                  disabled={createContractMutation.isPending || isEditing}
                 >
                   <SelectTrigger className={`${inputClass} mt-1`}>
                     <SelectValue placeholder="Seleziona un template di contratto" />

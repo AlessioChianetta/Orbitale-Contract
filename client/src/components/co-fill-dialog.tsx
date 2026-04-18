@@ -12,14 +12,15 @@ interface CoFillDialogProps {
   onClose: () => void;
   initialData: Record<string, any>;
   contractId?: number | null;
-  onSessionStart: (token: string) => void;
+  templateId?: number | null;
+  onSessionStart: (token: string, contractId?: number | null) => void;
   onSessionEnd: () => void;
   activeToken: string | null;
   clientConnected: boolean;
 }
 
 export default function CoFillDialog({
-  open, onClose, initialData, contractId, onSessionStart, onSessionEnd, activeToken, clientConnected,
+  open, onClose, initialData, contractId, templateId, onSessionStart, onSessionEnd, activeToken, clientConnected,
 }: CoFillDialogProps) {
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
@@ -47,10 +48,17 @@ export default function CoFillDialog({
   const startSession = async () => {
     setCreating(true);
     try {
-      const res = await apiRequest("POST", "/api/co-fill/sessions", { initialData, contractId: contractId ?? undefined });
+      const res = await apiRequest("POST", "/api/co-fill/sessions", {
+        initialData,
+        contractId: contractId ?? undefined,
+        templateId: templateId ?? undefined,
+      });
       const json = await res.json();
-      onSessionStart(json.token);
-      toast({ title: "Link generato", description: "Condividilo con il cliente per iniziare." });
+      onSessionStart(json.token, json.contractId ?? null);
+      toast({
+        title: "Link generato",
+        description: "Bozza salvata. Condividi il link con il cliente per iniziare.",
+      });
     } catch (e: any) {
       toast({ title: "Impossibile generare il link", description: e?.message || "Riprova.", variant: "destructive" });
     } finally {
