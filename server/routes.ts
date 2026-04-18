@@ -1623,10 +1623,14 @@ export function registerRoutes(app: Express): Server {
       if (!parsed.success) return res.status(400).json({ message: "Invalid body" });
 
       // If a contractId is provided, verify it belongs to this seller's company
+      // and (for sellers) that they actually own the contract.
       let contractId: number | null = null;
       if (parsed.data.contractId) {
         const contract = await storage.getContract(parsed.data.contractId, user.companyId);
         if (!contract) {
+          return res.status(403).json({ message: "Contratto non autorizzato" });
+        }
+        if (user.role === "seller" && contract.sellerId !== user.id) {
           return res.status(403).json({ message: "Contratto non autorizzato" });
         }
         contractId = contract.id;
