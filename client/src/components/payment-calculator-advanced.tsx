@@ -15,27 +15,58 @@ interface PaymentPlan {
   rata_scadenza: string;
 }
 
+type Frequency = 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+
+interface FirstMonthDiscount {
+  enabled: boolean;
+  type: 'percentage' | 'fixed';
+  value: number;
+}
+
 interface PaymentCalculatorAdvancedProps {
   totalAmount: number;
   onPaymentPlanChange: (paymentPlan: PaymentPlan[]) => void;
   disabled?: boolean;
+  initialFrequency?: Frequency;
+  initialIsSubscription?: boolean;
+  initialFirstMonthDiscount?: FirstMonthDiscount;
+  onFrequencyChange?: (value: Frequency) => void;
+  onIsSubscriptionChange?: (value: boolean) => void;
+  onFirstMonthDiscountChange?: (value: FirstMonthDiscount) => void;
 }
-
-type Frequency = 'monthly' | 'quarterly' | 'semiannual' | 'annual';
 
 export default function PaymentCalculatorAdvanced({
   totalAmount,
   onPaymentPlanChange,
   disabled = false,
+  initialFrequency = 'annual',
+  initialIsSubscription = false,
+  initialFirstMonthDiscount,
+  onFrequencyChange,
+  onIsSubscriptionChange,
+  onFirstMonthDiscountChange,
 }: PaymentCalculatorAdvancedProps) {
-  const [paymentFrequency, setPaymentFrequency] = useState<Frequency>('annual');
+  const [paymentFrequency, setPaymentFrequency] = useState<Frequency>(initialFrequency);
   const [startDate] = useState(new Date());
-  const [isSubscription, setIsSubscription] = useState(false);
-  const [firstMonthDiscount, setFirstMonthDiscount] = useState({
-    enabled: false,
-    type: 'percentage' as 'percentage' | 'fixed',
-    value: 50,
-  });
+  const [isSubscription, setIsSubscription] = useState<boolean>(initialIsSubscription);
+  const [firstMonthDiscount, setFirstMonthDiscount] = useState<FirstMonthDiscount>(
+    initialFirstMonthDiscount ?? {
+      enabled: false,
+      type: 'percentage',
+      value: 50,
+    },
+  );
+
+  const onFrequencyChangeRef = useRef(onFrequencyChange);
+  const onIsSubscriptionChangeRef = useRef(onIsSubscriptionChange);
+  const onFirstMonthDiscountChangeRef = useRef(onFirstMonthDiscountChange);
+  useEffect(() => { onFrequencyChangeRef.current = onFrequencyChange; }, [onFrequencyChange]);
+  useEffect(() => { onIsSubscriptionChangeRef.current = onIsSubscriptionChange; }, [onIsSubscriptionChange]);
+  useEffect(() => { onFirstMonthDiscountChangeRef.current = onFirstMonthDiscountChange; }, [onFirstMonthDiscountChange]);
+
+  useEffect(() => { onFrequencyChangeRef.current?.(paymentFrequency); }, [paymentFrequency]);
+  useEffect(() => { onIsSubscriptionChangeRef.current?.(isSubscription); }, [isSubscription]);
+  useEffect(() => { onFirstMonthDiscountChangeRef.current?.(firstMonthDiscount); }, [firstMonthDiscount]);
   const [paymentPlan, setPaymentPlan] = useState<PaymentPlan[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingPayment, setEditingPayment] = useState({ amount: '', date: '' });

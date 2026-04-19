@@ -367,6 +367,18 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     canonicalPayload: Record<string, any> | null;
   }>({ send: false, previewToken: null, canonicalPayload: null });
 
+  // Stato del calcolatore pagamenti tenuto qui (nel form genitore) così
+  // sopravvive al cambio step (lo step 4 monta/smonta il componente).
+  const [paymentCalcFrequency, setPaymentCalcFrequency] = useState<
+    'monthly' | 'quarterly' | 'semiannual' | 'annual'
+  >('annual');
+  const [paymentCalcIsSubscription, setPaymentCalcIsSubscription] = useState(false);
+  const [paymentCalcFirstMonthDiscount, setPaymentCalcFirstMonthDiscount] = useState<{
+    enabled: boolean;
+    type: 'percentage' | 'fixed';
+    value: number;
+  }>({ enabled: false, type: 'percentage', value: 50 });
+
   // Preset Offerta state
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
   const [appliedPresetName, setAppliedPresetName] = useState<string | null>(null);
@@ -2514,6 +2526,12 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         onPaymentPlanChange={(paymentPlan) => {
                           form.setValue("clientData.payment_plan", paymentPlan);
                         }}
+                        initialFrequency={paymentCalcFrequency}
+                        initialIsSubscription={paymentCalcIsSubscription}
+                        initialFirstMonthDiscount={paymentCalcFirstMonthDiscount}
+                        onFrequencyChange={setPaymentCalcFrequency}
+                        onIsSubscriptionChange={setPaymentCalcIsSubscription}
+                        onFirstMonthDiscountChange={setPaymentCalcFirstMonthDiscount}
                       />
                       <p className="text-sm text-slate-500 mt-4 flex items-center">
                         <Info className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
