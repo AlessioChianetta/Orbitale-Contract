@@ -793,7 +793,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       onSessionEnd={() => setCoFillToken(null)}
     />
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-[1280px] w-[95vw] max-h-[95vh] p-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-white flex flex-col">
+      <DialogContent className="max-w-[1280px] w-[95vw] h-[95vh] p-0 gap-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-white grid grid-rows-[auto_auto_minmax(0,1fr)_auto]">
         {/* Header */}
         <div className="p-8 bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white flex-shrink-0">
           <DialogHeader>
@@ -855,7 +855,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         </div>
 
         {/* Scrollable content + sidebar */}
-        <div className="flex-1 flex overflow-hidden min-h-0">
+        <div className="flex overflow-hidden min-h-0">
           <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-8 bg-white">
             <MissingDataPanel
               variant="accordion"
@@ -2134,8 +2134,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           />
         </div>
 
-        {/* Footer - Sticky */}
-        <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur-sm border-t border-gray-100 py-4 px-8 flex justify-end gap-3 flex-shrink-0">
+        {/* Footer */}
+        <div className="bg-white/95 backdrop-blur-sm border-t border-gray-100 py-4 px-8 flex justify-end gap-3">
           <Button
             type="button"
             variant="outline"
