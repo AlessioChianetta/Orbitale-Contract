@@ -32,26 +32,32 @@ const contractFormSchema = z.object({
     tipo_cliente: z.enum(["azienda", "privato"]).default("azienda"),
 
     // Company/Client info (per privato: societa = "Cognome e Nome")
-    societa: z.string().min(1, "Campo richiesto"),
-    sede: z.string().min(1, "Città richiesta"),
+    // I campi anagrafici sono opzionali a livello di schema base; quando il
+    // venditore compila in prima persona ("seller") li rendiamo
+    // obbligatori in superRefine. In modalità "client_fill" basta l'email.
+    societa: z.string().optional(),
+    sede: z.string().optional(),
     provincia_sede: z.string().optional(),
-    indirizzo: z.string().min(1, "Indirizzo richiesto"),
-    p_iva: z.string().min(1, "Codice Fiscale/P.IVA richiesto"),
+    indirizzo: z.string().optional(),
+    p_iva: z.string().optional(),
     pec: z.string().optional(),
     email: z.string().email("Email non valida"),
-    cellulare: z.string().min(1, "Numero di cellulare richiesto").refine(
-      (v) => validateItalianMobile(v),
-      "Inserisci un cellulare italiano valido (es. +39 333 123 4567)",
-    ),
+    cellulare: z
+      .string()
+      .optional()
+      .refine(
+        (v) => !v || validateItalianMobile(v),
+        "Inserisci un cellulare italiano valido (es. +39 333 123 4567)",
+      ),
     codice_univoco: z.string().optional(),
 
     // Personal info
     cliente_nome: z.string().optional(),
-    nato_a: z.string().min(1, "Luogo di nascita richiesto"),
-    residente_a: z.string().min(1, "Città richiesta"),
+    nato_a: z.string().optional(),
+    residente_a: z.string().optional(),
     provincia_residenza: z.string().optional(),
-    indirizzo_residenza: z.string().min(1, "Indirizzo di residenza richiesto"),
-    data_nascita: z.string().min(1, "Data di nascita richiesta"),
+    indirizzo_residenza: z.string().optional(),
+    data_nascita: z.string().optional(),
     stesso_indirizzo: z.boolean().optional(),
 
     // Dynamic sections
@@ -70,12 +76,17 @@ const contractFormSchema = z.object({
   totalValue: z.number().optional(),
   sendImmediately: z.boolean().default(true),
   renewalDuration: z.number().min(1).max(60).default(12),
-  contractStartDate: z.string().min(1, "Data inizio contratto richiesta"),
-  contractEndDate: z.string().min(1, "Data fine contratto richiesta"),
+  contractStartDate: z.string().optional().default(""),
+  contractEndDate: z.string().optional().default(""),
   isPercentagePartnership: z.boolean().default(false),
   partnershipPercentage: z.number().min(0.01).max(100).optional(),
   selectedSectionIds: z.array(z.string()).default([]).optional(),
+  fillMode: z.enum(["seller", "client_fill"]).default("seller"),
 }).refine((data) => {
+  // In modalità "client_fill" anche le condizioni economiche possono
+  // essere lasciate vuote dal venditore: il cliente le vedrà comunque
+  // come anteprima e firmerà. Il refine si attiva solo per "seller".
+  if (data.fillMode === "client_fill") return true;
   if (data.isPercentagePartnership) {
     return data.partnershipPercentage !== undefined && data.partnershipPercentage > 0;
   }
@@ -121,6 +132,38 @@ const contractFormSchema = z.object({
   message: "La data di fine contratto deve essere successiva o uguale alla data di inizio",
   path: ["contractEndDate"]
 }).superRefine((data, ctx) => {
+  // In modalità "client_fill" l'unica cosa richiesta sui dati cliente è
+  // l'email (già validata dallo schema). Tutto il resto verrà compilato
+  // dal cliente sul link, quindi saltiamo le validazioni di obbligo.
+  if (data.fillMode === "client_fill") return;
+
+  // Date contratto obbligatorie quando compila il venditore
+  if (!data.contractStartDate || !data.contractStartDate.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["contractStartDate"], message: "Data inizio contratto richiesta" });
+  }
+  if (!data.contractEndDate || !data.contractEndDate.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["contractEndDate"], message: "Data fine contratto richiesta" });
+  }
+
+  // Anagrafici obbligatori quando compila il venditore
+  const requiredAnagrafici: Array<[string, string]> = [
+    ["societa", "Campo richiesto"],
+    ["sede", "Città richiesta"],
+    ["indirizzo", "Indirizzo richiesto"],
+    ["p_iva", "Codice Fiscale/P.IVA richiesto"],
+    ["cellulare", "Numero di cellulare richiesto"],
+    ["nato_a", "Luogo di nascita richiesto"],
+    ["residente_a", "Città richiesta"],
+    ["indirizzo_residenza", "Indirizzo di residenza richiesto"],
+    ["data_nascita", "Data di nascita richiesta"],
+  ];
+  for (const [field, msg] of requiredAnagrafici) {
+    const v = (data.clientData as any)[field];
+    if (!v || (typeof v === "string" && !v.trim())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["clientData", field], message: msg });
+    }
+  }
+
   // Validazione condizionale tipo_cliente
   const tipo = data.clientData.tipo_cliente || "azienda";
   if (tipo === "privato") {
@@ -290,6 +333,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         // `defaultSelectedIds` del template.
         return Array.isArray(raw) ? raw : undefined;
       })(),
+      fillMode: ((contract as any)?.fillMode === "client_fill" ? "client_fill" : "seller") as "seller" | "client_fill",
       clientData: {
         tipo_cliente: "azienda" as const,
         societa: "",
@@ -417,37 +461,53 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       return;
     }
     const cd: any = values.clientData || {};
-    const isPrivato = (cd.tipo_cliente || "azienda") === "privato";
-    const referenteOk = isPrivato ? true : !!cd.cliente_nome;
-    if (!cd.societa || !referenteOk || !cd.email) {
-      toast({
-        title: "Compila i dati cliente",
-        description: isPrivato
-          ? "Servono almeno cognome e nome del cliente ed email per generare l'anteprima."
-          : "Servono almeno società, nome del referente ed email del cliente per generare l'anteprima.",
-        variant: "destructive",
-      });
-      scrollToSection("section-client");
-      return;
-    }
-    if (values.isPercentagePartnership) {
-      if (!values.partnershipPercentage || values.partnershipPercentage <= 0) {
+    // In modalità "client_fill" l'anteprima mostra solo le condizioni
+    // commerciali con i dati anagrafici come placeholder: non blocchiamo
+    // il venditore se l'anagrafica non è ancora compilata.
+    if (fillMode === "seller") {
+      const isPrivato = (cd.tipo_cliente || "azienda") === "privato";
+      const referenteOk = isPrivato ? true : !!cd.cliente_nome;
+      if (!cd.societa || !referenteOk || !cd.email) {
         toast({
-          title: "Inserisci la percentuale di partnership",
-          description: "Per generare l'anteprima la percentuale deve essere maggiore di zero.",
+          title: "Compila i dati cliente",
+          description: isPrivato
+            ? "Servono almeno cognome e nome del cliente ed email per generare l'anteprima."
+            : "Servono almeno società, nome del referente ed email del cliente per generare l'anteprima.",
+          variant: "destructive",
+        });
+        scrollToSection("section-client");
+        return;
+      }
+      if (values.isPercentagePartnership) {
+        if (!values.partnershipPercentage || values.partnershipPercentage <= 0) {
+          toast({
+            title: "Inserisci la percentuale di partnership",
+            description: "Per generare l'anteprima la percentuale deve essere maggiore di zero.",
+            variant: "destructive",
+          });
+          scrollToSection("section-payment");
+          return;
+        }
+      } else if (!values.totalValue || values.totalValue <= 0) {
+        toast({
+          title: "Inserisci il prezzo totale",
+          description: "Per generare l'anteprima il prezzo totale deve essere maggiore di zero.",
           variant: "destructive",
         });
         scrollToSection("section-payment");
         return;
       }
-    } else if (!values.totalValue || values.totalValue <= 0) {
-      toast({
-        title: "Inserisci il prezzo totale",
-        description: "Per generare l'anteprima il prezzo totale deve essere maggiore di zero.",
-        variant: "destructive",
-      });
-      scrollToSection("section-payment");
-      return;
+    } else {
+      // client_fill: serve almeno l'email per poter inviare il link.
+      if (!cd.email) {
+        toast({
+          title: "Inserisci l'email del cliente",
+          description: "Per inviare il link di compilazione serve almeno un'email valida.",
+          variant: "destructive",
+        });
+        scrollToSection("section-client");
+        return;
+      }
     }
 
     setPreviewLoading(true);
@@ -1956,7 +2016,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         <button
                           key={opt.value}
                           type="button"
-                          onClick={() => setFillMode(opt.value)}
+                          onClick={() => {
+                            setFillMode(opt.value);
+                            form.setValue("fillMode", opt.value, { shouldValidate: true, shouldDirty: true });
+                          }}
                           className={`text-left p-4 rounded-xl border-2 transition-all ${
                             selected
                               ? "border-indigo-400 bg-white shadow-sm"
