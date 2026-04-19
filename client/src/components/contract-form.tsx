@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar, Send, Gift, Check, Info, AlertTriangle, Eye } from "lucide-react";
+import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar, Send, Gift, Check, Info, AlertTriangle, Eye, Sparkles, BookmarkPlus, Layers } from "lucide-react";
+import type { ContractPreset } from "@shared/schema";
 import DynamicFormFields from "./dynamic-form-fields";
 import ProfessionalContractDocument from "./professional-contract-document";
 import PaymentCalculatorAdvanced from "./payment-calculator-advanced";
@@ -249,6 +250,15 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<{ template: any; companySettings: any; generatedContent: string } | null>(null);
 
+  // Preset Offerta state
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("");
+  const [appliedPresetName, setAppliedPresetName] = useState<string | null>(null);
+  const [presetMissingTemplate, setPresetMissingTemplate] = useState(false);
+  const [savePresetDialogOpen, setSavePresetDialogOpen] = useState(false);
+  const [savePresetName, setSavePresetName] = useState("");
+  const [savePresetDescription, setSavePresetDescription] = useState("");
+  const [savePresetVisibility, setSavePresetVisibility] = useState<"personal" | "shared">("personal");
+
   // Co-fill (real-time client-seller fill) state
   const [coFillDialogOpen, setCoFillDialogOpen] = useState(false);
   const [coFillToken, setCoFillToken] = useState<string | null>(contract?.coFillToken || null);
@@ -291,6 +301,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const { data: presets = [] } = useQuery<ContractPreset[]>({
+    queryKey: ["/api/presets"],
+  });
 
   const { data: templates = [], isLoading: templatesLoading, error: templatesError } = useQuery({
     queryKey: ["/api/templates"],
@@ -373,6 +387,131 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const rataListFields = useFieldArray({
     control: form.control,
     name: "clientData.rata_list",
+  });
+
+  // ===== Preset Offerta: applica preset al form =====
+  const applyPreset = useCallback((preset: ContractPreset) => {
+    // Verifica template ancora esistente
+    const tplExists = preset.templateId && templates.some((t: any) => t.id === preset.templateId);
+    if (preset.templateId && !tplExists) {
+      setPresetMissingTemplate(true);
+      setAppliedPresetName(preset.name);
+      toast({
+        title: "Template del preset non disponibile",
+        description: "Seleziona un nuovo template per continuare con questo preset.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setPresetMissingTemplate(false);
+
+    if (preset.templateId && tplExists) {
+      // Segnala all'effect di reset sezioni che il prossimo cambio templateId
+      // proviene dall'apply preset e NON deve azzerare le sezioni.
+      presetApplyingRef.current = true;
+      form.setValue("templateId", preset.templateId, { shouldDirty: true });
+      setSelectedTemplateId(preset.templateId);
+    }
+
+    const sectionIds = Array.isArray(preset.selectedSectionIds) ? preset.selectedSectionIds as string[] : [];
+    // Imposta sezioni dopo templateId, in modo che — anche se il reset effect
+    // dovesse partire — questo setValue lo sovrascriva.
+    form.setValue("selectedSectionIds", sectionIds, { shouldDirty: true });
+
+    const bonusList = Array.isArray(preset.bonusList) ? preset.bonusList as any[] : [];
+    form.setValue("clientData.bonus_list", bonusList, { shouldDirty: true });
+
+    const paymentPlan = Array.isArray(preset.paymentPlan) ? preset.paymentPlan as any[] : [];
+    form.setValue(
+      "clientData.payment_plan",
+      paymentPlan.length ? paymentPlan : [{ rata_importo: "", rata_scadenza: "" }],
+      { shouldDirty: true },
+    );
+
+    const rataList = Array.isArray(preset.rataList) ? preset.rataList as any[] : [];
+    form.setValue("clientData.rata_list", rataList, { shouldDirty: true });
+
+    if (preset.totalValue != null) {
+      const v = Number(preset.totalValue);
+      if (!Number.isNaN(v)) form.setValue("totalValue", v, { shouldDirty: true });
+    }
+
+    form.setValue("isPercentagePartnership", !!preset.isPercentagePartnership, { shouldDirty: true });
+    setIsPercentageMode(!!preset.isPercentagePartnership);
+    if (preset.partnershipPercentage != null) {
+      const p = Number(preset.partnershipPercentage);
+      if (!Number.isNaN(p)) form.setValue("partnershipPercentage", p, { shouldDirty: true });
+    }
+
+    form.setValue("renewalDuration", preset.renewalDuration ?? 12, { shouldDirty: true });
+
+    // Calcola data fine sulla base della durata standard del preset
+    if (preset.defaultDurationMonths) {
+      const startStr = form.getValues("contractStartDate") || new Date().toISOString().split("T")[0];
+      const start = new Date(startStr);
+      const end = new Date(start);
+      end.setMonth(end.getMonth() + preset.defaultDurationMonths);
+      form.setValue("contractEndDate", end.toISOString().split("T")[0], { shouldDirty: true });
+      if (!form.getValues("contractStartDate")) {
+        form.setValue("contractStartDate", startStr, { shouldDirty: true });
+      }
+    }
+
+    setAppliedPresetName(preset.name);
+    toast({
+      title: "Preset applicato",
+      description: `"${preset.name}" è stato caricato. Compila i dati cliente per finalizzare.`,
+    });
+  }, [form, templates, toast]);
+
+  const handlePresetSelect = (id: string) => {
+    setSelectedPresetId(id);
+    if (!id || id === "__none__") return;
+    const preset = presets.find((p) => p.id.toString() === id);
+    if (preset) applyPreset(preset);
+  };
+
+  const savePresetMutation = useMutation({
+    mutationFn: async (meta: { name: string; description: string; visibility: "personal" | "shared" }) => {
+      const formValues = form.getValues();
+      const payload = {
+        meta,
+        contractForm: {
+          templateId: formValues.templateId,
+          selectedSectionIds: formValues.selectedSectionIds || [],
+          totalValue: formValues.totalValue,
+          isPercentagePartnership: formValues.isPercentagePartnership,
+          partnershipPercentage: formValues.partnershipPercentage,
+          autoRenewal: (formValues as any).autoRenewal ?? false,
+          renewalDuration: formValues.renewalDuration,
+          defaultDurationMonths: (() => {
+            // Calcola la durata in mesi dalla differenza tra start ed end
+            const s = formValues.contractStartDate ? new Date(formValues.contractStartDate) : null;
+            const e = formValues.contractEndDate ? new Date(formValues.contractEndDate) : null;
+            if (!s || !e || isNaN(s.getTime()) || isNaN(e.getTime())) return undefined;
+            const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+            return months > 0 ? months : undefined;
+          })(),
+          clientData: {
+            bonus_list: formValues.clientData?.bonus_list || [],
+            payment_plan: formValues.clientData?.payment_plan || [],
+            rata_list: formValues.clientData?.rata_list || [],
+          },
+        },
+      };
+      return await apiRequest("POST", "/api/presets/from-contract-form", payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/presets"] });
+      toast({ title: "Preset salvato", description: "Lo trovi nella sezione Preset Offerta." });
+      setSavePresetDialogOpen(false);
+      setSavePresetName("");
+      setSavePresetDescription("");
+      setSavePresetVisibility("personal");
+    },
+    onError: (err: any) => {
+      toast({ title: "Errore salvataggio preset", description: err.message || "Riprova", variant: "destructive" });
+    },
   });
 
   const createContractMutation = useMutation({
@@ -613,6 +752,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   // rispettiamo le selezioni persistite).
   const watchedTemplateId = form.watch("templateId");
   const prevTemplateIdRef = useRef<number | null>(null);
+  // Quando si applica un preset, sopprimiamo il reset delle sezioni
+  // (altrimenti il cambio di templateId azzererebbe la lista appena impostata).
+  const presetApplyingRef = useRef(false);
   useEffect(() => {
     if (isEditing) return;
     if (prevTemplateIdRef.current === null) {
@@ -621,6 +763,12 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     }
     if (prevTemplateIdRef.current !== watchedTemplateId) {
       prevTemplateIdRef.current = watchedTemplateId;
+      if (presetApplyingRef.current) {
+        // Il preset sta forzando templateId+selectedSectionIds insieme,
+        // non azzerarli.
+        presetApplyingRef.current = false;
+        return;
+      }
       form.setValue("selectedSectionIds", undefined, { shouldDirty: false });
     }
   }, [watchedTemplateId, isEditing, form]);
@@ -792,6 +940,68 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       }}
       onSessionEnd={() => setCoFillToken(null)}
     />
+    {/* Salva preset dialog */}
+    <Dialog open={savePresetDialogOpen} onOpenChange={setSavePresetDialogOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BookmarkPlus className="h-5 w-5 text-indigo-600" /> Salva come preset offerta
+          </DialogTitle>
+          <DialogDescription>
+            Salva la configurazione corrente (template, pacchetti, bonus, prezzo, durata) per riutilizzarla in nuovi contratti.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label className="text-xs font-medium text-slate-700">Nome preset *</Label>
+            <Input
+              value={savePresetName}
+              onChange={(e) => setSavePresetName(e.target.value)}
+              placeholder="Es. Offerta Standard 12 mesi"
+              className="mt-1"
+              data-testid="input-save-preset-name"
+            />
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-slate-700">Descrizione (opzionale)</Label>
+            <Input
+              value={savePresetDescription}
+              onChange={(e) => setSavePresetDescription(e.target.value)}
+              placeholder="A cosa serve questo preset"
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-slate-700">Visibilità</Label>
+            <Select value={savePresetVisibility} onValueChange={(v) => setSavePresetVisibility(v as any)}>
+              <SelectTrigger className="mt-1" data-testid="select-save-preset-visibility">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="personal">Solo io (personale)</SelectItem>
+                <SelectItem value="shared">Tutta l'azienda (condiviso) — solo admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setSavePresetDialogOpen(false)}>Annulla</Button>
+          <Button
+            type="button"
+            disabled={savePresetMutation.isPending || !savePresetName.trim()}
+            onClick={() => savePresetMutation.mutate({
+              name: savePresetName.trim(),
+              description: savePresetDescription.trim(),
+              visibility: savePresetVisibility,
+            })}
+            data-testid="button-confirm-save-preset"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {savePresetMutation.isPending ? "Salvataggio…" : "Salva preset"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open onOpenChange={() => onClose()}>
       <DialogContent className="max-w-[1280px] w-[95vw] h-[95vh] p-0 gap-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-white grid grid-rows-[auto_auto_minmax(0,1fr)_auto]">
         {/* Header */}
@@ -864,6 +1074,76 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               onJumpToField={jumpToClientField}
             />
             <form id="contract-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
+            {/* === Preset Offerta bar === */}
+            {!isEditing && (
+              <div className="mb-6 p-4 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/50 to-violet-50/30">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                      <Sparkles className="h-4 w-4 text-indigo-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800">Preset offerta</p>
+                      <p className="text-[11px] text-slate-500">Carica una configurazione salvata oppure salva quella attuale per riusarla.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Select value={selectedPresetId} onValueChange={handlePresetSelect}>
+                      <SelectTrigger className="h-10 w-[260px] rounded-xl border-indigo-200 bg-white" data-testid="select-load-preset">
+                        <SelectValue placeholder={presets.length === 0 ? "Nessun preset salvato" : "Carica un preset…"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {presets.length === 0 ? (
+                          <div className="p-2 text-xs text-slate-400">Nessun preset disponibile</div>
+                        ) : (
+                          presets.map((p) => (
+                            <SelectItem key={p.id} value={p.id.toString()}>
+                              <div className="flex items-center gap-2">
+                                <Layers className="h-3.5 w-3.5 text-indigo-500" />
+                                <span>{p.name}</span>
+                                {p.visibility === "shared" && (
+                                  <span className="text-[10px] text-emerald-600">· condiviso</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                      onClick={() => {
+                        if (!form.getValues("templateId")) {
+                          toast({ title: "Seleziona prima un template", description: "Per salvare un preset serve almeno un template.", variant: "destructive" });
+                          return;
+                        }
+                        setSavePresetDialogOpen(true);
+                      }}
+                      data-testid="button-save-as-preset"
+                    >
+                      <BookmarkPlus className="h-4 w-4 mr-1.5" />
+                      Salva come preset
+                    </Button>
+                  </div>
+                </div>
+                {appliedPresetName && !presetMissingTemplate && (
+                  <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
+                    <CheckCircle className="h-4 w-4 shrink-0" />
+                    <span>Preset <strong>"{appliedPresetName}"</strong> applicato. Compila ora i dati cliente.</span>
+                  </div>
+                )}
+                {presetMissingTemplate && (
+                  <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>Il template del preset <strong>"{appliedPresetName}"</strong> non è più disponibile. Seleziona un nuovo template qui sotto.</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Section 1: Template Selection */}
             <div id="section-template">
               <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">

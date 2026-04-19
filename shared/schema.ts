@@ -171,6 +171,69 @@ export const companySettingsRelations = relations(companySettings, ({ many }) =>
   users: many(users),
 }));
 
+export const contractPresets = pgTable("contract_presets", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companySettings.id, { onDelete: "cascade" }),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  visibility: text("visibility", { enum: ["personal", "shared"] }).notNull().default("personal"),
+  templateId: integer("template_id").references(() => contractTemplates.id, { onDelete: "set null" }),
+  selectedSectionIds: jsonb("selected_section_ids").default([]).notNull(),
+  bonusList: jsonb("bonus_list").default([]).notNull(),
+  paymentPlan: jsonb("payment_plan").default([]).notNull(),
+  rataList: jsonb("rata_list").default([]).notNull(),
+  totalValue: numeric("total_value", { precision: 12, scale: 2 }),
+  isPercentagePartnership: boolean("is_percentage_partnership").notNull().default(false),
+  partnershipPercentage: numeric("partnership_percentage", { precision: 5, scale: 2 }),
+  autoRenewal: boolean("auto_renewal").notNull().default(false),
+  renewalDuration: integer("renewal_duration").notNull().default(12),
+  defaultDurationMonths: integer("default_duration_months"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const contractPresetsRelations = relations(contractPresets, ({ one }) => ({
+  template: one(contractTemplates, {
+    fields: [contractPresets.templateId],
+    references: [contractTemplates.id],
+  }),
+  creator: one(users, {
+    fields: [contractPresets.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const presetItemSchema = z.object({
+  bonus_descrizione: z.string().optional(),
+  rata_importo: z.union([z.string(), z.number()]).optional(),
+  rata_scadenza: z.string().optional(),
+}).passthrough();
+
+export const insertContractPresetSchema = createInsertSchema(contractPresets).omit({
+  id: true,
+  companyId: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  name: z.string().min(1, "Nome richiesto").max(120),
+  description: z.string().max(500).nullish(),
+  visibility: z.enum(["personal", "shared"]).default("personal"),
+  templateId: z.number().int().positive().nullish(),
+  selectedSectionIds: z.array(z.string()).default([]),
+  bonusList: z.array(z.object({ bonus_descrizione: z.string() }).passthrough()).default([]),
+  paymentPlan: z.array(z.object({ rata_importo: z.string().optional(), rata_scadenza: z.string().optional() }).passthrough()).default([]),
+  rataList: z.array(z.object({ rata_importo: z.union([z.number(), z.string()]).optional(), rata_scadenza: z.string().optional() }).passthrough()).default([]),
+  totalValue: z.union([z.string(), z.number()]).nullish().transform((v) => v === undefined || v === null || v === "" ? null : String(v)),
+  partnershipPercentage: z.union([z.string(), z.number()]).nullish().transform((v) => v === undefined || v === null || v === "" ? null : String(v)),
+  renewalDuration: z.number().int().min(1).max(60).default(12),
+  defaultDurationMonths: z.number().int().min(1).max(120).nullish(),
+});
+
+export type ContractPreset = typeof contractPresets.$inferSelect;
+export type InsertContractPreset = z.infer<typeof insertContractPresetSchema>;
+
 export const coFillSessions = pgTable("co_fill_sessions", {
   id: serial("id").primaryKey(),
   token: text("token").notNull().unique(),

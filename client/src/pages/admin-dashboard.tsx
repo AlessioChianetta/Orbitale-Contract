@@ -141,6 +141,12 @@ export default function AdminDashboard() {
             </div>
 
             <div className="flex items-center gap-2">
+              <Link href="/admin/presets">
+                <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-900 hover:bg-black/[0.03] transition-all duration-200" data-testid="link-presets">
+                  <Layers className="h-4 w-4 mr-2" />
+                  Preset Offerta
+                </Button>
+              </Link>
               <Link href="/user-management">
                 <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-900 hover:bg-black/[0.03] transition-all duration-200" data-testid="link-user-management">
                   <Users className="h-4 w-4 mr-2" />

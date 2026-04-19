@@ -1,12 +1,14 @@
 import { 
   users, contractTemplates, contracts, auditLogs, otpCodes, companySettings, coFillSessions,
+  contractPresets,
   type User, type InsertUser, 
   type ContractTemplate, type InsertContractTemplate,
   type Contract, type InsertContract,
   type AuditLog, type InsertAuditLog,
   type OtpCode, type InsertOtpCode,
   type CompanySettings, type InsertCompanySettings,
-  type CoFillSession, type InsertCoFillSession
+  type CoFillSession, type InsertCoFillSession,
+  type ContractPreset, type InsertContractPreset
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, inArray, sql } from "drizzle-orm";
@@ -71,6 +73,13 @@ export interface IStorage {
   terminateCoFillSession(token: string, companyId: number, sellerId: number): Promise<boolean>;
   listActiveCoFillSessionsForSeller(companyId: number, sellerId: number): Promise<CoFillSession[]>;
   getActiveCoFillSessionByContractId(contractId: number): Promise<CoFillSession | undefined>;
+
+  // Contract Preset methods
+  listContractPresets(companyId: number, userId: number): Promise<ContractPreset[]>;
+  getContractPreset(id: number, companyId: number, userId: number): Promise<ContractPreset | undefined>;
+  createContractPreset(input: InsertContractPreset & { companyId: number; createdBy: number }): Promise<ContractPreset>;
+  updateContractPreset(id: number, companyId: number, userId: number, isAdmin: boolean, input: Partial<InsertContractPreset>): Promise<ContractPreset | undefined>;
+  deleteContractPreset(id: number, companyId: number, userId: number, isAdmin: boolean): Promise<boolean>;
 
   sessionStore: session.Store;
 }
@@ -511,6 +520,79 @@ export class DatabaseStorage implements IStorage {
       eq(coFillSessions.sellerId, sellerId),
       eq(coFillSessions.status, "active"),
     ));
+  }
+
+  // Contract Preset methods
+  async listContractPresets(companyId: number, userId: number): Promise<ContractPreset[]> {
+    const rows = await db
+      .select()
+      .from(contractPresets)
+      .where(and(
+        eq(contractPresets.companyId, companyId),
+        sql`(${contractPresets.visibility} = 'shared' OR ${contractPresets.createdBy} = ${userId})`,
+      ))
+      .orderBy(desc(contractPresets.updatedAt));
+    return rows;
+  }
+
+  async getContractPreset(id: number, companyId: number, userId: number): Promise<ContractPreset | undefined> {
+    const [row] = await db
+      .select()
+      .from(contractPresets)
+      .where(and(
+        eq(contractPresets.id, id),
+        eq(contractPresets.companyId, companyId),
+        sql`(${contractPresets.visibility} = 'shared' OR ${contractPresets.createdBy} = ${userId})`,
+      ));
+    return row || undefined;
+  }
+
+  async createContractPreset(input: InsertContractPreset & { companyId: number; createdBy: number }): Promise<ContractPreset> {
+    const [row] = await db
+      .insert(contractPresets)
+      .values({
+        ...input,
+        updatedAt: new Date(),
+      } as any)
+      .returning();
+    return row;
+  }
+
+  async updateContractPreset(
+    id: number,
+    companyId: number,
+    userId: number,
+    isAdmin: boolean,
+    input: Partial<InsertContractPreset>,
+  ): Promise<ContractPreset | undefined> {
+    const [existing] = await db
+      .select()
+      .from(contractPresets)
+      .where(and(eq(contractPresets.id, id), eq(contractPresets.companyId, companyId)));
+    if (!existing) return undefined;
+    if (!isAdmin && existing.createdBy !== userId) return undefined;
+    // I preset condivisi possono essere modificati solo da admin,
+    // anche se a crearli era stato un seller poi promosso/retrocesso.
+    if (existing.visibility === "shared" && !isAdmin) return undefined;
+    const [row] = await db
+      .update(contractPresets)
+      .set({ ...input, updatedAt: new Date() } as any)
+      .where(eq(contractPresets.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteContractPreset(id: number, companyId: number, userId: number, isAdmin: boolean): Promise<boolean> {
+    const [existing] = await db
+      .select()
+      .from(contractPresets)
+      .where(and(eq(contractPresets.id, id), eq(contractPresets.companyId, companyId)));
+    if (!existing) return false;
+    if (!isAdmin && existing.createdBy !== userId) return false;
+    // I preset condivisi possono essere eliminati solo da admin.
+    if (existing.visibility === "shared" && !isAdmin) return false;
+    await db.delete(contractPresets).where(eq(contractPresets.id, id));
+    return true;
   }
 
   async getActiveCoFillSessionByContractId(contractId: number): Promise<CoFillSession | undefined> {

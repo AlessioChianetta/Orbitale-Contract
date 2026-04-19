@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import LandingPage from "@/pages/landing-page";
 import AdminDashboard from "@/pages/admin-dashboard";
+import AdminPresetsPage from "@/pages/admin-presets";
 import SellerDashboard from "@/pages/seller-dashboard";
 import ClientView from "@/pages/client-view";
 import CompanySettings from "./pages/company-settings";
@@ -21,6 +22,8 @@ function Router() {
     <Switch>
       <Route path="/" component={LandingPage} />
       <ProtectedRoute path="/admin" component={AdminDashboard} />
+      <ProtectedRoute path="/admin/presets" component={AdminPresetsPage} />
+      <ProtectedRoute path="/presets" component={AdminPresetsPage} />
       <ProtectedRoute path="/seller" component={SellerDashboard} />
       <ProtectedRoute path="/company-settings" component={CompanySettings} />
       <ProtectedRoute path="/user-management" component={UserManagement} />

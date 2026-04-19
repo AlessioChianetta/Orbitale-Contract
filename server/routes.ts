@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, type InsertCoFillSession, type User } from "@shared/schema";
+import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, insertContractPresetSchema, type InsertCoFillSession, type User } from "@shared/schema";
 import { resolveSelectedSections, renderSectionsHtml, parseSelectedIds, SECTIONS_MARKER } from "@shared/sections";
 import { getMissingClientFields, getClientType, SYNCED_FIELD_KEYS } from "@shared/client-fields";
 // @ts-ignore - no shipped types
@@ -240,6 +240,145 @@ export function registerRoutes(app: Express): Server {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete template" });
+    }
+  });
+
+  // ============================================================
+  // Contract Presets routes (Preset Offerta riusabili)
+  // ============================================================
+  // Helper: estrae i campi rilevanti da un payload del form contratto
+  // (bonus, piano pagamento, rate, sezioni selezionate, totale, durata...)
+  // e li converte nello shape persistente del preset.
+  const extractPresetFromContractForm = (body: any) => {
+    const cd = body?.clientData ?? {};
+    return {
+      templateId: typeof body?.templateId === "number" ? body.templateId : null,
+      selectedSectionIds: Array.isArray(body?.selectedSectionIds) ? body.selectedSectionIds : [],
+      bonusList: Array.isArray(cd.bonus_list) ? cd.bonus_list : [],
+      paymentPlan: Array.isArray(cd.payment_plan) ? cd.payment_plan : [],
+      rataList: Array.isArray(cd.rata_list) ? cd.rata_list : [],
+      totalValue: body?.totalValue ?? null,
+      isPercentagePartnership: !!body?.isPercentagePartnership,
+      partnershipPercentage: body?.partnershipPercentage ?? null,
+      autoRenewal: !!body?.autoRenewal,
+      renewalDuration: typeof body?.renewalDuration === "number" ? body.renewalDuration : 12,
+      defaultDurationMonths: typeof body?.defaultDurationMonths === "number" ? body.defaultDurationMonths : null,
+    };
+  };
+
+  app.get("/api/presets", requireAuth, async (req, res) => {
+    try {
+      const presets = await storage.listContractPresets(req.user.companyId, req.user.id);
+      res.json(presets);
+    } catch (err) {
+      console.error("Errore lettura preset:", err);
+      res.status(500).json({ message: "Impossibile caricare i preset" });
+    }
+  });
+
+  app.get("/api/presets/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const preset = await storage.getContractPreset(id, req.user.companyId, req.user.id);
+      if (!preset) return res.status(404).json({ message: "Preset non trovato" });
+      res.json(preset);
+    } catch (err) {
+      res.status(500).json({ message: "Errore caricamento preset" });
+    }
+  });
+
+  app.post("/api/presets", requireAuth, async (req, res) => {
+    try {
+      const parsed = insertContractPresetSchema.parse(req.body);
+      // Solo gli admin possono creare preset condivisi
+      if (parsed.visibility === "shared" && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Solo gli admin possono creare preset condivisi" });
+      }
+      // Se templateId fornito, verifica appartenenza alla company
+      if (parsed.templateId) {
+        const t = await storage.getTemplate(parsed.templateId, req.user.companyId);
+        if (!t) return res.status(400).json({ message: "Template non valido per la tua azienda" });
+      }
+      const created = await storage.createContractPreset({
+        ...parsed,
+        companyId: req.user.companyId,
+        createdBy: req.user.id,
+      });
+      res.status(201).json(created);
+    } catch (err: any) {
+      if (err?.name === "ZodError") return res.status(400).json({ message: "Dati non validi", errors: err.errors });
+      console.error("Errore creazione preset:", err);
+      res.status(500).json({ message: "Impossibile creare il preset" });
+    }
+  });
+
+  // Helper endpoint: crea un preset partendo direttamente dal payload
+  // del form contratto, evitando al frontend di rimappare i campi.
+  app.post("/api/presets/from-contract-form", requireAuth, async (req, res) => {
+    try {
+      const meta = z.object({
+        name: z.string().min(1).max(120),
+        description: z.string().max(500).nullish(),
+        visibility: z.enum(["personal", "shared"]).default("personal"),
+      }).parse(req.body?.meta ?? {});
+      if (meta.visibility === "shared" && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Solo gli admin possono creare preset condivisi" });
+      }
+      const extracted = extractPresetFromContractForm(req.body?.contractForm ?? {});
+      const parsed = insertContractPresetSchema.parse({ ...meta, ...extracted });
+      if (parsed.templateId) {
+        const t = await storage.getTemplate(parsed.templateId, req.user.companyId);
+        if (!t) return res.status(400).json({ message: "Template non valido per la tua azienda" });
+      }
+      const created = await storage.createContractPreset({
+        ...parsed,
+        companyId: req.user.companyId,
+        createdBy: req.user.id,
+      });
+      res.status(201).json(created);
+    } catch (err: any) {
+      if (err?.name === "ZodError") return res.status(400).json({ message: "Dati non validi", errors: err.errors });
+      console.error("Errore creazione preset da form:", err);
+      res.status(500).json({ message: "Impossibile salvare il preset" });
+    }
+  });
+
+  app.put("/api/presets/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const parsed = insertContractPresetSchema.partial().parse(req.body);
+      if (parsed.visibility === "shared" && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Solo gli admin possono usare preset condivisi" });
+      }
+      if (parsed.templateId) {
+        const t = await storage.getTemplate(parsed.templateId, req.user.companyId);
+        if (!t) return res.status(400).json({ message: "Template non valido per la tua azienda" });
+      }
+      const updated = await storage.updateContractPreset(
+        id,
+        req.user.companyId,
+        req.user.id,
+        req.user.role === "admin",
+        parsed,
+      );
+      if (!updated) return res.status(404).json({ message: "Preset non trovato o non modificabile" });
+      res.json(updated);
+    } catch (err: any) {
+      if (err?.name === "ZodError") return res.status(400).json({ message: "Dati non validi", errors: err.errors });
+      console.error("Errore aggiornamento preset:", err);
+      res.status(500).json({ message: "Impossibile aggiornare il preset" });
+    }
+  });
+
+  app.delete("/api/presets/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ok = await storage.deleteContractPreset(id, req.user.companyId, req.user.id, req.user.role === "admin");
+      if (!ok) return res.status(404).json({ message: "Preset non trovato o non eliminabile" });
+      res.status(204).send();
+    } catch (err) {
+      console.error("Errore eliminazione preset:", err);
+      res.status(500).json({ message: "Impossibile eliminare il preset" });
     }
   });
 
