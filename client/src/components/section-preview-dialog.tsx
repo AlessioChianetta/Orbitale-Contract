@@ -93,7 +93,7 @@ export default function SectionPreviewDialog({
                 data-testid="section-preview-remove"
               >
                 <X className="h-4 w-4 mr-1.5" />
-                Rimuovi dal preset
+                Rimuovi modulo
               </Button>
             ) : (
               <Button
@@ -103,7 +103,7 @@ export default function SectionPreviewDialog({
                 data-testid="section-preview-add"
               >
                 <Plus className="h-4 w-4 mr-1.5" />
-                Aggiungi al preset
+                Aggiungi modulo
               </Button>
             )
           )}
