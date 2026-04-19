@@ -10,6 +10,12 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, inArray, sql } from "drizzle-orm";
+import {
+  getOrbitalContractEmptyHtml,
+  getOrbitalServicePackages,
+  ORBITAL_TEMPLATE_NAME,
+  ORBITAL_TEMPLATE_DESCRIPTION,
+} from "@shared/orbital-template";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -134,8 +140,49 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Template methods
+  async ensureOrbitalTemplate(companyId: number): Promise<void> {
+    try {
+      // Concurrency-safe: serialize the read-then-insert against duplicate seeds
+      // for the same company by acquiring a transaction-scoped advisory lock.
+      // Key namespace 4242 + companyId is arbitrary but stable.
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(4242, ${companyId})`);
+
+        const [adminUser] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.companyId, companyId), eq(users.role, "admin")))
+          .limit(1);
+        if (!adminUser) return;
+
+        const existing = await tx
+          .select({ id: contractTemplates.id })
+          .from(contractTemplates)
+          .innerJoin(users, eq(contractTemplates.createdBy, users.id))
+          .where(and(eq(users.companyId, companyId), eq(contractTemplates.name, ORBITAL_TEMPLATE_NAME)))
+          .limit(1);
+        if (existing.length > 0) return;
+
+        await tx.insert(contractTemplates).values({
+          name: ORBITAL_TEMPLATE_NAME,
+          description: ORBITAL_TEMPLATE_DESCRIPTION,
+          content: getOrbitalContractEmptyHtml(),
+          sections: getOrbitalServicePackages() as any,
+          createdBy: adminUser.id,
+          updatedAt: new Date(),
+        });
+        console.log(`Storage: Seeded "${ORBITAL_TEMPLATE_NAME}" template for company ${companyId}`);
+      });
+    } catch (err) {
+      console.error("Storage: Failed to seed Orbitale template:", err);
+    }
+  }
+
   async getTemplates(companyId: number): Promise<ContractTemplate[]> {
     try {
+        // Idempotent seed of the Sistema Orbitale modular template
+        await this.ensureOrbitalTemplate(companyId);
+
         // Filter templates by company - get templates created by users of this company
         const templates = await db
           .select({

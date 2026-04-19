@@ -40,6 +40,11 @@ import AiContractChat from "./ai-contract-chat";
 import AiContractWizard from "./ai-contract-wizard";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
 import { getPartnershipContractHtml } from "@/data/partnership-contract-template";
+import {
+  getOrbitalContractFullHtml,
+  getOrbitalContractEmptyHtml,
+  getOrbitalServicePackages,
+} from "@shared/orbital-template";
 import { resolveSelectedSections, parseSections, type ModularSection } from "@shared/sections";
 
 const templateFormSchema = insertContractTemplateSchema.omit({ createdBy: true });
@@ -602,7 +607,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-3 mb-4">
+                      <div className="flex items-center gap-3 mb-4 flex-wrap">
                         <Button
                           type="button"
                           variant="outline"
@@ -611,6 +616,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                           onClick={() => {
                             const html = getPartnershipContractHtml();
                             form.setValue("content", html);
+                            form.setValue("sections", [] as any, { shouldDirty: true });
                             toast({
                               title: "Template importato",
                               description: "Il contratto di partnership è stato importato nel corpo del contratto.",
@@ -620,6 +626,49 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         >
                           <Download className="h-3.5 w-3.5 mr-1.5" />
                           Importa Template Partnership
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl border-[#E5E7EB] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all duration-200"
+                          onClick={() => {
+                            const html = getOrbitalContractFullHtml();
+                            form.setValue("content", html);
+                            form.setValue("sections", [] as any, { shouldDirty: true });
+                            toast({
+                              title: "Template importato",
+                              description: "Contratto Sistema Orbitale completo (con tutti i servizi inline) importato nel corpo.",
+                            });
+                          }}
+                          disabled={isPending}
+                          data-testid="button-import-orbital-full"
+                        >
+                          <Download className="h-3.5 w-3.5 mr-1.5" />
+                          Importa Sistema Orbitale (Completo)
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl border-[#E5E7EB] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all duration-200"
+                          onClick={() => {
+                            const html = getOrbitalContractEmptyHtml();
+                            const packages = getOrbitalServicePackages();
+                            form.setValue("content", html);
+                            form.setValue("sections", packages as any, { shouldDirty: true });
+                            toast({
+                              title: "Template modulare importato",
+                              description: "Corpo del contratto e 11 Pacchetti di Servizi caricati. Personalizza la selezione per ogni contratto.",
+                            });
+                          }}
+                          disabled={isPending}
+                          data-testid="button-import-orbital-modular"
+                        >
+                          <Download className="h-3.5 w-3.5 mr-1.5" />
+                          Importa Sistema Orbitale (Modulare + 11 Pacchetti)
                         </Button>
                       </div>
 
