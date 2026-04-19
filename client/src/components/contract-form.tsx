@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar, Send, Gift, Check, Info, AlertTriangle, Eye, Sparkles, BookmarkPlus, Layers } from "lucide-react";
 import type { ContractPreset } from "@shared/schema";
+import type { LucideIcon } from "lucide-react";
+import type { FieldErrors, FieldPath } from "react-hook-form";
 import DynamicFormFields from "./dynamic-form-fields";
 import ProfessionalContractDocument from "./professional-contract-document";
 import PaymentCalculatorAdvanced from "./payment-calculator-advanced";
@@ -220,13 +222,14 @@ interface ContractFormProps {
 // Ogni step elenca i campi RHF da validare prima di poter andare avanti.
 // I campi cliente sono validati solo in modalità "seller" (in "client_fill"
 // basta l'email perché i dati li compila il cliente sul link).
-const WIZARD_STEPS: Array<{
+interface WizardStepConfig {
   id: number;
   label: string;
-  icon: any;
+  icon: LucideIcon;
   sectionId: string;
   validateFields?: (mode: "seller" | "client_fill") => string[];
-}> = [
+}
+const WIZARD_STEPS: WizardStepConfig[] = [
   {
     id: 1,
     label: "Template & Preset",
@@ -406,21 +409,31 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     if (!step?.validateFields) return true;
     const fields = step.validateFields(fillMode);
     if (fields.length === 0) return true;
-    const ok = await form.trigger(fields as any, { shouldFocus: true });
+    type FormValues = z.infer<typeof contractFormSchema>;
+    const typedFields = fields as Array<FieldPath<FormValues>>;
+    const ok = await form.trigger(typedFields, { shouldFocus: true });
     if (!ok) {
-      const errs = form.formState.errors as any;
-      const firstField = fields.find((f) => {
-        const parts = f.split(".");
-        let cur: any = errs;
-        for (const p of parts) cur = cur?.[p];
-        return !!cur?.message;
-      });
+      const errs = form.formState.errors as FieldErrors<FormValues>;
+      const lookupError = (path: string): string | undefined => {
+        const parts = path.split(".");
+        let cur: unknown = errs;
+        for (const p of parts) {
+          if (cur && typeof cur === "object" && p in (cur as Record<string, unknown>)) {
+            cur = (cur as Record<string, unknown>)[p];
+          } else {
+            return undefined;
+          }
+        }
+        if (cur && typeof cur === "object" && "message" in cur) {
+          const msg = (cur as { message?: unknown }).message;
+          return typeof msg === "string" ? msg : undefined;
+        }
+        return undefined;
+      };
       let firstMsg = "Compila i campi obbligatori prima di proseguire.";
-      if (firstField) {
-        const parts = firstField.split(".");
-        let cur: any = errs;
-        for (const p of parts) cur = cur?.[p];
-        if (cur?.message) firstMsg = cur.message;
+      for (const f of fields) {
+        const m = lookupError(f);
+        if (m) { firstMsg = m; break; }
       }
       setStepBanner(firstMsg);
       return false;
@@ -2757,8 +2770,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   { step: 4, label: "Prezzo & Durata", icon: Euro, value: form.watch("isPercentagePartnership")
                     ? `${form.watch("partnershipPercentage") ?? "—"}% partnership`
                     : (form.watch("totalValue") != null ? `€ ${Number(form.watch("totalValue") || 0).toLocaleString("it-IT")}` : "—") },
-                ]).map((row) => {
-                  const Icon = row.icon as any;
+                ] as Array<{ step: number; label: string; icon: LucideIcon; value: string }>).map((row) => {
+                  const Icon = row.icon;
                   return (
                     <div key={row.step} className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 transition-colors">
                       <Icon className="h-4 w-4 text-indigo-500 mt-0.5 flex-shrink-0" />
