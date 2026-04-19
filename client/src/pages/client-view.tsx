@@ -24,9 +24,17 @@ import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ITALIAN_PROVINCES } from "@/lib/validation-utils";
+import {
+  ITALIAN_PROVINCES,
+  looksLikeAddress,
+  validateItalianMobile,
+  validatePartitaIva,
+  validateCodiceFiscale,
+  detectVATorCF,
+  lookupCompanyByVAT,
+} from "@/lib/validation-utils";
 import { getMissingClientFields, getClientType } from "@/lib/required-client-fields";
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ShieldCheck, XCircle } from "lucide-react";
 
 // Componente per le aree di firma cliccabili con modalità avanzata
 function SignatureArea({
@@ -416,11 +424,73 @@ function ClientFillFlow({
     email: initial.email || contract.sentToEmail || "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [vatValidation, setVatValidation] = useState<{
+    isValid: boolean | null;
+    type: "vat" | "cf" | null;
+    isValidating: boolean;
+    forced: boolean;
+  }>({ isValid: null, type: null, isValidating: false, forced: false });
+  const vatDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const set = (k: string, v: any) => setData((d) => ({ ...d, [k]: v }));
   const tipo = getClientType(data);
   const isPrivato = tipo === "privato";
   const stessoIndirizzo = !!data.stesso_indirizzo;
+
+  // Validazione P.IVA / CF con debounce (uguale al form venditore)
+  useEffect(() => {
+    const value = (data.p_iva || "").toString();
+    if (vatDebounceRef.current) clearTimeout(vatDebounceRef.current);
+    if (!value) {
+      setVatValidation({ isValid: null, type: null, isValidating: false, forced: false });
+      return;
+    }
+    setVatValidation((s) => ({ ...s, isValidating: true, forced: false }));
+    vatDebounceRef.current = setTimeout(async () => {
+      const detectedType = detectVATorCF(value);
+      let isValid = false;
+      if (detectedType === "vat") {
+        isValid = validatePartitaIva(value);
+        if (isValid) {
+          try {
+            const lookup = await lookupCompanyByVAT(value);
+            if (lookup.success && lookup.data) {
+              setData((d) => ({
+                ...d,
+                societa: d.societa || lookup.data!.company_name,
+                indirizzo: d.indirizzo || lookup.data!.address,
+                sede: d.sede || lookup.data!.city,
+                provincia_sede: d.provincia_sede || lookup.data!.province,
+              }));
+            }
+          } catch {
+            /* lookup non disponibile, non bloccante */
+          }
+        }
+      } else if (detectedType === "cf") {
+        isValid = validateCodiceFiscale(value);
+      }
+      setVatValidation({
+        isValid,
+        type: detectedType !== "unknown" ? detectedType : null,
+        isValidating: false,
+        forced: false,
+      });
+    }, 300);
+    return () => {
+      if (vatDebounceRef.current) clearTimeout(vatDebounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.p_iva]);
+
+  // Heuristics derivati per gating del bottone
+  const cellulareWatch = (data.cellulare || "").toString();
+  const cellulareInvalid = cellulareWatch.trim().length > 0 && !validateItalianMobile(cellulareWatch);
+  const piva = (data.p_iva || "").toString();
+  const pivaBlocking =
+    piva.trim().length > 0 &&
+    vatValidation.isValid === false &&
+    !vatValidation.forced;
 
   // Sincronizza residenza con sede quando "stesso indirizzo" è attivo
   useEffect(() => {
@@ -434,7 +504,8 @@ function ClientFillFlow({
   }, [stessoIndirizzo, data.sede, data.provincia_sede, data.indirizzo]);
 
   const missing = getMissingClientFields(data);
-  const canSubmit = missing.length === 0 && !submitting;
+  const canSubmit =
+    missing.length === 0 && !submitting && !cellulareInvalid && !pivaBlocking;
 
   const fmtMoney = (cents: number | null | undefined) => {
     if (cents == null) return "—";
@@ -555,21 +626,86 @@ function ClientFillFlow({
             <div>
               <Label className="text-sm font-medium text-slate-700 mb-1.5 block">{isPrivato ? "Città" : "Città sede legale"}</Label>
               <div className="grid grid-cols-[1fr_90px] gap-2">
-                <Input value={data.sede} onChange={(e) => set("sede", e.target.value)} placeholder="Es. Milano" />
+                <Input value={data.sede} onChange={(e) => set("sede", e.target.value)} placeholder="Es. Milano" data-testid="input-clientfill-sede" />
                 <Select value={data.provincia_sede || ""} onValueChange={(v) => set("provincia_sede", v)}>
-                  <SelectTrigger><SelectValue placeholder="PR" /></SelectTrigger>
+                  <SelectTrigger data-testid="select-clientfill-provincia-sede"><SelectValue placeholder="PR" /></SelectTrigger>
                   <SelectContent className="max-h-60">
                     {ITALIAN_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
+              {looksLikeAddress(data.sede) && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Sembra un indirizzo. Inserisci solo il nome della città (es. "Milano"), l'indirizzo va nel campo sotto.
+                </p>
+              )}
             </div>
-            <Field label="Indirizzo">
-              <Input value={data.indirizzo} onChange={(e) => set("indirizzo", e.target.value)} placeholder="Via, numero civico, CAP" />
-            </Field>
-            <Field label={isPrivato ? "Codice Fiscale" : "Codice Fiscale / P.IVA"}>
-              <Input value={data.p_iva} onChange={(e) => set("p_iva", e.target.value.toUpperCase().replace(/\s/g, ""))} placeholder={isPrivato ? "16 caratteri" : "Codice Fiscale o Partita IVA"} />
-            </Field>
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Indirizzo</Label>
+              <Input value={data.indirizzo} onChange={(e) => set("indirizzo", e.target.value)} placeholder="Via, numero civico, CAP" data-testid="input-clientfill-indirizzo" />
+              {(data.indirizzo || "").trim() && !looksLikeAddress(data.indirizzo) && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Inserisci via e numero civico (es. "Via Roma 12, 20100").
+                </p>
+              )}
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">{isPrivato ? "Codice Fiscale" : "Codice Fiscale / P.IVA"}</Label>
+              <div className="relative">
+                <Input
+                  value={data.p_iva}
+                  onChange={(e) => set("p_iva", e.target.value.toUpperCase().replace(/\s/g, ""))}
+                  placeholder={isPrivato ? "16 caratteri" : "Codice Fiscale o Partita IVA"}
+                  className={`pr-10 ${
+                    vatValidation.isValid === true
+                      ? "border-emerald-400 focus:border-emerald-500"
+                      : vatValidation.isValid === false && !vatValidation.forced
+                      ? "border-red-400 focus:border-red-500"
+                      : ""
+                  }`}
+                  data-testid="input-clientfill-piva"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {vatValidation.isValidating && <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />}
+                  {!vatValidation.isValidating && vatValidation.isValid === true && (
+                    <CheckCircle className="h-5 w-5 text-emerald-500" />
+                  )}
+                  {!vatValidation.isValidating && vatValidation.isValid === false && !vatValidation.forced && (
+                    <XCircle className="h-5 w-5 text-red-500" />
+                  )}
+                </div>
+              </div>
+              {vatValidation.isValid === true && vatValidation.type && (
+                <p className="text-sm text-emerald-600 mt-1">
+                  {vatValidation.type === "vat" ? "Partita IVA valida" : "Codice Fiscale valido"}
+                </p>
+              )}
+              {vatValidation.isValid === false && !vatValidation.forced && (
+                <div className="flex items-center justify-between mt-1 gap-2">
+                  <p className="text-sm text-red-600">
+                    {vatValidation.type === "vat"
+                      ? "Partita IVA non valida"
+                      : vatValidation.type === "cf"
+                      ? "Codice Fiscale non valido"
+                      : "Formato non riconosciuto"}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setVatValidation((s) => ({ ...s, isValid: true, forced: true }))
+                    }
+                    className="h-7 px-3 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 rounded-lg"
+                    data-testid="button-clientfill-force-piva"
+                  >
+                    Forza inserimento
+                  </Button>
+                </div>
+              )}
+            </div>
             {!isPrivato && (
               <>
                 <Field label="Codice Univoco / SDI (opzionale)">
@@ -583,9 +719,26 @@ function ClientFillFlow({
             <Field label="Email" hint="L'email dove ti è arrivato questo link.">
               <Input type="email" value={data.email} disabled className="bg-slate-100" />
             </Field>
-            <Field label="Cellulare" hint="Es. 333 123 4567 o +39 333 123 4567.">
-              <Input type="tel" value={data.cellulare} onChange={(e) => set("cellulare", e.target.value)} placeholder="+39 333 123 4567" />
-            </Field>
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Cellulare</Label>
+              <Input
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={data.cellulare}
+                onChange={(e) => set("cellulare", e.target.value)}
+                placeholder="+39 333 123 4567"
+                className={cellulareInvalid ? "border-red-400 focus:border-red-500" : ""}
+                data-testid="input-clientfill-cellulare"
+              />
+              {cellulareInvalid ? (
+                <p className="text-sm text-red-600 mt-1">
+                  Numero non valido. Inserisci un cellulare italiano (es. 333 123 4567).
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500 mt-1">Es. 333 123 4567 o +39 333 123 4567.</p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -620,18 +773,31 @@ function ClientFillFlow({
             <div>
               <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Città di residenza</Label>
               <div className="grid grid-cols-[1fr_90px] gap-2">
-                <Input value={data.residente_a} disabled={stessoIndirizzo} onChange={(e) => set("residente_a", e.target.value)} placeholder="Es. Milano" className={stessoIndirizzo ? "bg-slate-100" : ""} />
+                <Input value={data.residente_a} disabled={stessoIndirizzo} onChange={(e) => set("residente_a", e.target.value)} placeholder="Es. Milano" className={stessoIndirizzo ? "bg-slate-100" : ""} data-testid="input-clientfill-residente" />
                 <Select value={data.provincia_residenza || ""} onValueChange={(v) => set("provincia_residenza", v)} disabled={stessoIndirizzo}>
-                  <SelectTrigger className={stessoIndirizzo ? "bg-slate-100" : ""}><SelectValue placeholder="PR" /></SelectTrigger>
+                  <SelectTrigger className={stessoIndirizzo ? "bg-slate-100" : ""} data-testid="select-clientfill-provincia-residenza"><SelectValue placeholder="PR" /></SelectTrigger>
                   <SelectContent className="max-h-60">
                     {ITALIAN_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
+              {!stessoIndirizzo && looksLikeAddress(data.residente_a) && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Sembra un indirizzo. Inserisci solo il nome della città.
+                </p>
+              )}
             </div>
-            <Field label="Indirizzo di residenza">
-              <Input value={data.indirizzo_residenza} disabled={stessoIndirizzo} onChange={(e) => set("indirizzo_residenza", e.target.value)} placeholder="Via, numero civico, CAP" className={stessoIndirizzo ? "bg-slate-100" : ""} />
-            </Field>
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Indirizzo di residenza</Label>
+              <Input value={data.indirizzo_residenza} disabled={stessoIndirizzo} onChange={(e) => set("indirizzo_residenza", e.target.value)} placeholder="Via, numero civico, CAP" className={stessoIndirizzo ? "bg-slate-100" : ""} data-testid="input-clientfill-indirizzo-residenza" />
+              {!stessoIndirizzo && (data.indirizzo_residenza || "").trim() && !looksLikeAddress(data.indirizzo_residenza) && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Inserisci via e numero civico.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
