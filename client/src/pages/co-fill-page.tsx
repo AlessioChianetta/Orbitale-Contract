@@ -101,7 +101,18 @@ export default function CoFillPage() {
     };
     connect();
 
+    // Heartbeat: invia un ping ogni 15s così il bridge di presenza lato server
+    // (vedi /ws/co-fill in routes.ts) tiene viva la sessione anche su pagine
+    // aperte ma idle (oltre il timeout di 30s).
+    const heartbeat = setInterval(() => {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try { ws.send(JSON.stringify({ type: "ping" })); } catch {}
+      }
+    }, 15000);
+
     return () => {
+      clearInterval(heartbeat);
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (wsRef.current) try { wsRef.current.close(); } catch {}
     };
