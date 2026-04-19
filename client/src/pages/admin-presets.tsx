@@ -7,7 +7,7 @@ import { Plus, Edit, Trash2, FileText, Layers, Gift, Euro, Calendar, Users, Lock
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import PresetEditor from "@/components/preset-editor";
-import { Link, Redirect } from "wouter";
+import { Link } from "wouter";
 import type { ContractPreset, ContractTemplate } from "@shared/schema";
 
 export default function AdminPresetsPage() {
@@ -15,10 +15,10 @@ export default function AdminPresetsPage() {
   const { toast } = useToast();
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<ContractPreset | null>(null);
-
-  if (user && user.role !== "admin") {
-    return <Redirect to="/seller" />;
-  }
+  const isAdmin = user?.role === "admin";
+  // I venditori accedono comunque alla pagina: vedono e gestiscono i propri
+  // preset personali e usano in lettura quelli condivisi dall'azienda.
+  const backHref = isAdmin ? "/admin" : "/seller";
 
   const { data: presets = [], isLoading } = useQuery<ContractPreset[]>({
     queryKey: ["/api/presets"],
@@ -53,7 +53,7 @@ export default function AdminPresetsPage() {
       <header className="bg-white/80 backdrop-blur-md border-b border-black/[0.04] sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/admin">
+            <Link href={backHref}>
               <Button variant="ghost" size="sm" data-testid="link-back-admin">
                 <ArrowLeft className="h-4 w-4 mr-1" />
                 Dashboard

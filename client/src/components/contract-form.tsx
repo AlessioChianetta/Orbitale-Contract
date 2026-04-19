@@ -445,6 +445,12 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
     form.setValue("renewalDuration", preset.renewalDuration ?? 12, { shouldDirty: true });
 
+    // Modalità di compilazione (seller / client_fill) preferita dal preset
+    if ((preset as any).fillMode === "client_fill" || (preset as any).fillMode === "seller") {
+      form.setValue("fillMode", (preset as any).fillMode, { shouldDirty: true });
+      setFillMode((preset as any).fillMode);
+    }
+
     // Calcola data fine sulla base della durata standard del preset
     if (preset.defaultDurationMonths) {
       const startStr = form.getValues("contractStartDate") || new Date().toISOString().split("T")[0];
@@ -484,6 +490,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           partnershipPercentage: formValues.partnershipPercentage,
           autoRenewal: (formValues as any).autoRenewal ?? false,
           renewalDuration: formValues.renewalDuration,
+          fillMode: formValues.fillMode || "seller",
           defaultDurationMonths: (() => {
             // Calcola la durata in mesi dalla differenza tra start ed end
             const s = formValues.contractStartDate ? new Date(formValues.contractStartDate) : null;
@@ -1096,17 +1103,25 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         {presets.length === 0 ? (
                           <div className="p-2 text-xs text-slate-400">Nessun preset disponibile</div>
                         ) : (
-                          presets.map((p) => (
-                            <SelectItem key={p.id} value={p.id.toString()}>
-                              <div className="flex items-center gap-2">
-                                <Layers className="h-3.5 w-3.5 text-indigo-500" />
-                                <span>{p.name}</span>
-                                {p.visibility === "shared" && (
-                                  <span className="text-[10px] text-emerald-600">· condiviso</span>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))
+                          presets.map((p) => {
+                            const tplMissing = p.templateId != null && !templates.some((t: any) => t.id === p.templateId);
+                            return (
+                              <SelectItem key={p.id} value={p.id.toString()} disabled={tplMissing}>
+                                <div className="flex items-center gap-2">
+                                  <Layers className="h-3.5 w-3.5 text-indigo-500" />
+                                  <span className={tplMissing ? "text-slate-400 line-through" : ""}>{p.name}</span>
+                                  {p.visibility === "shared" && (
+                                    <span className="text-[10px] text-emerald-600">· condiviso</span>
+                                  )}
+                                  {tplMissing && (
+                                    <span className="text-[10px] text-amber-600 inline-flex items-center gap-0.5">
+                                      <AlertTriangle className="h-2.5 w-2.5" /> template mancante
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            );
+                          })
                         )}
                       </SelectContent>
                     </Select>

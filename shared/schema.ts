@@ -189,6 +189,7 @@ export const contractPresets = pgTable("contract_presets", {
   autoRenewal: boolean("auto_renewal").notNull().default(false),
   renewalDuration: integer("renewal_duration").notNull().default(12),
   defaultDurationMonths: integer("default_duration_months"),
+  fillMode: text("fill_mode", { enum: ["seller", "client_fill"] }).notNull().default("seller"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
