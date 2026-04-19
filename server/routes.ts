@@ -6,6 +6,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, type InsertCoFillSession, type User } from "@shared/schema";
 import { resolveSelectedSections, renderSectionsHtml, parseSelectedIds, SECTIONS_MARKER } from "@shared/sections";
+import { getMissingClientFields, getClientType, SYNCED_FIELD_KEYS } from "@shared/client-fields";
 // @ts-ignore - no shipped types
 import cookie from "cookie";
 // @ts-ignore - no shipped types
@@ -28,6 +29,40 @@ const otpRateLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: "Troppi tentativi. Riprova tra qualche minuto." },
 });
+
+// Limita il numero di submit di dati cliente sull'endpoint pubblico
+// (modalità "client_fill"): protegge dal flood verso lo storage e dalla
+// possibilità di spam-mare la notifica al venditore.
+const clientDataRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Troppe richieste. Riprova tra qualche minuto." },
+});
+
+// Whitelist dei campi che il cliente è autorizzato a scrivere via endpoint
+// pubblico: solo i campi anagrafici. Tutto il resto (totalValue, durata,
+// percentuali, ecc.) NON deve poter essere modificato dal cliente perché
+// finirebbe direttamente nel testo del contratto generato.
+const CLIENT_DATA_ALLOWED_KEYS: ReadonlySet<string> = new Set(SYNCED_FIELD_KEYS);
+
+function sanitizeClientDataInput(input: unknown): Record<string, any> {
+  const out: Record<string, any> = {};
+  if (!input || typeof input !== "object") return out;
+  for (const [k, v] of Object.entries(input as Record<string, any>)) {
+    if (!CLIENT_DATA_ALLOWED_KEYS.has(k)) continue;
+    if (v === null || v === undefined) continue;
+    if (typeof v === "string") {
+      // Limita la lunghezza per evitare payload abusivi nel PDF.
+      out[k] = v.slice(0, 500);
+    } else if (typeof v === "boolean" || typeof v === "number") {
+      out[k] = v;
+    }
+    // Ignora array/oggetti annidati: i campi anagrafici sono tutti scalari.
+  }
+  return out;
+}
 
 // Max number of contract IDs accepted in a single bulk operation payload.
 const BULK_IDS_MAX = 100;
@@ -715,11 +750,13 @@ export function registerRoutes(app: Express): Server {
 
         try {
           await sendContractEmail(updatedContract, existingContract.contractCode, emailToSend);
+          const effectiveFillMode = (req.body.fillMode || (existingContract as any).fillMode || "seller");
+          const sentStatus = effectiveFillMode === "client_fill" ? "awaiting_client_data" : "sent";
           await storage.updateContract(contractId, { 
-            status: "sent",
+            status: sentStatus,
             sentToEmail: emailToSend 
           });
-          console.log('✅ Contratto aggiornato con status "sent"');
+          console.log(`✅ Contratto aggiornato con status "${sentStatus}"`);
 
           // Log audit trail
           await storage.createAuditLog({
@@ -775,6 +812,27 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Template not found" });
       }
 
+      // Modalità "cliente compila e firma": il venditore può creare il contratto
+      // anche senza dati anagrafici completi (basta l'email). Il content verrà
+      // rigenerato quando il cliente avrà compilato i propri dati.
+      const fillMode: "seller" | "client_fill" =
+        req.body.fillMode === "client_fill" ? "client_fill" : "seller";
+
+      if (fillMode === "client_fill") {
+        const email = (req.body?.clientData?.email || req.body?.sendToEmail || "").trim();
+        if (!email) {
+          return res.status(400).json({
+            message: "Per la modalità 'cliente compila' serve almeno l'email del destinatario.",
+          });
+        }
+        // Normalizza minimo indispensabile
+        req.body.clientData = {
+          tipo_cliente: req.body.clientData?.tipo_cliente || "azienda",
+          ...(req.body.clientData || {}),
+          email,
+        };
+      }
+
       const generatedContent = await generateContractContent(
         template.content, 
         req.body.clientData, 
@@ -795,6 +853,7 @@ export function registerRoutes(app: Express): Server {
         sellerId: req.user.id,
         contractCode,
         status: "draft",
+        fillMode,
         generatedContent,
       });
 
@@ -820,11 +879,12 @@ export function registerRoutes(app: Express): Server {
 
         try {
           await sendContractEmail(contract, contractCode, emailToSend);
+          const sentStatus = fillMode === "client_fill" ? "awaiting_client_data" : "sent";
           await storage.updateContract(contract.id, { 
-            status: "sent",
+            status: sentStatus,
             sentToEmail: emailToSend 
           });
-          console.log('✅ Contratto aggiornato con status "sent"');
+          console.log(`✅ Contratto aggiornato con status "${sentStatus}"`);
 
           // Log audit trail
           await storage.createAuditLog({
@@ -835,7 +895,8 @@ export function registerRoutes(app: Express): Server {
             metadata: { 
               sentBy: req.user.id,
               sentToEmail: emailToSend,
-              method: "email"
+              method: "email",
+              fillMode,
             },
           });
         } catch (emailError: any) {
@@ -876,6 +937,161 @@ export function registerRoutes(app: Express): Server {
       }
       console.error("Contract creation error:", error);
       res.status(500).json({ message: "Failed to create contract" });
+    }
+  });
+
+  // ----------------------------------------------------------------
+  // BULK: crea N bozze da template per una lista di email.
+  // I contratti vengono creati in modalità "client_fill" e raggruppati da
+  // batchId/batchLabel così la dashboard può mostrarli insieme e l'invio
+  // di massa successivo è semplice.
+  // ----------------------------------------------------------------
+  app.post("/api/contracts/bulk-from-template", requireAuth, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const templateId = Number(body.templateId);
+      const emailsRaw = Array.isArray(body.emails) ? body.emails : [];
+      const label = (body.batchLabel || "").toString().trim() || `Lotto del ${new Date().toLocaleString("it-IT")}`;
+
+      if (!templateId) return res.status(400).json({ message: "templateId mancante" });
+      if (emailsRaw.length === 0) return res.status(400).json({ message: "Nessuna email fornita" });
+      if (emailsRaw.length > BULK_IDS_MAX) {
+        return res.status(400).json({ message: `Massimo ${BULK_IDS_MAX} destinatari per lotto.` });
+      }
+
+      const template = await storage.getTemplate(templateId, req.user.companyId);
+      if (!template) return res.status(400).json({ message: "Template non trovato" });
+
+      // Pulisci e dedup-a la lista email
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const seen = new Set<string>();
+      const emails: string[] = [];
+      const invalid: string[] = [];
+      for (const e of emailsRaw) {
+        const v = String(e || "").trim().toLowerCase();
+        if (!v) continue;
+        if (!emailRe.test(v)) { invalid.push(v); continue; }
+        if (seen.has(v)) continue;
+        seen.add(v);
+        emails.push(v);
+      }
+      if (emails.length === 0) {
+        return res.status(400).json({ message: "Nessuna email valida.", invalid });
+      }
+
+      const batchId = nanoid(12);
+      const created: any[] = [];
+      const failed: { email: string; error: string }[] = [];
+
+      for (const email of emails) {
+        try {
+          const contractCode = nanoid(16);
+          const clientData = { tipo_cliente: "azienda", email };
+          const generatedContent = await generateContractContent(
+            template.content,
+            clientData,
+            template,
+            !!body.autoRenewal,
+            body.renewalDuration ?? 12,
+            body.totalValue,
+            body.isPercentagePartnership,
+            body.partnershipPercentage,
+            body.contractStartDate,
+            body.contractEndDate,
+            body.selectedSectionIds ?? null,
+          );
+          const data = insertContractSchema.parse({
+            templateId,
+            sellerId: req.user.id,
+            companyId: req.user.companyId,
+            clientData,
+            generatedContent,
+            contractCode,
+            status: "draft",
+            fillMode: "client_fill",
+            batchId,
+            batchLabel: label,
+            totalValue: body.totalValue,
+            autoRenewal: !!body.autoRenewal,
+            renewalDuration: body.renewalDuration ?? 12,
+            isPercentagePartnership: !!body.isPercentagePartnership,
+            partnershipPercentage: body.partnershipPercentage ?? null,
+            contractStartDate: body.contractStartDate ?? null,
+            contractEndDate: body.contractEndDate ?? null,
+            selectedSectionIds: body.selectedSectionIds ?? null,
+            sentToEmail: email,
+          } as any);
+          const c = await storage.createContract(data);
+          created.push({ id: c.id, contractCode: c.contractCode, email });
+        } catch (e: any) {
+          failed.push({ email, error: e?.message || "errore" });
+        }
+      }
+
+      res.status(201).json({
+        message: `Creati ${created.length} contratti su ${emails.length} email valide.`,
+        batchId,
+        batchLabel: label,
+        created,
+        failed,
+        invalid,
+      });
+    } catch (err: any) {
+      console.error("[bulk-from-template] errore:", err?.message || err);
+      res.status(500).json({ message: "Creazione in blocco non riuscita." });
+    }
+  });
+
+  // BULK send: prende una lista di id e invia il link a ognuno (best-effort).
+  app.post("/api/contracts/bulk-send", requireAuth, async (req, res) => {
+    try {
+      const ids: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map((x: any) => Number(x)).filter(Boolean) : [];
+      if (ids.length === 0) return res.status(400).json({ message: "Nessun contratto selezionato." });
+      if (ids.length > BULK_IDS_MAX) return res.status(400).json({ message: `Massimo ${BULK_IDS_MAX} contratti per invio.` });
+
+      const emailStatus = await getEmailConfigStatusForCompany(req.user.companyId);
+      if (!emailStatus.configured) {
+        return res.status(400).json({
+          message: "Email aziendale non configurata: impossibile inviare.",
+          code: "EMAIL_NOT_CONFIGURED",
+        });
+      }
+
+      const sent: number[] = [];
+      const failed: { id: number; error: string }[] = [];
+      for (const id of ids) {
+        try {
+          const c = await storage.getContract(id, req.user.companyId);
+          if (!c) { failed.push({ id, error: "non trovato" }); continue; }
+          if (req.user.role === "seller" && c.sellerId !== req.user.id) {
+            failed.push({ id, error: "non autorizzato" }); continue;
+          }
+          const email = c.sentToEmail || (c.clientData as any)?.email;
+          if (!email) { failed.push({ id, error: "email mancante" }); continue; }
+          await sendContractEmail(c, c.contractCode, email);
+          const sentStatus = (c as any).fillMode === "client_fill" ? "awaiting_client_data" : "sent";
+          await storage.updateContract(c.id, { status: sentStatus, sentToEmail: email });
+          await storage.createAuditLog({
+            contractId: c.id,
+            action: "sent",
+            userAgent: req.get("User-Agent"),
+            ipAddress: getRealClientIP(req),
+            metadata: { sentBy: req.user.id, sentToEmail: email, method: "email", bulk: true },
+          });
+          sent.push(id);
+        } catch (e: any) {
+          failed.push({ id, error: e?.message || "errore" });
+        }
+      }
+
+      res.json({
+        message: `Inviati ${sent.length} contratti su ${ids.length}.`,
+        sent,
+        failed,
+      });
+    } catch (err: any) {
+      console.error("[bulk-send] errore:", err?.message || err);
+      res.status(500).json({ message: "Invio in blocco non riuscito." });
     }
   });
 
@@ -924,13 +1140,22 @@ export function registerRoutes(app: Express): Server {
       // Public client endpoint: whitelist response fields to avoid leaking internal
       // identifiers (sellerId, companyId, userId, pdfPath, etc.) to unauthenticated
       // callers who only have the contract code.
+      // In modalità "client_fill", finché il cliente non ha completato i dati,
+      // omettiamo il generatedContent (contiene placeholder vuoti) ed esponiamo
+      // solo l'anteprima delle condizioni commerciali.
+      const cFillMode = (contract as any).fillMode === "client_fill" ? "client_fill" : "seller";
+      const missingFields = getMissingClientFields(contract.clientData as any);
+      const dataComplete = missingFields.length === 0;
+
       const safeContract = {
         id: contract.id,
         contractCode: contract.contractCode,
         templateId: contract.templateId,
         status: contract.status,
+        fillMode: cFillMode,
+        dataComplete,
         clientData: contract.clientData,
-        generatedContent: contract.generatedContent,
+        generatedContent: (cFillMode === "client_fill" && !dataComplete) ? null : contract.generatedContent,
         totalValue: contract.totalValue,
         signatures: contract.signatures,
         signedAt: contract.signedAt,
@@ -967,6 +1192,124 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ----------------------------------------------------------------
+  // Modalità "cliente compila": il cliente salva i propri dati anagrafici
+  // dal link pubblico, senza autenticazione (è protetto solo dal contractCode).
+  // ----------------------------------------------------------------
+  app.post("/api/client/contracts/:code/client-data", clientDataRateLimiter, async (req, res) => {
+    try {
+      const contract = await storage.getContractByCode(req.params.code);
+      if (!contract) {
+        return res.status(404).json({ message: "Contratto non trovato" });
+      }
+      if ((contract as any).fillMode !== "client_fill") {
+        return res.status(400).json({ message: "Questo contratto non è in modalità compilazione cliente." });
+      }
+      if (contract.status === "signed") {
+        return res.status(400).json({ message: "Contratto già firmato." });
+      }
+
+      // Sanitizza l'input: solo campi anagrafici whitelistati, niente
+      // sovrascrittura di campi commerciali (prezzo, durata, ecc.) che
+      // verrebbero iniettati direttamente nel testo del contratto.
+      const incoming = sanitizeClientDataInput(req.body?.clientData);
+      const merged: Record<string, any> = {
+        ...(contract.clientData as any || {}),
+        ...incoming,
+      };
+      // Email non sovrascrivibile dal cliente: deve restare quella su cui è
+      // stato inviato il link (per evitare deviazioni in fase di firma OTP).
+      const lockedEmail = (contract.sentToEmail || (contract.clientData as any)?.email || merged.email || "").toString();
+      if (lockedEmail) merged.email = lockedEmail;
+
+      // "stesso_indirizzo" → riallinea residenza
+      if (merged.stesso_indirizzo) {
+        merged.residente_a = merged.sede ?? merged.residente_a ?? "";
+        merged.provincia_residenza = merged.provincia_sede ?? merged.provincia_residenza ?? "";
+        merged.indirizzo_residenza = merged.indirizzo ?? merged.indirizzo_residenza ?? "";
+      }
+
+      const missing = getMissingClientFields(merged);
+      const dataComplete = missing.length === 0;
+
+      // Aggiorna i dati cliente. Quando completi, rigeneriamo il contenuto del
+      // contratto con i dati corretti e portiamo lo status a "viewed".
+      let nextContent = contract.generatedContent;
+      if (dataComplete) {
+        try {
+          const tpl = await storage.getTemplate(contract.templateId, contract.companyId);
+          if (tpl) {
+            nextContent = await generateContractContent(
+              tpl.content,
+              merged,
+              tpl,
+              contract.autoRenewal,
+              contract.renewalDuration ?? 12,
+              contract.totalValue,
+              contract.isPercentagePartnership,
+              contract.partnershipPercentage,
+              contract.contractStartDate,
+              contract.contractEndDate,
+              contract.selectedSectionIds ?? null,
+            );
+          }
+        } catch (regenErr: any) {
+          console.error("[client-data] errore rigenerazione contenuto:", regenErr?.message || regenErr);
+        }
+      }
+
+      const updates: any = {
+        clientData: merged,
+        generatedContent: nextContent,
+      };
+      if (dataComplete && contract.status !== "viewed") {
+        updates.status = "viewed";
+      }
+      await storage.updateContract(contract.id, updates);
+
+      await storage.createAuditLog({
+        contractId: contract.id,
+        action: dataComplete ? "client_data_completed" : "client_data_updated",
+        userAgent: req.get("User-Agent"),
+        ipAddress: getRealClientIP(req),
+        metadata: {
+          fillMode: "client_fill",
+          missingCount: missing.length,
+        },
+      });
+
+      // Best-effort: notifica al venditore quando i dati sono completi.
+      // Riusiamo sendCoFillLinkEmail come canale "info" — il link punta alla
+      // dashboard del contratto, e il venditore vedrà comunque il badge in
+      // dashboard. Se l'invio fallisce non blocchiamo la richiesta.
+      if (dataComplete) {
+        try {
+          const seller = await storage.getUser(contract.sellerId);
+          if (seller?.email) {
+            const link = `${getBaseUrl()}/contracts/${contract.id}`;
+            await sendCoFillLinkEmail({
+              companyId: contract.companyId,
+              to: seller.email,
+              link,
+              clientName: (merged.societa || merged.email || "Cliente").toString(),
+            });
+          }
+        } catch (notifyErr: any) {
+          console.warn("[client-data] notifica venditore fallita:", notifyErr?.message || notifyErr);
+        }
+      }
+
+      res.json({
+        message: dataComplete ? "Dati salvati. Ora puoi firmare il contratto." : "Dati salvati.",
+        dataComplete,
+        missingFields: missing.map((f) => ({ key: f.key, label: f.label })),
+      });
+    } catch (err: any) {
+      console.error("[client-data] errore:", err?.message || err);
+      res.status(500).json({ message: "Salvataggio dati non riuscito" });
+    }
+  });
+
   // Send OTP for contract signing
   app.post("/api/client/contracts/:code/send-otp", otpRateLimiter, async (req, res) => {
     try {
@@ -977,6 +1320,19 @@ export function registerRoutes(app: Express): Server {
 
       if (contract.status === "signed") {
         return res.status(400).json({ message: "Contract already signed" });
+      }
+
+      // In modalità "cliente compila": l'invio OTP è bloccato finché i dati
+      // anagrafici obbligatori non sono completi.
+      if ((contract as any).fillMode === "client_fill") {
+        const missing = getMissingClientFields(contract.clientData as any);
+        if (missing.length > 0) {
+          return res.status(400).json({
+            message: "Per ricevere il codice di firma devi prima completare i tuoi dati.",
+            code: "CLIENT_DATA_INCOMPLETE",
+            missingFields: missing.map((f) => ({ key: f.key, label: f.label })),
+          });
+        }
       }
 
       const clientData = contract.clientData as any;

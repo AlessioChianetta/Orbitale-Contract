@@ -43,7 +43,7 @@ export const contracts = pgTable("contracts", {
   generatedContent: text("generated_content").notNull(), // Final HTML content
   pdfPath: text("pdf_path"), // Path to generated PDF
   status: text("status", {
-    enum: ["draft", "sent", "viewed", "signed", "expired"]
+    enum: ["draft", "sent", "awaiting_client_data", "viewed", "signed", "expired"]
   }).notNull().default("draft"),
   contractCode: text("contract_code").notNull().unique(), // Unique code for client access
   totalValue: integer("total_value"), // In cents
@@ -59,6 +59,15 @@ export const contracts = pgTable("contracts", {
   partnershipPercentage: numeric("partnership_percentage", { precision: 5, scale: 2 }), // New: Revenue percentage (e.g., 15.50%)
   selectedSectionIds: jsonb("selected_section_ids").default([]), // Array of section IDs selected for this contract
   coFillToken: text("co_fill_token"), // Token of co-fill session that created/owns this draft (nullable)
+  // Modalità di compilazione del contratto:
+  //  - "seller": flusso classico, il venditore compila tutti i dati cliente
+  //  - "client_fill": il cliente compila i propri dati e firma in autonomia
+  //    sul link, senza approvazione intermedia del venditore.
+  fillMode: text("fill_mode", { enum: ["seller", "client_fill"] }).notNull().default("seller"),
+  // Identificatore del lotto (creazione in blocco da template). Tutti i contratti
+  // generati nello stesso wizard condividono lo stesso batchId + batchLabel.
+  batchId: text("batch_id"),
+  batchLabel: text("batch_label"),
   isArchived: boolean("is_archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

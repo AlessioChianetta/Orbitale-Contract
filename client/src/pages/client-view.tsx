@@ -23,6 +23,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ITALIAN_PROVINCES } from "@/lib/validation-utils";
+import { getMissingClientFields, getClientType } from "@/lib/required-client-fields";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 
 // Componente per le aree di firma cliccabili con modalità avanzata
 function SignatureArea({
@@ -373,6 +377,295 @@ function SignatureArea({
   );
 }
 
+// ============================================================================
+// Modalità "cliente compila e firma": il cliente vede l'anteprima delle
+// condizioni economiche, inserisce i propri dati anagrafici e poi sblocca
+// la firma con OTP. Componente isolato per non interferire con il flusso
+// classico del venditore.
+// ============================================================================
+function ClientFillFlow({
+  contract,
+  companySettings,
+  onCompleted,
+}: {
+  contract: any;
+  companySettings: any;
+  onCompleted: () => void;
+}) {
+  const { toast } = useToast();
+  const initial = (contract.clientData || {}) as Record<string, any>;
+  const [data, setData] = useState<Record<string, any>>({
+    tipo_cliente: initial.tipo_cliente || "azienda",
+    societa: initial.societa || "",
+    sede: initial.sede || "",
+    provincia_sede: initial.provincia_sede || "",
+    indirizzo: initial.indirizzo || "",
+    p_iva: initial.p_iva || "",
+    pec: initial.pec || "",
+    codice_univoco: initial.codice_univoco || "",
+    cellulare: initial.cellulare || "",
+    cliente_nome: initial.cliente_nome || "",
+    nato_a: initial.nato_a || "",
+    data_nascita: initial.data_nascita || "",
+    residente_a: initial.residente_a || "",
+    provincia_residenza: initial.provincia_residenza || "",
+    indirizzo_residenza: initial.indirizzo_residenza || "",
+    stesso_indirizzo: !!initial.stesso_indirizzo,
+    email: initial.email || contract.sentToEmail || "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const set = (k: string, v: any) => setData((d) => ({ ...d, [k]: v }));
+  const tipo = getClientType(data);
+  const isPrivato = tipo === "privato";
+  const stessoIndirizzo = !!data.stesso_indirizzo;
+
+  // Sincronizza residenza con sede quando "stesso indirizzo" è attivo
+  useEffect(() => {
+    if (!stessoIndirizzo) return;
+    setData((d) => ({
+      ...d,
+      residente_a: d.sede ?? "",
+      provincia_residenza: d.provincia_sede ?? "",
+      indirizzo_residenza: d.indirizzo ?? "",
+    }));
+  }, [stessoIndirizzo, data.sede, data.provincia_sede, data.indirizzo]);
+
+  const missing = getMissingClientFields(data);
+  const canSubmit = missing.length === 0 && !submitting;
+
+  const fmtMoney = (cents: number | null | undefined) => {
+    if (cents == null) return "—";
+    return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format((cents || 0) / 100);
+  };
+  const fmtDate = (d: any) => {
+    if (!d) return "—";
+    try { return new Date(d).toLocaleDateString("it-IT"); } catch { return "—"; }
+  };
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/client/contracts/${contract.contractCode}/client-data`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientData: data }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message || "Salvataggio non riuscito");
+      toast({ title: "Dati salvati", description: "Ora puoi procedere alla firma." });
+      onCompleted();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Errore", description: e?.message || "Riprova tra poco." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white">
+        <div className="max-w-3xl mx-auto px-6 py-6">
+          <div className="text-sm opacity-90">{companySettings?.companyName || "Contratto"}</div>
+          <h1 className="text-xl sm:text-2xl font-bold">Compila i tuoi dati e firma il contratto</h1>
+          <p className="text-sm text-white/80 mt-2">
+            Controlla l'anteprima delle condizioni qui sotto, inserisci i tuoi dati e procedi con la firma sicura via codice OTP.
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+        {/* Anteprima condizioni */}
+        <Card className="rounded-2xl shadow-sm border border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg">Anteprima del contratto</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-50 rounded-lg p-3">
+                <div className="text-xs text-slate-500">Importo totale</div>
+                <div className="font-semibold text-slate-900">{fmtMoney(contract.totalValue)}</div>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3">
+                <div className="text-xs text-slate-500">Durata</div>
+                <div className="font-semibold text-slate-900">{contract.renewalDuration ?? 12} mesi</div>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3">
+                <div className="text-xs text-slate-500">Inizio</div>
+                <div className="font-semibold text-slate-900">{fmtDate(contract.contractStartDate)}</div>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3">
+                <div className="text-xs text-slate-500">Fine</div>
+                <div className="font-semibold text-slate-900">{fmtDate(contract.contractEndDate)}</div>
+              </div>
+            </div>
+            {contract.isPercentagePartnership && contract.partnershipPercentage != null && (
+              <div className="text-sm bg-indigo-50 border border-indigo-100 rounded-lg p-3">
+                Partnership a percentuale: <strong>{contract.partnershipPercentage}%</strong>
+              </div>
+            )}
+            <p className="text-xs text-slate-500">
+              Il documento completo con tutte le clausole sarà disponibile dopo aver compilato i tuoi dati.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Tipo cliente */}
+        <Card className="rounded-2xl shadow-sm border border-slate-200">
+          <CardContent className="pt-6">
+            <Label className="text-sm font-medium text-slate-700 mb-2 block">Sei un'azienda o un privato?</Label>
+            <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-xl w-fit" data-testid="toggle-tipo-cliente-clientfill">
+              {(["azienda", "privato"] as const).map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => set("tipo_cliente", opt)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    tipo === opt ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-800"
+                  }`}
+                  data-testid={`button-tipo-${opt}-clientfill`}
+                >
+                  {opt === "azienda" ? "Azienda" : "Privato"}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Dati azienda/privato */}
+        <Card className="rounded-2xl shadow-sm border border-slate-200">
+          <CardHeader><CardTitle className="text-lg">{isPrivato ? "Dati cliente privato" : "Dati Azienda/Società"}</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <Field label={isPrivato ? "Cognome e Nome" : "Nome società"}>
+              <Input value={data.societa} onChange={(e) => set("societa", e.target.value)} placeholder={isPrivato ? "Es. Mario Rossi" : "Nome della società"} />
+            </Field>
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">{isPrivato ? "Città" : "Città sede legale"}</Label>
+              <div className="grid grid-cols-[1fr_90px] gap-2">
+                <Input value={data.sede} onChange={(e) => set("sede", e.target.value)} placeholder="Es. Milano" />
+                <Select value={data.provincia_sede || ""} onValueChange={(v) => set("provincia_sede", v)}>
+                  <SelectTrigger><SelectValue placeholder="PR" /></SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {ITALIAN_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Field label="Indirizzo">
+              <Input value={data.indirizzo} onChange={(e) => set("indirizzo", e.target.value)} placeholder="Via, numero civico, CAP" />
+            </Field>
+            <Field label={isPrivato ? "Codice Fiscale" : "Codice Fiscale / P.IVA"}>
+              <Input value={data.p_iva} onChange={(e) => set("p_iva", e.target.value.toUpperCase().replace(/\s/g, ""))} placeholder={isPrivato ? "16 caratteri" : "Codice Fiscale o Partita IVA"} />
+            </Field>
+            {!isPrivato && (
+              <>
+                <Field label="Codice Univoco / SDI (opzionale)">
+                  <Input value={data.codice_univoco} onChange={(e) => set("codice_univoco", e.target.value)} placeholder="7 caratteri" />
+                </Field>
+                <Field label="PEC (opzionale)">
+                  <Input value={data.pec} onChange={(e) => set("pec", e.target.value)} placeholder="pec@esempio.com" />
+                </Field>
+              </>
+            )}
+            <Field label="Email" hint="L'email dove ti è arrivato questo link.">
+              <Input type="email" value={data.email} disabled className="bg-slate-100" />
+            </Field>
+            <Field label="Cellulare" hint="Es. 333 123 4567 o +39 333 123 4567.">
+              <Input type="tel" value={data.cellulare} onChange={(e) => set("cellulare", e.target.value)} placeholder="+39 333 123 4567" />
+            </Field>
+          </CardContent>
+        </Card>
+
+        {/* Dati anagrafici */}
+        <Card className="rounded-2xl shadow-sm border border-slate-200">
+          <CardHeader><CardTitle className="text-lg">{isPrivato ? "Dati anagrafici" : "Dati del referente"}</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={stessoIndirizzo}
+                onChange={(e) => set("stesso_indirizzo", e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="text-sm text-slate-700">
+                {isPrivato ? "La residenza coincide con l'indirizzo sopra" : "La residenza del referente coincide con l'indirizzo dell'azienda"}
+              </span>
+            </label>
+            {!isPrivato && (
+              <Field label="Nome e cognome del referente">
+                <Input value={data.cliente_nome} onChange={(e) => set("cliente_nome", e.target.value)} placeholder="Es. Mario Rossi" />
+              </Field>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Nato a">
+                <Input value={data.nato_a} onChange={(e) => set("nato_a", e.target.value)} placeholder="Luogo di nascita" />
+              </Field>
+              <Field label="Data di nascita">
+                <Input type="date" value={data.data_nascita} onChange={(e) => set("data_nascita", e.target.value)} />
+              </Field>
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-1.5 block">Città di residenza</Label>
+              <div className="grid grid-cols-[1fr_90px] gap-2">
+                <Input value={data.residente_a} disabled={stessoIndirizzo} onChange={(e) => set("residente_a", e.target.value)} placeholder="Es. Milano" className={stessoIndirizzo ? "bg-slate-100" : ""} />
+                <Select value={data.provincia_residenza || ""} onValueChange={(v) => set("provincia_residenza", v)} disabled={stessoIndirizzo}>
+                  <SelectTrigger className={stessoIndirizzo ? "bg-slate-100" : ""}><SelectValue placeholder="PR" /></SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {ITALIAN_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Field label="Indirizzo di residenza">
+              <Input value={data.indirizzo_residenza} disabled={stessoIndirizzo} onChange={(e) => set("indirizzo_residenza", e.target.value)} placeholder="Via, numero civico, CAP" className={stessoIndirizzo ? "bg-slate-100" : ""} />
+            </Field>
+          </CardContent>
+        </Card>
+
+        {missing.length > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5" />
+            <div>
+              <div className="font-semibold">Mancano alcuni campi obbligatori:</div>
+              <ul className="list-disc ml-5 mt-1">
+                {missing.slice(0, 6).map((m) => <li key={m.key}>{m.label}</li>)}
+                {missing.length > 6 && <li>… e altri {missing.length - 6}</li>}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        <Button
+          type="button"
+          onClick={submit}
+          disabled={!canSubmit}
+          className="w-full h-12 rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white shadow-lg disabled:opacity-60"
+          data-testid="button-clientfill-submit"
+        >
+          {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio…</> : "Salva e prosegui alla firma"}
+        </Button>
+
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <ShieldCheck className="h-4 w-4 text-emerald-600" />
+          I tuoi dati sono protetti e visibili solo all'azienda che ti ha inviato il contratto.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <Label className="text-sm font-medium text-slate-700 mb-1.5 block">{label}</Label>
+      {children}
+      {hint && <p className="text-xs text-slate-500 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
 export default function ClientView() {
   const { code } = useParams<{ code: string }>();
   const search = useSearch();
@@ -638,6 +931,26 @@ export default function ClientView() {
 
   const statusConfig = getStatusConfig(contract.status);
   const StatusIcon = statusConfig.icon;
+
+  // Modalità "client_fill": se il cliente non ha ancora compilato i propri
+  // dati, mostriamo il flow dedicato (anteprima + form) invece del documento
+  // completo. Una volta salvati i dati ricarichiamo e cadiamo nel ramo normale
+  // così il cliente può procedere con la firma OTP.
+  const isClientFillPending =
+    (contract as any).fillMode === "client_fill" &&
+    (contract as any).dataComplete === false &&
+    contract.status !== "signed";
+  if (isClientFillPending) {
+    return (
+      <ClientFillFlow
+        contract={contract}
+        companySettings={companySettings}
+        onCompleted={() => {
+          queryClient.invalidateQueries({ queryKey: [`/api/client/contracts/${code}`] });
+        }}
+      />
+    );
+  }
 
   return (
     <ProfessionalContractDocument

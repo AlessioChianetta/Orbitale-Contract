@@ -185,6 +185,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const { data: emailStatus } = useEmailStatus();
   const emailConfigured = emailStatus?.configured !== false;
   const [sendToEmail, setSendToEmail] = useState(contract?.sentToEmail || "");
+  // Modalità di compilazione: "seller" (default, il venditore compila tutto)
+  // oppure "client_fill" (il cliente compila i propri dati e firma in autonomia).
+  const [fillMode, setFillMode] = useState<"seller" | "client_fill">(
+    ((contract as any)?.fillMode === "client_fill") ? "client_fill" : "seller"
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPercentageMode, setIsPercentageMode] = useState(contract?.isPercentagePartnership || false);
   const [vatValidation, setVatValidation] = useState<{ isValid: boolean | null; type: 'vat' | 'cf' | null; isValidating: boolean }>({ 
@@ -484,6 +489,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       ...data,
       sendImmediately,
       sendToEmail,
+      fillMode,
       autoRenewal: true, // Sempre attivo
       renewalDuration: data.renewalDuration,
       // Keep partnershipPercentage as number (no conversion needed)
@@ -1937,6 +1943,45 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 Invio Contratto
               </h3>
               <div className="space-y-5">
+                {/* Modalità di compilazione */}
+                <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/40">
+                  <Label className={labelClass}>Chi compila i dati del cliente?</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                    {([
+                      { value: "seller", title: "Compilo io", desc: "Inserisco tutti i dati del cliente e gli invio il contratto pronto da firmare." },
+                      { value: "client_fill", title: "Lascia che compili il cliente", desc: "Invio il link: il cliente vede un'anteprima delle condizioni, inserisce i propri dati e firma con OTP." },
+                    ] as const).map((opt) => {
+                      const selected = fillMode === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setFillMode(opt.value)}
+                          className={`text-left p-4 rounded-xl border-2 transition-all ${
+                            selected
+                              ? "border-indigo-400 bg-white shadow-sm"
+                              : "border-slate-200 bg-white hover:border-slate-300"
+                          }`}
+                          data-testid={`button-fillmode-${opt.value}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className={`mt-1 inline-block h-3 w-3 rounded-full border ${selected ? "bg-indigo-600 border-indigo-600" : "border-slate-300"}`} />
+                            <div>
+                              <div className="text-sm font-semibold text-slate-900">{opt.title}</div>
+                              <div className="text-xs text-slate-500 mt-0.5">{opt.desc}</div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {fillMode === "client_fill" && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-3">
+                      In questa modalità, dei dati cliente serve solo l'email di invio. Tutto il resto lo compilerà il cliente sul link.
+                    </p>
+                  )}
+                </div>
+
                 <Button
                   type="button"
                   variant="outline"

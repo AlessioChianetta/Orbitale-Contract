@@ -52,6 +52,8 @@ import {
   Wifi,
 } from "lucide-react";
 import ContractForm from "@/components/contract-form";
+import BulkFromTemplateDialog from "@/components/bulk-from-template-dialog";
+import { Send } from "lucide-react";
 import EmailConfigBanner from "@/components/email-config-banner";
 import { Link } from "wouter";
 
@@ -74,6 +76,8 @@ export default function SellerDashboard() {
   const [regenReason, setRegenReason] = useState("");
   const [regenLoading, setRegenLoading] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [showBulkWizard, setShowBulkWizard] = useState(false);
+  const [bulkSending, setBulkSending] = useState(false);
 
   const downloadPDF = async (contractId: number, contractCode: string) => {
     try {
@@ -237,6 +241,7 @@ export default function SellerDashboard() {
       viewed: { label: "Visualizzato", className: "bg-orange-50 text-orange-600" },
       signed: { label: "Firmato", className: "bg-emerald-50 text-emerald-600" },
       expired: { label: "Scaduto", className: "bg-red-50 text-red-500" },
+      awaiting_client_data: { label: "Attesa cliente", className: "bg-violet-50 text-violet-700" },
     };
     const config = statusConfig[status] || statusConfig.draft;
     return (
@@ -349,6 +354,40 @@ export default function SellerDashboard() {
   }
 
   const selectedCount = selectedIds.size;
+  const sendableSelectedIds = useMemo(() => {
+    const ids: number[] = [];
+    for (const c of contracts as any[]) {
+      if (selectedIds.has(c.id) && !c.isArchived && c.status === "draft" && c.fillMode === "client_fill") {
+        ids.push(c.id);
+      }
+    }
+    return ids;
+  }, [contracts, selectedIds]);
+
+  const bulkSendSelected = async () => {
+    if (sendableSelectedIds.length === 0) return;
+    setBulkSending(true);
+    try {
+      const res = await fetch("/api/contracts/bulk-send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ids: sendableSelectedIds }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message || "Invio non riuscito");
+      toast({
+        title: "Invio completato",
+        description: `${json.sent ?? 0} link inviati${json.failed ? `, ${json.failed} errori` : ""}.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Errore", description: e?.message || "Riprova tra poco." });
+    } finally {
+      setBulkSending(false);
+    }
+  };
   const isAdmin = user?.role === "admin";
 
   return (
@@ -374,6 +413,15 @@ export default function SellerDashboard() {
               )}
             </div>
             <div className="flex items-center space-x-3">
+              <Button
+                onClick={() => setShowBulkWizard(true)}
+                variant="outline"
+                className="font-semibold px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border-white/20"
+                data-testid="button-open-bulk-wizard"
+              >
+                <Files className="h-5 w-5 mr-2" strokeWidth={1.5} />
+                Crea da template
+              </Button>
               <Button
                 onClick={() => setShowContractForm(true)}
                 className="text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg hover:shadow-xl"
@@ -437,6 +485,7 @@ export default function SellerDashboard() {
                     <option value="draft">Bozza</option>
                     <option value="sent">Inviato</option>
                     <option value="viewed">Visualizzato</option>
+                    <option value="awaiting_client_data">Attesa cliente</option>
                     <option value="signed">Firmato</option>
                     <option value="expired">Scaduto</option>
                     {showArchived && <option value="archived">Archiviati</option>}
@@ -472,6 +521,18 @@ export default function SellerDashboard() {
                   {selectedCount} contratti selezionati
                 </span>
                 <div className="flex items-center gap-2">
+                  {sendableSelectedIds.length > 0 && (
+                    <Button
+                      size="sm"
+                      onClick={bulkSendSelected}
+                      disabled={bulkSending}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                      data-testid="button-bulk-send"
+                    >
+                      <Send className="h-4 w-4 mr-1.5" />
+                      Invia {sendableSelectedIds.length} link
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={() => bulkArchive(true)}>
                     <Archive className="h-4 w-4 mr-1.5" /> Archivia
                   </Button>
@@ -559,6 +620,16 @@ export default function SellerDashboard() {
                           <span className="hidden md:inline font-mono text-[10px] text-gray-300 truncate" title={contract.contractCode}>
                             {contract.contractCode?.slice(0, 8)}…
                           </span>
+                          {contract.batchLabel && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100"
+                              title={`Lotto: ${contract.batchLabel}`}
+                              data-testid={`badge-batch-${contract.id}`}
+                            >
+                              <Files className="h-3 w-3" />
+                              {contract.batchLabel}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -687,6 +758,8 @@ export default function SellerDashboard() {
           )}
         </div>
       </div>
+
+      <BulkFromTemplateDialog open={showBulkWizard} onOpenChange={setShowBulkWizard} />
 
       {showContractForm && (
         <ContractForm
