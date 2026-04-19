@@ -8,12 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Save, Plus, Trash2, FileText, Gift, Euro, Layers, Calendar, Users, Lock, AlertCircle } from "lucide-react";
+import { Save, Plus, Trash2, FileText, Gift, Euro, Layers, Calendar, Users, Lock, AlertCircle, Eye } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { parseSections, type ModularSection } from "@shared/sections";
 import type { ContractPreset, ContractTemplate, InsertContractPreset } from "@shared/schema";
+import SectionPreviewDialog from "./section-preview-dialog";
 
 interface PresetEditorProps {
   preset?: ContractPreset | null;
@@ -79,6 +80,12 @@ export default function PresetEditor({ preset, onClose }: PresetEditorProps) {
   );
   const templateMissing = isEditing && form.templateId != null && templates.length > 0 && !selectedTemplate;
 
+  const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
+  const previewSection = useMemo(
+    () => sections.find((s) => s.id === previewSectionId) || null,
+    [sections, previewSectionId],
+  );
+
   // Quando cambia template, rimuovi gli ID di sezione che non esistono più
   useEffect(() => {
     if (!selectedTemplate) return;
@@ -132,6 +139,15 @@ export default function PresetEditor({ preset, onClose }: PresetEditorProps) {
   };
 
   const toggleSection = (id: string) => {
+    // I moduli "required" del template non possono essere disattivati: il
+    // server li include comunque. Manteniamoli sempre presenti nella lista.
+    const sec = sections.find((s) => s.id === id);
+    if (sec?.required) {
+      setForm((f) =>
+        f.selectedSectionIds.includes(id) ? f : { ...f, selectedSectionIds: [...f.selectedSectionIds, id] },
+      );
+      return;
+    }
     setForm((f) => ({
       ...f,
       selectedSectionIds: f.selectedSectionIds.includes(id)
@@ -256,18 +272,30 @@ export default function PresetEditor({ preset, onClose }: PresetEditorProps) {
                   {sections.map((s) => {
                     const checked = form.selectedSectionIds.includes(s.id);
                     return (
-                      <label key={s.id} className="flex items-start gap-2 cursor-pointer hover:bg-white p-2 rounded-md transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleSection(s.id)}
-                          className="mt-0.5 h-4 w-4 text-indigo-600 rounded border-slate-300"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-800">{s.title}</p>
-                          {s.required && <Badge variant="outline" className="text-[10px] mt-0.5">Obbligatoria</Badge>}
-                        </div>
-                      </label>
+                      <div key={s.id} className="flex items-start gap-1 hover:bg-white p-2 rounded-md transition-colors">
+                        <label className="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleSection(s.id)}
+                            className="mt-0.5 h-4 w-4 text-indigo-600 rounded border-slate-300"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-800">{s.title}</p>
+                            {s.required && <Badge variant="outline" className="text-[10px] mt-0.5">Obbligatoria</Badge>}
+                          </div>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewSectionId(s.id)}
+                          className="shrink-0 p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          title="Anteprima contenuto del modulo"
+                          data-testid={`preset-section-preview-${s.id}`}
+                          aria-label={`Anteprima ${s.title}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -428,6 +456,17 @@ export default function PresetEditor({ preset, onClose }: PresetEditorProps) {
           </Button>
         </DialogFooter>
       </DialogContent>
+      <SectionPreviewDialog
+        section={previewSection}
+        open={!!previewSection}
+        isSelected={
+          previewSection
+            ? previewSection.required || form.selectedSectionIds.includes(previewSection.id)
+            : false
+        }
+        onClose={() => setPreviewSectionId(null)}
+        onToggle={(id) => toggleSection(id)}
+      />
     </Dialog>
   );
 }

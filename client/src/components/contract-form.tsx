@@ -23,6 +23,7 @@ import SendConfirmationGate, { type SendGateEmailData, type SendGatePreviewData 
 import { REQUIRED_CLIENT_FIELDS, SYNCED_FIELD_KEYS, getRequiredClientFields, getClientType, type RequiredClientField, type ClientType } from "@/lib/required-client-fields";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF, validateItalianMobile, looksLikeAddress, ITALIAN_PROVINCES } from "@/lib/validation-utils";
 import { resolveSelectedSections, defaultSelectedIds, parseSections, type ModularSection } from "@shared/sections";
+import SectionPreviewDialog from "./section-preview-dialog";
 
 function getTemplateSections(t: unknown): ModularSection[] {
   return parseSections((t as { sections?: unknown } | null | undefined)?.sections);
@@ -254,6 +255,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<{ template: any; companySettings: any; generatedContent: string } | null>(null);
+
+  // Anteprima singolo modulo (icona occhio nella checklist sezioni)
+  const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
 
   // Send-confirmation gate state
   const [gateOpen, setGateOpen] = useState(false);
@@ -2393,6 +2397,20 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                             <p className="text-xs text-slate-500 mt-1">{sec.description}</p>
                           )}
                         </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPreviewSectionId(sec.id);
+                          }}
+                          className="shrink-0 p-1.5 -m-1 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                          title="Anteprima contenuto del modulo"
+                          data-testid={`contract-section-preview-${sec.id}`}
+                          aria-label={`Anteprima ${sec.title}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
                       </label>
                     );
                   })}
@@ -2772,6 +2790,36 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         );
       })()}
     </Dialog>
+    {(() => {
+      const allSecs = getTemplateSections(selectedTemplate);
+      const sec = allSecs.find((s) => s.id === previewSectionId) || null;
+      const selIds: string[] = form.watch("selectedSectionIds") ?? [];
+      const initialized = Array.isArray(form.getValues("selectedSectionIds"));
+      const isSelected = sec
+        ? sec.required
+          ? true
+          : initialized
+          ? selIds.includes(sec.id)
+          : !!sec.defaultEnabled
+        : false;
+      return (
+        <SectionPreviewDialog
+          section={sec}
+          open={!!sec}
+          isSelected={isSelected}
+          onClose={() => setPreviewSectionId(null)}
+          onToggle={(id, nextSelected) => {
+            const current: string[] = Array.isArray(form.getValues("selectedSectionIds"))
+              ? [...(form.getValues("selectedSectionIds") as string[])]
+              : allSecs.filter((s) => s.required || s.defaultEnabled).map((s) => s.id);
+            const next = nextSelected
+              ? Array.from(new Set([...current, id]))
+              : current.filter((x) => x !== id);
+            form.setValue("selectedSectionIds", next, { shouldDirty: true });
+          }}
+        />
+      );
+    })()}
     </>
   );
 }
