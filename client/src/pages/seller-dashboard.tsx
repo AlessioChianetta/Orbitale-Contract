@@ -50,6 +50,7 @@ import {
   Sparkles,
   Trash2,
   Wifi,
+  Layers,
 } from "lucide-react";
 import ContractForm from "@/components/contract-form";
 import BulkFromTemplateDialog from "@/components/bulk-from-template-dialog";
@@ -411,6 +412,12 @@ export default function SellerDashboard() {
                   <p className="text-xs text-white/70 leading-tight">Performance e gestione contratti</p>
                 </div>
               </div>
+              <Link href="/admin/presets">
+                <Button variant="ghost" size="sm" className="text-white/80 hover:text-white hover:bg-white/10" data-testid="link-seller-presets">
+                  <Layers className="h-4 w-4 mr-1.5" strokeWidth={1.5} />
+                  Preset Offerta
+                </Button>
+              </Link>
               {isAdmin && (
                 <Link href="/admin">
                   <Button variant="ghost" size="sm" className="text-white/80 hover:text-white hover:bg-white/10">

@@ -76,6 +76,7 @@ const contractFormSchema = z.object({
   }),
   totalValue: z.number().optional(),
   sendImmediately: z.boolean().default(true),
+  autoRenewal: z.boolean().default(true),
   renewalDuration: z.number().min(1).max(60).default(12),
   contractStartDate: z.string().optional().default(""),
   contractEndDate: z.string().optional().default(""),
@@ -446,7 +447,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     form.setValue("renewalDuration", preset.renewalDuration ?? 12, { shouldDirty: true });
     // autoRenewal: se il preset prevede rinnovo automatico, abilitalo
     if (typeof preset.autoRenewal === "boolean") {
-      form.setValue("autoRenewal" as any, preset.autoRenewal, { shouldDirty: true });
+      form.setValue("autoRenewal", preset.autoRenewal, { shouldDirty: true });
     }
 
     // Modalità di compilazione (seller / client_fill) preferita dal preset
@@ -492,7 +493,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           totalValue: formValues.totalValue,
           isPercentagePartnership: formValues.isPercentagePartnership,
           partnershipPercentage: formValues.partnershipPercentage,
-          autoRenewal: Boolean((formValues as { autoRenewal?: boolean }).autoRenewal),
+          autoRenewal: Boolean(formValues.autoRenewal),
           renewalDuration: formValues.renewalDuration,
           fillMode: formValues.fillMode || "seller",
           defaultDurationMonths: (() => {

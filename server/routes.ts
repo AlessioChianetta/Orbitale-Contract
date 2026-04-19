@@ -263,6 +263,7 @@ export function registerRoutes(app: Express): Server {
       autoRenewal: !!body?.autoRenewal,
       renewalDuration: typeof body?.renewalDuration === "number" ? body.renewalDuration : 12,
       defaultDurationMonths: typeof body?.defaultDurationMonths === "number" ? body.defaultDurationMonths : null,
+      fillMode: body?.fillMode === "client_fill" ? "client_fill" : "seller",
     };
   };
 

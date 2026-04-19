@@ -52,10 +52,15 @@ export default function PresetEditor({ preset, onClose }: PresetEditorProps) {
     description: preset?.description || "",
     visibility: (preset?.visibility as "personal" | "shared") || "personal",
     templateId: preset?.templateId ?? null,
-    selectedSectionIds: Array.isArray(preset?.selectedSectionIds) ? (preset!.selectedSectionIds as string[]) : [],
-    bonusList: Array.isArray(preset?.bonusList) ? (preset!.bonusList as any[]) : [],
-    paymentPlan: Array.isArray(preset?.paymentPlan) ? (preset!.paymentPlan as any[]) : [],
-    rataList: Array.isArray(preset?.rataList) ? (preset!.rataList as any[]) : [],
+    selectedSectionIds: Array.isArray(preset?.selectedSectionIds) ? preset!.selectedSectionIds : [],
+    bonusList: Array.isArray(preset?.bonusList) ? preset!.bonusList : [],
+    paymentPlan: Array.isArray(preset?.paymentPlan)
+      ? preset!.paymentPlan.map((p) => ({
+          rata_importo: p.rata_importo != null ? String(p.rata_importo) : undefined,
+          rata_scadenza: p.rata_scadenza,
+        }))
+      : [],
+    rataList: Array.isArray(preset?.rataList) ? preset!.rataList : [],
     totalValue: preset?.totalValue != null ? String(preset.totalValue) : "",
     isPercentagePartnership: !!preset?.isPercentagePartnership,
     partnershipPercentage: preset?.partnershipPercentage != null ? String(preset.partnershipPercentage) : "",
@@ -69,7 +74,7 @@ export default function PresetEditor({ preset, onClose }: PresetEditorProps) {
     [templates, form.templateId],
   );
   const sections: ModularSection[] = useMemo(
-    () => parseSections((selectedTemplate as any)?.sections),
+    () => parseSections(selectedTemplate?.sections),
     [selectedTemplate],
   );
   const templateMissing = isEditing && form.templateId != null && templates.length > 0 && !selectedTemplate;
@@ -348,7 +353,7 @@ export default function PresetEditor({ preset, onClose }: PresetEditorProps) {
                       type="number"
                       step="0.01"
                       placeholder="Importo €"
-                      value={r.rata_importo as any || ""}
+                      value={r.rata_importo != null ? String(r.rata_importo) : ""}
                       onChange={(e) => {
                         const next = [...form.rataList];
                         next[i] = { ...next[i], rata_importo: e.target.value ? Number(e.target.value) : undefined };
