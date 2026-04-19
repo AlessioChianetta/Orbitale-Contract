@@ -213,6 +213,38 @@ function HtmlEditorWithPreview({
   );
 }
 
+function TabIntro({
+  icon: Icon,
+  title,
+  description,
+  accent = "indigo",
+}: {
+  icon: any;
+  title: string;
+  description: string;
+  accent?: "indigo" | "emerald" | "amber" | "violet" | "sky";
+}) {
+  const colors: Record<string, { bg: string; text: string; ring: string }> = {
+    indigo:  { bg: "bg-indigo-50",  text: "text-indigo-600",  ring: "ring-indigo-100" },
+    emerald: { bg: "bg-emerald-50", text: "text-emerald-600", ring: "ring-emerald-100" },
+    amber:   { bg: "bg-amber-50",   text: "text-amber-600",   ring: "ring-amber-100" },
+    violet:  { bg: "bg-violet-50",  text: "text-violet-600",  ring: "ring-violet-100" },
+    sky:     { bg: "bg-sky-50",     text: "text-sky-600",     ring: "ring-sky-100" },
+  };
+  const c = colors[accent];
+  return (
+    <div className={`flex items-start gap-3 rounded-2xl ${c.bg} ring-1 ${c.ring} p-4`}>
+      <div className={`shrink-0 rounded-xl bg-white/80 p-2 ${c.text}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <h2 className={`text-sm font-semibold ${c.text}`}>{title}</h2>
+        <p className="text-[12px] text-[#475569] mt-0.5 leading-relaxed">{description}</p>
+      </div>
+    </div>
+  );
+}
+
 function VariablePill({ code, label }: { code: string; label: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -469,35 +501,35 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
                       >
                         <Settings className="h-3.5 w-3.5 mr-1.5" />
-                        Info
+                        1. Generali
                       </TabsTrigger>
                       <TabsTrigger
                         value="content"
                         className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
                       >
                         <FileText className="h-3.5 w-3.5 mr-1.5" />
-                        Contenuto
+                        2. Testo Contratto
                       </TabsTrigger>
                       <TabsTrigger
                         value="sections"
                         className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
                       >
                         <List className="h-3.5 w-3.5 mr-1.5" />
-                        Sezioni Modulari
+                        3. Pacchetti / Moduli
                       </TabsTrigger>
                       <TabsTrigger
                         value="bonuspay"
                         className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
                       >
                         <Gift className="h-3.5 w-3.5 mr-1.5" />
-                        Bonus & Pagamento
+                        4. Bonus & Pagamenti
                       </TabsTrigger>
                       <TabsTrigger
                         value="preview"
                         className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
                       >
                         <Eye className="h-3.5 w-3.5 mr-1.5" />
-                        Anteprima
+                        5. Anteprima
                       </TabsTrigger>
                     </TabsList>
                   </div>
@@ -505,6 +537,12 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
 
                 <div className="flex-1 overflow-y-auto px-8 py-6">
                   <TabsContent value="info" className="mt-0 space-y-6">
+                    <TabIntro
+                      icon={Settings}
+                      accent="sky"
+                      title="Generali — chi e cosa"
+                      description="Dai un nome al template, scrivi una descrizione interna e decidi se è attivo. Queste informazioni servono solo a te e ai tuoi venditori, non finiscono nel contratto firmato."
+                    />
                     <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                       <h3 className="text-base font-semibold text-[#0F172A] mb-5 flex items-center gap-2">
                         <Settings className="h-4 w-4 text-[#64748B]" />
@@ -558,26 +596,107 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="content" className="mt-0 space-y-8">
-                    <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-                      <h3 className="text-base font-semibold text-[#0F172A] mb-1 flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-[#64748B]" />
-                        Contenuto Introduttivo
-                      </h3>
-                      <p className="text-sm text-[#94A3B8] mb-4">
-                        Questo testo apparirà nel contratto prima della sezione dei bonus. Supporta
-                        formattazione HTML.
-                      </p>
-                      <HtmlEditorWithPreview
-                        fieldId="customContent"
-                        fieldName="customContent"
-                        form={form}
-                        disabled={isPending}
-                        rows={8}
-                        placeholder="Descrivi i servizi e i vantaggi inclusi nel contratto..."
-                      />
+                  <TabsContent value="content" className="mt-0 space-y-6">
+                    <TabIntro
+                      icon={FileText}
+                      accent="indigo"
+                      title="Testo del contratto — il corpo che il cliente firma"
+                      description="Qui scrivi (o importi) l'HTML che diventa il PDF firmato. Puoi partire da un modello pronto, poi personalizzare. Il testo introduttivo è facoltativo e appare prima della sezione bonus."
+                    />
+
+                    {/* Quick start: import templates */}
+                    <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/40 to-violet-50/30 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
+                            <Download className="h-4 w-4 text-indigo-600" />
+                            Parti da un modello pronto
+                          </h3>
+                          <p className="text-[12px] text-[#64748B] mt-0.5">
+                            Sostituisce il contenuto attuale del corpo. Puoi sempre modificarlo dopo.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => {
+                            const html = getPartnershipContractHtml();
+                            form.setValue("content", html);
+                            form.setValue("sections", [], { shouldDirty: true });
+                            toast({
+                              title: "Template importato",
+                              description: "Il contratto di partnership è stato importato nel corpo del contratto.",
+                            });
+                          }}
+                          className="group text-left rounded-xl bg-white border border-[#E5E7EB] p-4 hover:border-indigo-300 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <FileText className="h-4 w-4 text-indigo-600" />
+                            <span className="text-sm font-semibold text-[#0F172A]">Partnership</span>
+                          </div>
+                          <p className="text-[11px] text-[#64748B] leading-relaxed">
+                            Contratto partnership classico, senza pacchetti modulari.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          data-testid="button-import-orbital-full"
+                          onClick={() => {
+                            const html = getOrbitalContractFullHtml();
+                            form.setValue("content", html);
+                            form.setValue("sections", [], { shouldDirty: true });
+                            toast({
+                              title: "Template importato",
+                              description: "Contratto Sistema Orbitale completo (con tutti i servizi inline) importato nel corpo.",
+                            });
+                          }}
+                          className="group text-left rounded-xl bg-white border border-[#E5E7EB] p-4 hover:border-indigo-300 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <FileText className="h-4 w-4 text-indigo-600" />
+                            <span className="text-sm font-semibold text-[#0F172A]">Sistema Orbitale — Completo</span>
+                          </div>
+                          <p className="text-[11px] text-[#64748B] leading-relaxed">
+                            Tutti gli 11 pacchetti scritti dentro il contratto. Niente da scegliere.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          data-testid="button-import-orbital-modular"
+                          onClick={() => {
+                            const html = getOrbitalContractEmptyHtml();
+                            const packages = getOrbitalServicePackages();
+                            form.setValue("content", html);
+                            form.setValue("sections", packages, { shouldDirty: true });
+                            toast({
+                              title: "Template modulare importato",
+                              description: `Corpo del contratto e ${packages.length} Pacchetti di Servizi caricati. Personalizza la selezione per ogni contratto.`,
+                            });
+                            setActiveTab("sections");
+                          }}
+                          className="group text-left rounded-xl bg-white border-2 border-indigo-200 p-4 hover:border-indigo-400 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed relative"
+                        >
+                          <span className="absolute top-2 right-2 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-600 text-white uppercase tracking-wide">
+                            Consigliato
+                          </span>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <List className="h-4 w-4 text-indigo-600" />
+                            <span className="text-sm font-semibold text-[#0F172A]">Sistema Orbitale — Modulare</span>
+                          </div>
+                          <p className="text-[11px] text-[#64748B] leading-relaxed">
+                            Corpo "vuoto" + 11 pacchetti che il venditore sceglie per ogni cliente.
+                          </p>
+                        </button>
+                      </div>
                     </div>
 
+                    {/* Body editor */}
                     <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                       <div className="flex items-center justify-between mb-1">
                         <h3 className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
@@ -588,89 +707,29 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                           Obbligatorio
                         </span>
                       </div>
+                      <p className="text-sm text-[#94A3B8] mb-4">
+                        L'HTML che diventa il PDF firmato. Usa le variabili qui sotto per inserire dati cliente.
+                      </p>
 
-                      <div className="mt-4 mb-5 p-4 bg-[#F8FAFC] border border-[#E5E7EB]/50 rounded-xl">
-                        <p className="text-xs font-medium text-[#475569] mb-3">
-                          Variabili disponibili
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <VariablePill code={"{{societa}}"} label="Nome società" />
-                          <VariablePill code={"{{cliente_nome}}"} label="Nome cliente" />
-                          <VariablePill code={"{{p_iva}}"} label="P.IVA" />
-                          <VariablePill code={"{{sede}}"} label="Sede legale" />
+                      <details className="mt-2 mb-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]/50 overflow-hidden">
+                        <summary className="cursor-pointer px-4 py-2.5 text-xs font-medium text-[#475569] hover:bg-[#F1F5F9] select-none">
+                          Variabili e blocchi disponibili
+                        </summary>
+                        <div className="px-4 pb-4 pt-2">
+                          <div className="flex flex-wrap gap-2">
+                            <VariablePill code={"{{societa}}"} label="Nome società" />
+                            <VariablePill code={"{{cliente_nome}}"} label="Nome cliente" />
+                            <VariablePill code={"{{p_iva}}"} label="P.IVA" />
+                            <VariablePill code={"{{sede}}"} label="Sede legale" />
+                          </div>
+                          <p className="mt-3 text-[11px] text-[#94A3B8]">
+                            Blocchi ripetibili:{" "}
+                            <code className="text-[#64748B] bg-white px-1.5 py-0.5 rounded border border-[#E5E7EB]/60 text-[10px]">
+                              {"<!-- BLOCK:BONUS_LIST -->...<!-- END_BLOCK:BONUS_LIST -->"}
+                            </code>
+                          </p>
                         </div>
-                        <p className="mt-3 text-[11px] text-[#94A3B8]">
-                          Blocchi ripetibili:{" "}
-                          <code className="text-[#64748B] bg-white px-1.5 py-0.5 rounded border border-[#E5E7EB]/60 text-[10px]">
-                            {"<!-- BLOCK:BONUS_LIST -->...<!-- END_BLOCK:BONUS_LIST -->"}
-                          </code>
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3 mb-4 flex-wrap">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl border-[#E5E7EB] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all duration-200"
-                          onClick={() => {
-                            const html = getPartnershipContractHtml();
-                            form.setValue("content", html);
-                            form.setValue("sections", [], { shouldDirty: true });
-                            toast({
-                              title: "Template importato",
-                              description: "Il contratto di partnership è stato importato nel corpo del contratto.",
-                            });
-                          }}
-                          disabled={isPending}
-                        >
-                          <Download className="h-3.5 w-3.5 mr-1.5" />
-                          Importa Template Partnership
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl border-[#E5E7EB] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all duration-200"
-                          onClick={() => {
-                            const html = getOrbitalContractFullHtml();
-                            form.setValue("content", html);
-                            form.setValue("sections", [], { shouldDirty: true });
-                            toast({
-                              title: "Template importato",
-                              description: "Contratto Sistema Orbitale completo (con tutti i servizi inline) importato nel corpo.",
-                            });
-                          }}
-                          disabled={isPending}
-                          data-testid="button-import-orbital-full"
-                        >
-                          <Download className="h-3.5 w-3.5 mr-1.5" />
-                          Importa Sistema Orbitale (Completo)
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl border-[#E5E7EB] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all duration-200"
-                          onClick={() => {
-                            const html = getOrbitalContractEmptyHtml();
-                            const packages = getOrbitalServicePackages();
-                            form.setValue("content", html);
-                            form.setValue("sections", packages, { shouldDirty: true });
-                            toast({
-                              title: "Template modulare importato",
-                              description: `Corpo del contratto e ${packages.length} Pacchetti di Servizi caricati. Personalizza la selezione per ogni contratto.`,
-                            });
-                          }}
-                          disabled={isPending}
-                          data-testid="button-import-orbital-modular"
-                        >
-                          <Download className="h-3.5 w-3.5 mr-1.5" />
-                          Importa Sistema Orbitale (Modulare + 11 Pacchetti)
-                        </Button>
-                      </div>
+                      </details>
 
                       <HtmlEditorWithPreview
                         fieldId="content"
@@ -686,18 +745,50 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         </p>
                       )}
                     </div>
+
+                    {/* Optional intro */}
+                    <details className="rounded-2xl border border-[#E5E7EB]/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                      <summary className="cursor-pointer p-6 select-none hover:bg-[#FAFBFC]">
+                        <div className="inline-flex items-center gap-2 align-middle">
+                          <FileText className="h-4 w-4 text-[#64748B]" />
+                          <span className="text-base font-semibold text-[#0F172A]">Testo Introduttivo</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F1F5F9] text-[#64748B] uppercase tracking-wide">
+                            Facoltativo
+                          </span>
+                        </div>
+                        <p className="text-sm text-[#94A3B8] mt-1.5">
+                          Testo opzionale che appare nel contratto prima della sezione bonus. Clicca per modificarlo.
+                        </p>
+                      </summary>
+                      <div className="px-6 pb-6">
+                        <HtmlEditorWithPreview
+                          fieldId="customContent"
+                          fieldName="customContent"
+                          form={form}
+                          disabled={isPending}
+                          rows={6}
+                          placeholder="Descrivi i servizi e i vantaggi inclusi nel contratto..."
+                        />
+                      </div>
+                    </details>
                   </TabsContent>
 
                   <TabsContent value="sections" className="mt-0 space-y-6">
+                    <TabIntro
+                      icon={List}
+                      accent="violet"
+                      title="Pacchetti / Moduli — opzionali, scelti per ogni cliente"
+                      description="Blocchi di testo che il venditore può attivare o disattivare al momento di creare il contratto (es. i 11 Pacchetti del Sistema Orbitale, oppure SEO, Social, Report mensile). Compaiono nel contratto solo se selezionati. Lascia vuoto se il template non ha parti opzionali."
+                    />
                     <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                       <div className="flex items-start justify-between gap-4 mb-1">
                         <div>
                           <h3 className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
                             <List className="h-4 w-4 text-[#64748B]" />
-                            Sezioni Modulari
+                            Elenco moduli ({((form.watch("sections") as ModularSection[] | undefined) || []).length})
                           </h3>
                           <p className="text-sm text-[#94A3B8] mt-1">
-                            Definisci blocchi di testo opzionali (es. SEO, Gestione Social, Report mensile). Il venditore potrà sceglierli al momento della creazione del contratto.
+                            Trascina per riordinare. "Attiva di default" = preselezionato nel form contratto. "Obbligatoria" = sempre incluso, non disattivabile.
                           </p>
                         </div>
                         <Button
@@ -918,12 +1009,21 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="bonuspay" className="mt-0 space-y-8">
+                  <TabsContent value="bonuspay" className="mt-0 space-y-6">
+                    <TabIntro
+                      icon={Gift}
+                      accent="amber"
+                      title="Bonus & Pagamenti — incentivi e termini economici"
+                      description="Bonus predefiniti che riempiono automaticamente il blocco BONUS_LIST nel contratto, e i termini di pagamento (rate, scadenze, modalità). Il prezzo specifico lo inserisce il venditore creando il singolo contratto."
+                    />
                     <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-                      <h3 className="text-base font-semibold text-[#0F172A] mb-4 flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-[#0F172A] mb-1 flex items-center gap-2">
                         <Gift className="h-4 w-4 text-[#64748B]" />
                         Bonus Predefiniti
                       </h3>
+                      <p className="text-sm text-[#94A3B8] mb-4">
+                        Riempiono automaticamente il blocco <code className="text-[11px] bg-[#F1F5F9] px-1.5 py-0.5 rounded">BONUS_LIST</code> nel corpo del contratto.
+                      </p>
                       <BonusManager
                         bonuses={(form.watch("predefinedBonuses") as any[]) || []}
                         onChange={(bonuses) => form.setValue("predefinedBonuses", bonuses as any)}
@@ -951,7 +1051,13 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="preview" className="mt-0 h-full">
+                  <TabsContent value="preview" className="mt-0 h-full space-y-4">
+                    <TabIntro
+                      icon={Eye}
+                      accent="emerald"
+                      title="Anteprima — come apparirà al cliente"
+                      description="Vista live del contratto con tutti i moduli attivi di default, le variabili sostituite con esempi e i bonus inseriti. È l'aspetto finale del PDF firmato."
+                    />
                     <div className="rounded-2xl border border-[#E5E7EB]/60 bg-[#F8FAFC] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] h-full overflow-y-auto">
                       <div className="flex items-center gap-2 mb-4 px-2">
                         <Eye className="h-4 w-4 text-[#64748B]" />
