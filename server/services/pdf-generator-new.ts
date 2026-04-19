@@ -1038,8 +1038,11 @@ function generateAuditDetails(log: AuditLog, allLogs: AuditLog[] = []): string {
 
       // Determina la label del metodo OTP usando, in ordine:
       // 1) il valore congelato in metadata.otpMethod della firma stessa
-      // 2) il metodo dell'ultimo log "otp_sent" del contratto (firme legacy)
-      // 3) etichetta neutra (NON assumere SMS) per garantire veridicità.
+      // 2) per firme legacy senza otpMethod, ricostruzione dal log "otp_sent"
+      //    più recente:
+      //    a) flag twilioVerify (sempre veritiero) — true=sms, false=email
+      //    b) campo method (canonico solo per i log post-fix)
+      // 3) etichetta neutra "Verifica OTP" (NON assumere SMS) per veridicità.
       let authLabel: string;
       if (signatureMethod === 'otp_verification') {
         const fromSigned = (metadata.otpMethod || '').toString().toLowerCase();
@@ -1050,8 +1053,13 @@ function generateAuditDetails(log: AuditLog, allLogs: AuditLog[] = []): string {
           const lastOtpSent = [...allLogs]
             .filter((l: any) => l.action === 'otp_sent')
             .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-          const m = (lastOtpSent?.metadata?.method || '').toString().toLowerCase();
-          if (m === 'sms' || m === 'email') otpKind = m as 'sms' | 'email';
+          const lm: any = lastOtpSent?.metadata || {};
+          if (typeof lm.twilioVerify === 'boolean') {
+            otpKind = lm.twilioVerify ? 'sms' : 'email';
+          } else {
+            const m = (lm.method || '').toString().toLowerCase();
+            if (m === 'sms' || m === 'email') otpKind = m as 'sms' | 'email';
+          }
         }
         authLabel = otpKind === 'sms'
           ? 'Verifica OTP via SMS'

@@ -2568,17 +2568,26 @@ export function registerRoutes(app: Express): Server {
       // itself — even though the DB audit row is persisted only after the PDF succeeds.
       const existingAuditLogs = await storage.getContractAuditLogs(contract.id);
 
-      // Determina il metodo OTP REALMENTE usato per questa firma:
-      // priorità 1) ultimo log "otp_sent" del contratto (verità di fatto),
-      // priorità 2) impostazione azienda `otpMethod` (twilio => sms, altrimenti email),
-      // fallback finale: deduzione dal numero di telefono associato all'OTP.
+      // Determina il metodo OTP REALMENTE usato per questa firma.
+      // L'ordine di priorità è scelto per essere "legacy-safe": il flag
+      // `twilioVerify` del log "otp_sent" è SEMPRE stato scritto in modo
+      // veritiero (riflette il ramo di invio eseguito), mentre il campo
+      // `method` storico poteva essere dedotto erroneamente dalla sola
+      // presenza del telefono. Quindi:
+      //   1) twilioVerify del più recente "otp_sent" (true => sms, false => email)
+      //   2) campo method del log "otp_sent" (per i log nuovi è già canonico)
+      //   3) impostazione azienda `otpMethod` (twilio/sms => sms, email => email)
+      //   4) fallback: presenza del telefono associato all'OTP
       const lastOtpSentLog = [...existingAuditLogs]
         .filter((l: any) => l.action === 'otp_sent')
         .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-      const lastOtpMethodRaw = (lastOtpSentLog?.metadata as any)?.method as string | undefined;
+      const lastOtpMeta: any = (lastOtpSentLog?.metadata as any) || {};
       const companyOtpMethodRaw = (pdfCompanySettings as any)?.otpMethod as string | undefined;
       const resolvedOtpMethod: 'sms' | 'email' = (() => {
-        const v = (lastOtpMethodRaw || '').toLowerCase();
+        if (typeof lastOtpMeta.twilioVerify === 'boolean') {
+          return lastOtpMeta.twilioVerify ? 'sms' : 'email';
+        }
+        const v = (lastOtpMeta.method || '').toString().toLowerCase();
         if (v === 'sms' || v === 'email') return v as 'sms' | 'email';
         const c = (companyOtpMethodRaw || '').toLowerCase();
         if (c === 'twilio' || c === 'sms') return 'sms';
