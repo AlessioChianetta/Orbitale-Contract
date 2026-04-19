@@ -281,6 +281,11 @@ export function registerRoutes(app: Express): Server {
     selectedSectionIds: z.array(z.string()).optional(),
     fillMode: z.enum(["seller", "client_fill"]).optional(),
     sendToEmail: z.string().optional(),
+    // Variabili-prodotto orbitali, valori grezzi (numero o stringa).
+    // Vengono iniettate come placeholder formattati lato server.
+    accessLevel: z.string().nullable().optional(),
+    monthlyFee: z.union([z.string(), z.number()]).nullable().optional(),
+    activationFee: z.union([z.string(), z.number()]).nullable().optional(),
     // Distingue token di anteprima per creazione vs aggiornamento di un
     // contratto già esistente. Il client deve dichiararlo esplicitamente
     // perché il token verrà legato a quello scope.
@@ -310,7 +315,30 @@ export function registerRoutes(app: Express): Server {
         input.contractStartDate,
         input.contractEndDate,
         input.selectedSectionIds ?? null,
+        {
+          accessLevel: input.accessLevel ?? null,
+          monthlyFee: input.monthlyFee ?? null,
+          activationFee: input.activationFee ?? null,
+        },
       );
+
+      // Rete di sicurezza: se il template contiene placeholder `{{...}}`
+      // ancora non risolti (es. il venditore non ha compilato livello /
+      // canone / attivazione), restituiamo errore strutturato che il
+      // wizard intercetta per portare l'utente al campo mancante.
+      const unresolved = findUnresolvedPlaceholders(generatedContent);
+      if (unresolved.length > 0) {
+        return res.status(400).json({
+          message: "Il contratto contiene variabili non compilate.",
+          code: "UNRESOLVED_PLACEHOLDERS",
+          missing: unresolved,
+          missingLabels: unresolved.map((k) => ({
+            key: k,
+            label: PLACEHOLDER_LABELS[k]?.label || k,
+            hint: PLACEHOLDER_LABELS[k]?.hint,
+          })),
+        });
+      }
       const settings = await storage.getCompanySettings(req.user.companyId);
       const safeSettings = settings
         ? {
@@ -863,6 +891,11 @@ export function registerRoutes(app: Express): Server {
         original.contractStartDate ? original.contractStartDate.toISOString() : undefined,
         original.contractEndDate ? original.contractEndDate.toISOString() : undefined,
         parseSelectedIds(original.selectedSectionIds),
+        {
+          accessLevel: (original as any).accessLevel ?? null,
+          monthlyFee: (original as any).monthlyFee ?? null,
+          activationFee: (original as any).activationFee ?? null,
+        },
       );
 
       const duplicatePayload = insertContractSchema.parse({
@@ -953,6 +986,11 @@ export function registerRoutes(app: Express): Server {
         contract.contractStartDate ? contract.contractStartDate.toISOString() : undefined,
         contract.contractEndDate ? contract.contractEndDate.toISOString() : undefined,
         parseSelectedIds(contract.selectedSectionIds),
+        {
+          accessLevel: (contract as any).accessLevel ?? null,
+          monthlyFee: (contract as any).monthlyFee ?? null,
+          activationFee: (contract as any).activationFee ?? null,
+        },
       );
 
       // For signed contracts, regenerate the sealed PDF FIRST so we can fail atomically
@@ -1090,6 +1128,11 @@ export function registerRoutes(app: Express): Server {
         req.body.contractStartDate,
         req.body.contractEndDate,
         req.body.selectedSectionIds ?? existingContract.selectedSectionIds ?? null,
+        {
+          accessLevel: req.body.accessLevel ?? (existingContract as any).accessLevel ?? null,
+          monthlyFee: req.body.monthlyFee ?? (existingContract as any).monthlyFee ?? null,
+          activationFee: req.body.activationFee ?? (existingContract as any).activationFee ?? null,
+        },
       );
 
       // Validate the updated contract data
@@ -1114,6 +1157,23 @@ export function registerRoutes(app: Express): Server {
           return res.status(400).json({
             message: verification.reason,
             code: `PREVIEW_TOKEN_${verification.code}`,
+          });
+        }
+        // Rete di sicurezza pre-invio: blocca l'invio al cliente se il
+        // contenuto generato contiene ancora placeholder `{{...}}` non
+        // risolti. Si esegue PRIMA di toccare il DB per evitare di
+        // marcare il contratto come "sent" quando non lo è realmente.
+        const unresolved = findUnresolvedPlaceholders(generatedContent);
+        if (unresolved.length > 0) {
+          return res.status(400).json({
+            message: "Impossibile inviare: il contratto contiene variabili non compilate.",
+            code: "UNRESOLVED_PLACEHOLDERS",
+            missing: unresolved,
+            missingLabels: unresolved.map((k) => ({
+              key: k,
+              label: PLACEHOLDER_LABELS[k]?.label || k,
+              hint: PLACEHOLDER_LABELS[k]?.hint,
+            })),
           });
         }
         const emailStatus = await getEmailConfigStatusForCompany(req.user.companyId);
@@ -1251,6 +1311,11 @@ export function registerRoutes(app: Express): Server {
         req.body.contractStartDate,
         req.body.contractEndDate,
         req.body.selectedSectionIds ?? null,
+        {
+          accessLevel: req.body.accessLevel ?? null,
+          monthlyFee: req.body.monthlyFee ?? null,
+          activationFee: req.body.activationFee ?? null,
+        },
       );
 
       // Now validate the complete contract data including generated content
@@ -1281,6 +1346,24 @@ export function registerRoutes(app: Express): Server {
           return res.status(400).json({
             message: verification.reason,
             code: `PREVIEW_TOKEN_${verification.code}`,
+          });
+        }
+        // Rete di sicurezza esplicita anche in fase di creazione: il
+        // previewToken di per sé è già sufficiente (preview ha già
+        // bloccato i placeholder), ma una doppia verifica difende da
+        // eventuali bypass futuri o token riusati su payload diversi.
+        const unresolved = findUnresolvedPlaceholders(generatedContent);
+        if (unresolved.length > 0) {
+          await storage.deleteContracts([contract.id], req.user.companyId).catch(() => {});
+          return res.status(400).json({
+            message: "Impossibile inviare: il contratto contiene variabili non compilate.",
+            code: "UNRESOLVED_PLACEHOLDERS",
+            missing: unresolved,
+            missingLabels: unresolved.map((k) => ({
+              key: k,
+              label: PLACEHOLDER_LABELS[k]?.label || k,
+              hint: PLACEHOLDER_LABELS[k]?.hint,
+            })),
           });
         }
         const emailToSend = req.body.sendToEmail || contractData.clientData.email;
@@ -1436,6 +1519,11 @@ export function registerRoutes(app: Express): Server {
             body.contractStartDate,
             body.contractEndDate,
             selectedSectionIds,
+            {
+              accessLevel: body.accessLevel ?? null,
+              monthlyFee: body.monthlyFee ?? null,
+              activationFee: body.activationFee ?? null,
+            },
           );
           // partnershipPercentage è `numeric` lato DB (drizzle-zod lo
           // tipizza come stringa): convertiamo qui i valori numerici
@@ -1545,6 +1633,24 @@ export function registerRoutes(app: Express): Server {
         else if (c.status !== "draft") { eligible = false; reason = `stato non valido (${c.status})`; }
         else if ((c as any).fillMode !== "client_fill") { eligible = false; reason = "non è in modalità 'compila il cliente'"; }
         else if (!email) { eligible = false; reason = "email mancante"; }
+        else {
+          // Rete di sicurezza: se nel contenuto già salvato restano
+          // placeholder `{{...}}` non risolti (tipicamente le variabili
+          // prodotto del template orbitale non compilate sui contratti
+          // creati da bulk-from-template), il contratto va escluso.
+          const unresolved = findUnresolvedPlaceholders(c.generatedContent || "");
+          // Le variabili compilate dal cliente in modalità client_fill
+          // sono accettabili: vengono iniettate al submit del modulo.
+          // Filtriamo via i campi anagrafici noti per non bloccare i
+          // bulk legittimi.
+          const blocking = unresolved.filter(
+            (k) => !["nome", "cognome", "codice_fiscale", "data_nascita", "luogo_nascita", "indirizzo_residenza", "residente_a", "provincia_residenza", "nome_legale_rappresentante", "cognome_legale_rappresentante", "societa", "ragione_sociale", "sede", "indirizzo", "provincia_sede", "partita_iva", "telefono", "email"].includes(k),
+          );
+          if (blocking.length > 0) {
+            eligible = false;
+            reason = `variabili non compilate: ${blocking.map((k) => PLACEHOLDER_LABELS[k]?.label || k).join(", ")}`;
+          }
+        }
         recipients.push({
           id, contractCode: c.contractCode, templateName, clientLabel,
           email, totalEuro, emailSubject, eligible, reason,
@@ -1619,6 +1725,16 @@ export function registerRoutes(app: Express): Server {
           }
           const email = c.sentToEmail || (c.clientData as any)?.email;
           if (!email) { failed.push({ id, error: "email mancante" }); continue; }
+          // Stessa rete di sicurezza dell'anteprima bulk: rifiuta i
+          // contratti con variabili-prodotto irrisolte.
+          const unresolved = findUnresolvedPlaceholders(c.generatedContent || "");
+          const blocking = unresolved.filter(
+            (k) => !["nome", "cognome", "codice_fiscale", "data_nascita", "luogo_nascita", "indirizzo_residenza", "residente_a", "provincia_residenza", "nome_legale_rappresentante", "cognome_legale_rappresentante", "societa", "ragione_sociale", "sede", "indirizzo", "provincia_sede", "partita_iva", "telefono", "email"].includes(k),
+          );
+          if (blocking.length > 0) {
+            failed.push({ id, error: `variabili non compilate: ${blocking.map((k) => PLACEHOLDER_LABELS[k]?.label || k).join(", ")}` });
+            continue;
+          }
           await sendContractEmail(c, c.contractCode, email);
           await storage.updateContract(c.id, { status: "awaiting_client_data", sentToEmail: email });
           await storage.createAuditLog({
@@ -1742,6 +1858,11 @@ export function registerRoutes(app: Express): Server {
               contract.contractStartDate ?? undefined,
               contract.contractEndDate ?? undefined,
               contract.selectedSectionIds ?? undefined,
+              {
+                accessLevel: (contract as any).accessLevel ?? null,
+                monthlyFee: (contract as any).monthlyFee ?? null,
+                activationFee: (contract as any).activationFee ?? null,
+              },
             );
             publicTemplate = {
               id: tplForPreview.id,
@@ -1866,6 +1987,11 @@ export function registerRoutes(app: Express): Server {
               contract.contractStartDate,
               contract.contractEndDate,
               contract.selectedSectionIds ?? null,
+              {
+                accessLevel: (contract as any).accessLevel ?? null,
+                monthlyFee: (contract as any).monthlyFee ?? null,
+                activationFee: (contract as any).activationFee ?? null,
+              },
             );
           }
         } catch (regenErr: any) {

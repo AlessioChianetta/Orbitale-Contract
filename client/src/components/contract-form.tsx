@@ -91,6 +91,13 @@ const contractFormSchema = z.object({
   partnershipPercentage: z.number().min(0.01).max(100).optional(),
   selectedSectionIds: z.array(z.string()).default([]).optional(),
   fillMode: z.enum(["seller", "client_fill"]).default("seller"),
+  // Variabili-prodotto del template orbitale: livello di accesso, canone
+  // mensile e costo di attivazione una tantum. Vengono passate al
+  // backend che le formatta e le inietta nei placeholder
+  // {{livello_accesso}}, {{canone_mensile}}, {{costo_attivazione}}.
+  accessLevel: z.string().optional().default(""),
+  monthlyFee: z.number().nonnegative().optional(),
+  activationFee: z.number().nonnegative().optional(),
 }).refine((data) => {
   // In modalità "client_fill" anche le condizioni economiche possono
   // essere lasciate vuote dal venditore: il cliente le vedrà comunque
@@ -447,6 +454,13 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       contractEndDate: contract?.contractEndDate ? new Date(contract.contractEndDate).toISOString().split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to 1 year from now
       isPercentagePartnership: contract?.isPercentagePartnership || false,
       partnershipPercentage: contract?.partnershipPercentage || undefined,
+      accessLevel: (contract as any)?.accessLevel || "",
+      monthlyFee: (contract as any)?.monthlyFee != null && (contract as any)?.monthlyFee !== ""
+        ? Number((contract as any).monthlyFee)
+        : undefined,
+      activationFee: (contract as any)?.activationFee != null && (contract as any)?.activationFee !== ""
+        ? Number((contract as any).activationFee)
+        : undefined,
       selectedSectionIds: (() => {
         const raw = (contract as { selectedSectionIds?: string[] | null } | undefined)?.selectedSectionIds;
         // Preserviamo esplicitamente un array vuoto `[]` (il venditore ha
@@ -857,6 +871,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           : defaultSelectedIds(
               getTemplateSections(selectedTemplate),
             ),
+        accessLevel: values.accessLevel || null,
+        monthlyFee: values.monthlyFee ?? null,
+        activationFee: values.activationFee ?? null,
       };
       const res = await apiRequest("POST", "/api/contracts/preview", payload);
       const data = await res.json();
@@ -913,6 +930,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         : defaultSelectedIds(getTemplateSections(selectedTemplate)),
       fillMode,
       sendToEmail: sendEmail,
+      accessLevel: raw.accessLevel || null,
+      monthlyFee: raw.monthlyFee ?? null,
+      activationFee: raw.activationFee ?? null,
     };
   };
 
@@ -994,8 +1014,33 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       setGatePreviewData(previewJson);
       setGateEmailData(emailJson);
     } catch (err: any) {
-      const msg = err?.message || "Impossibile preparare l'anteprima.";
-      setGateError(msg);
+      const raw = err?.message || "";
+      // apiRequest formatta l'errore come `${status}: ${body}`. Provo a
+      // estrarre il body JSON per riconoscere errori strutturati come
+      // UNRESOLVED_PLACEHOLDERS e mostrare un messaggio utile invece
+      // del JSON grezzo.
+      let parsed: any = null;
+      const colonIdx = raw.indexOf(": ");
+      if (colonIdx > 0) {
+        try { parsed = JSON.parse(raw.slice(colonIdx + 2)); } catch {}
+      }
+      if (parsed?.code === "UNRESOLVED_PLACEHOLDERS") {
+        const labels = Array.isArray(parsed.missingLabels)
+          ? parsed.missingLabels.map((m: any) => m.label || m.key).join(", ")
+          : (parsed.missing || []).join(", ");
+        setGateOpen(false);
+        toast({
+          title: "Variabili contratto mancanti",
+          description: `Compila prima di inviare: ${labels}.`,
+          variant: "destructive",
+        });
+        setCurrentStep(4);
+        // Lascio un attimo al wizard per renderizzare lo step 4 prima
+        // di scrollare al riquadro "Variabili contratto".
+        setTimeout(() => scrollToSection("section-product-vars"), 50);
+        return;
+      }
+      setGateError(parsed?.message || raw || "Impossibile preparare l'anteprima.");
     } finally {
       setGateLoading(false);
     }
@@ -2181,6 +2226,81 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 Modello di Pagamento
               </h3>
               <div className="space-y-6">
+                {/* Variabili-prodotto orbitali. Vengono iniettate nei
+                    placeholder {{livello_accesso}}, {{canone_mensile}},
+                    {{costo_attivazione}} del template orbitale. Se
+                    lasciate vuote la rete di sicurezza lato server
+                    blocca l'invio al cliente. */}
+                <div id="section-product-vars" className="rounded-xl border-2 border-indigo-200 bg-indigo-50/30 p-5">
+                  <h4 className="text-base font-semibold text-slate-900 mb-1">
+                    Variabili contratto
+                  </h4>
+                  <p className="text-sm text-slate-500 mb-4">
+                    Compila questi tre campi: vengono inseriti automaticamente nel testo del contratto.
+                    Se lasci un campo vuoto, l'invio al cliente verrà bloccato.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="accessLevel" className={labelClass}>
+                        Livello di accesso *
+                      </Label>
+                      <select
+                        id="accessLevel"
+                        data-testid="select-access-level"
+                        {...form.register("accessLevel")}
+                        disabled={createContractMutation.isPending}
+                        className={`${inputClass} h-11`}
+                      >
+                        <option value="">Seleziona livello…</option>
+                        <option value="Livello 1 — Free">Livello 1 — Free</option>
+                        <option value="Livello 2 — Starter">Livello 2 — Starter</option>
+                        <option value="Livello 3 — Silver">Livello 3 — Silver</option>
+                        <option value="Livello 4 — Gold">Livello 4 — Gold</option>
+                        <option value="Livello 5 — Enterprise">Livello 5 — Enterprise</option>
+                        <option value="Livello 6 — Enterprise + Consulenza">Livello 6 — Enterprise + Consulenza</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="monthlyFee" className={labelClass}>
+                        Canone mensile *
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">€</span>
+                        <Input
+                          id="monthlyFee"
+                          data-testid="input-monthly-fee"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          {...form.register("monthlyFee", { valueAsNumber: true })}
+                          disabled={createContractMutation.isPending}
+                          className={`${inputClass} pl-9`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="activationFee" className={labelClass}>
+                        Costo di attivazione *
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">€</span>
+                        <Input
+                          id="activationFee"
+                          data-testid="input-activation-fee"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          {...form.register("activationFee", { valueAsNumber: true })}
+                          disabled={createContractMutation.isPending}
+                          className={`${inputClass} pl-9`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Partnership Mode Toggle - iOS style */}
                 <div
                   className={`p-5 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
