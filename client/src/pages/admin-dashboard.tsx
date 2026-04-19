@@ -31,7 +31,11 @@ import {
   ArrowUpDown,
   LogOut,
   TrendingUp,
-  FileText
+  FileText,
+  Calendar,
+  Layers,
+  Gift,
+  ChevronRight,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -331,64 +335,122 @@ export default function AdminDashboard() {
                 </button>
               </div>
             ) : (
-              <div>
-                <div className="grid grid-cols-[1fr_1.5fr_120px_100px_80px] gap-4 px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-400">
-                  <span>Nome</span>
-                  <span>Descrizione</span>
-                  <span>Creato</span>
-                  <span>Stato</span>
-                  <span className="text-right">Azioni</span>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between px-1 pb-1">
+                  <p className="text-xs text-slate-400">
+                    {filteredTemplates.length} {filteredTemplates.length === 1 ? "template" : "template"}
+                  </p>
                 </div>
-                <div>
-                  {filteredTemplates.map((template: any) => (
+
+                {filteredTemplates.map((template: any) => {
+                  const sectionsCount = Array.isArray(template.sections) ? template.sections.length : 0;
+                  const bonusesCount = Array.isArray(template.predefinedBonuses) ? template.predefinedBonuses.length : 0;
+                  const dateLabel = new Date(template.createdAt).toLocaleDateString('it-IT', {
+                    day: '2-digit', month: 'short', year: 'numeric'
+                  });
+
+                  return (
                     <div
                       key={template.id}
-                      className="group grid grid-cols-[1fr_1.5fr_120px_100px_80px] gap-4 items-center px-4 py-[18px] border-b border-black/[0.04] last:border-b-0 hover:bg-black/[0.02] transition-all duration-200 cursor-pointer rounded-xl"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Modifica template ${template.name}`}
                       onClick={() => handleEditTemplate(template)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleEditTemplate(template);
+                        }
+                      }}
+                      className="group relative flex items-stretch gap-4 p-4 bg-white border border-slate-200/70 rounded-2xl hover:border-indigo-300 hover:shadow-[0_4px_16px_rgba(79,70,229,0.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 transition-all duration-200 cursor-pointer"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <File className="h-4 w-4 text-slate-400" />
+                      {/* Status accent strip */}
+                      <div
+                        className={`absolute left-0 top-4 bottom-4 w-1 rounded-r-full ${
+                          template.isActive ? "bg-emerald-400" : "bg-slate-200"
+                        }`}
+                      />
+
+                      {/* Icon */}
+                      <div className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ml-2 ${
+                        template.isActive
+                          ? "bg-gradient-to-br from-indigo-50 to-violet-50 text-indigo-600"
+                          : "bg-slate-50 text-slate-400"
+                      }`}>
+                        <FileText className="h-5 w-5" />
+                      </div>
+
+                      {/* Main content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-[15px] font-semibold text-slate-900 truncate">
+                            {template.name}
+                          </h3>
+                          {template.isActive ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 rounded-full uppercase tracking-wide">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Attivo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-500 rounded-full uppercase tracking-wide">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                              Inattivo
+                            </span>
+                          )}
                         </div>
-                        <span className="text-sm font-medium text-slate-900 truncate">
-                          {template.name}
-                        </span>
-                      </div>
-                      <span className="text-sm text-slate-500 truncate">
-                        {template.description || "Nessuna descrizione"}
-                      </span>
-                      <span className="text-sm text-slate-500">
-                        {new Date(template.createdAt).toLocaleDateString('it-IT')}
-                      </span>
-                      <div>
-                        {template.isActive ? (
-                          <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-600 rounded-full">
-                            Attivo
+
+                        <p className="text-[13px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                          {template.description || (
+                            <span className="italic text-slate-400">Nessuna descrizione</span>
+                          )}
+                        </p>
+
+                        <div className="flex items-center gap-4 mt-2.5 text-[11px] text-slate-400">
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {dateLabel}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-500 rounded-full">
-                            Inattivo
-                          </span>
-                        )}
+                          {sectionsCount > 0 && (
+                            <span className="inline-flex items-center gap-1" title="Pacchetti / moduli opzionali">
+                              <Layers className="h-3 w-3" />
+                              {sectionsCount} moduli
+                            </span>
+                          )}
+                          {bonusesCount > 0 && (
+                            <span className="inline-flex items-center gap-1" title="Bonus predefiniti">
+                              <Gift className="h-3 w-3" />
+                              {bonusesCount} bonus
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+
+                      {/* Actions */}
+                      <div className="shrink-0 flex items-center gap-1 self-center">
                         <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); handleEditTemplate(template); }}
-                          className="p-1.5 text-slate-400 hover:text-[#4F46E5] hover:bg-[#4F46E5]/5 rounded-lg transition-all duration-200"
+                          title="Modifica"
+                          aria-label={`Modifica ${template.name}`}
+                          className="p-2 text-slate-400 hover:text-[#4F46E5] hover:bg-indigo-50 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 transition-all duration-200"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(template.id, template.name); }}
                           disabled={deleteTemplateMutation.isPending}
-                          className="p-1.5 text-slate-400 hover:text-[#DC2626] hover:bg-[#FEF2F2] rounded-lg transition-all duration-200 disabled:opacity-50"
+                          title="Elimina"
+                          aria-label={`Elimina ${template.name}`}
+                          className="p-2 text-slate-400 hover:text-[#DC2626] hover:bg-red-50 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 transition-all duration-200 disabled:opacity-50"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
+                        <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all duration-200 ml-1" />
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             )}
           </div>
