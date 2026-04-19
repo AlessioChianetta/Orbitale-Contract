@@ -2257,7 +2257,14 @@ export function registerRoutes(app: Express): Server {
 
       console.log(`[ROUTES] OTP sending completed`);
 
-      // Log OTP sending con metodo utilizzato e numero telefono effettivo
+      // Determina il canale REALMENTE usato per spedire l'OTP, non
+      // dedotto dalla presenza del telefono ma dal ramo di invio eseguito:
+      // useTwilioVerify === true => SMS via Twilio
+      // altrimenti => email (anche se il cliente ha un telefono ma il
+      // metodo aziendale è "email" o Twilio non era configurato).
+      const actualOtpMethod: 'sms' | 'email' = useTwilioVerify ? 'sms' : 'email';
+
+      // Log OTP sending con metodo realmente utilizzato e numero telefono effettivo
       await storage.createAuditLog({
         contractId: contract.id,
         action: "otp_sent",
@@ -2266,7 +2273,7 @@ export function registerRoutes(app: Express): Server {
         metadata: {
           contact: contactInfo,
           actualPhoneNumber: clientPhone || "N/A",
-          method: clientPhone ? "sms" : "email",
+          method: actualOtpMethod,
           twilioVerify: useTwilioVerify,
           hasPhone: !!clientPhone,
           hasEmail: !!clientEmail,
@@ -2276,8 +2283,8 @@ export function registerRoutes(app: Express): Server {
 
       res.json({ 
         message: "OTP sent successfully",
-        method: clientPhone ? "sms" : "email",
-        sentTo: clientPhone ? "telefono" : "email",
+        method: actualOtpMethod,
+        sentTo: actualOtpMethod === 'sms' ? "telefono" : "email",
         twilioVerify: useTwilioVerify
       });
     } catch (error) {
@@ -2560,6 +2567,25 @@ export function registerRoutes(app: Express): Server {
       // passed to the PDF generator, so the sealed PDF records the signature event
       // itself — even though the DB audit row is persisted only after the PDF succeeds.
       const existingAuditLogs = await storage.getContractAuditLogs(contract.id);
+
+      // Determina il metodo OTP REALMENTE usato per questa firma:
+      // priorità 1) ultimo log "otp_sent" del contratto (verità di fatto),
+      // priorità 2) impostazione azienda `otpMethod` (twilio => sms, altrimenti email),
+      // fallback finale: deduzione dal numero di telefono associato all'OTP.
+      const lastOtpSentLog = [...existingAuditLogs]
+        .filter((l: any) => l.action === 'otp_sent')
+        .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+      const lastOtpMethodRaw = (lastOtpSentLog?.metadata as any)?.method as string | undefined;
+      const companyOtpMethodRaw = (pdfCompanySettings as any)?.otpMethod as string | undefined;
+      const resolvedOtpMethod: 'sms' | 'email' = (() => {
+        const v = (lastOtpMethodRaw || '').toLowerCase();
+        if (v === 'sms' || v === 'email') return v as 'sms' | 'email';
+        const c = (companyOtpMethodRaw || '').toLowerCase();
+        if (c === 'twilio' || c === 'sms') return 'sms';
+        if (c === 'email') return 'email';
+        return validOtp?.phoneNumber ? 'sms' : 'email';
+      })();
+
       const signedAuditEntry = {
         id: -1,
         contractId: contract.id,
@@ -2573,7 +2599,7 @@ export function registerRoutes(app: Express): Server {
           signatures: signatures,
           consents: consents,
           contactUsedForOTP: validOtp?.phoneNumber,
-          otpMethod: phoneNumber ? 'SMS' : 'Email'
+          otpMethod: resolvedOtpMethod,
         },
         timestamp: now,
       };

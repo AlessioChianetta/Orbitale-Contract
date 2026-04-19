@@ -910,7 +910,7 @@ function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): stri
                   ${formatTimestamp(log.timestamp)}
                 </td>
                 <td style="padding: 20px 24px; vertical-align: top; line-height: 1.6; color: #374151;">
-                  ${generateAuditDetails(log)}
+                  ${generateAuditDetails(log, auditLogs)}
                 </td>
               </tr>
             `).join('')}
@@ -973,7 +973,7 @@ function formatTimestamp(timestamp: Date | string): string {
   return `${datePart} ${timePart} (Europe/Rome)`;
 }
 
-function generateAuditDetails(log: AuditLog): string {
+function generateAuditDetails(log: AuditLog, allLogs: AuditLog[] = []): string {
   const metadata = log.metadata as Record<string, any> || {};
   const ipAddress = log.ipAddress || 'IP non disponibile';
 
@@ -1036,12 +1036,38 @@ function generateAuditDetails(log: AuditLog): string {
       const signatureMethod = metadata.signatureMethod || 'Metodo non specificato';
       const signaturesCount = metadata.signatures ? Object.keys(metadata.signatures).length : 0;
 
+      // Determina la label del metodo OTP usando, in ordine:
+      // 1) il valore congelato in metadata.otpMethod della firma stessa
+      // 2) il metodo dell'ultimo log "otp_sent" del contratto (firme legacy)
+      // 3) etichetta neutra (NON assumere SMS) per garantire veridicità.
+      let authLabel: string;
+      if (signatureMethod === 'otp_verification') {
+        const fromSigned = (metadata.otpMethod || '').toString().toLowerCase();
+        let otpKind: 'sms' | 'email' | null = null;
+        if (fromSigned === 'sms' || fromSigned === 'email') {
+          otpKind = fromSigned as 'sms' | 'email';
+        } else if (Array.isArray(allLogs)) {
+          const lastOtpSent = [...allLogs]
+            .filter((l: any) => l.action === 'otp_sent')
+            .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+          const m = (lastOtpSent?.metadata?.method || '').toString().toLowerCase();
+          if (m === 'sms' || m === 'email') otpKind = m as 'sms' | 'email';
+        }
+        authLabel = otpKind === 'sms'
+          ? 'Verifica OTP via SMS'
+          : otpKind === 'email'
+            ? 'Verifica OTP via Email'
+            : 'Verifica OTP';
+      } else {
+        authLabel = signatureMethod;
+      }
+
       return `
         <div style="font-weight: 500;">✅ Contratto firmato digitalmente</div>
         <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
           <strong>Email firmatario:</strong> ${signerEmail}<br>
           <strong>Telefono verificato:</strong> ${phoneUsed}<br>
-          <strong>Metodo autenticazione:</strong> ${signatureMethod === 'otp_verification' ? 'Verifica OTP via SMS' : signatureMethod}<br>
+          <strong>Metodo autenticazione:</strong> ${authLabel}<br>
           <strong>Numero firme:</strong> ${signaturesCount} firma/e elettronica/e<br>
           <strong>Indirizzo IP:</strong> ${ipAddress}<br>
           <strong>Browser:</strong> ${browserName}
