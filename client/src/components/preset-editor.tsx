@@ -13,7 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { parseSections, type ModularSection } from "@shared/sections";
-import type { ContractPreset, ContractTemplate } from "@shared/schema";
+import type { ContractPreset, ContractTemplate, InsertContractPreset } from "@shared/schema";
 
 interface PresetEditorProps {
   preset?: ContractPreset | null;
@@ -90,8 +90,8 @@ export default function PresetEditor({ preset, onClose }: PresetEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTemplate?.id]);
 
-  const saveMutation = useMutation({
-    mutationFn: async (payload: any) => {
+  const saveMutation = useMutation<unknown, Error, Partial<InsertContractPreset>>({
+    mutationFn: async (payload) => {
       const url = isEditing ? `/api/presets/${preset!.id}` : "/api/presets";
       const method = isEditing ? "PUT" : "POST";
       return await apiRequest(method, url, payload);
@@ -101,7 +101,7 @@ export default function PresetEditor({ preset, onClose }: PresetEditorProps) {
       toast({ title: isEditing ? "Preset aggiornato" : "Preset creato", description: "Le modifiche sono state salvate." });
       onClose();
     },
-    onError: (err: any) => {
+    onError: (err) => {
       toast({ title: "Errore nel salvataggio", description: err.message || "Riprova", variant: "destructive" });
     },
   });

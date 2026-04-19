@@ -129,9 +129,9 @@ export default function AdminPresetsPage() {
           <div className="space-y-3">
             {presets.map((p) => {
               const tName = templateName(p.templateId);
-              const sectionsCount = Array.isArray(p.selectedSectionIds) ? (p.selectedSectionIds as any[]).length : 0;
-              const bonusesCount = Array.isArray(p.bonusList) ? (p.bonusList as any[]).length : 0;
-              const ratesCount = Array.isArray(p.rataList) ? (p.rataList as any[]).length : 0;
+              const sectionsCount = Array.isArray(p.selectedSectionIds) ? p.selectedSectionIds.length : 0;
+              const bonusesCount = Array.isArray(p.bonusList) ? p.bonusList.length : 0;
+              const ratesCount = Array.isArray(p.rataList) ? p.rataList.length : 0;
               const isMine = p.createdBy === user?.id;
               const templateMissing = p.templateId != null && !tName;
               return (
