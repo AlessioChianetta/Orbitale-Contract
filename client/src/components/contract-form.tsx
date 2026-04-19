@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ import { REQUIRED_CLIENT_FIELDS, SYNCED_FIELD_KEYS, getRequiredClientFields, get
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF, validateItalianMobile, looksLikeAddress, ITALIAN_PROVINCES } from "@/lib/validation-utils";
 import { resolveSelectedSections, defaultSelectedIds, parseSections, type ModularSection } from "@shared/sections";
 import SectionPreviewDialog from "./section-preview-dialog";
+import ContractRecapPanel, { type ContractRecapData } from "./contract-recap-panel";
+import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 
 function getTemplateSections(t: unknown): ModularSection[] {
   return parseSections((t as { sections?: unknown } | null | undefined)?.sections);
@@ -214,14 +216,73 @@ interface ContractFormProps {
   contract?: any; // Optional: Pass the contract data for editing
 }
 
-const STEPS = [
-  { id: 1, label: "Template", icon: FileText, sectionId: "section-template" },
-  { id: 2, label: "Dati Cliente", icon: Users, sectionId: "section-client" },
-  { id: 3, label: "Pagamento", icon: Euro, sectionId: "section-payment" },
-  { id: 4, label: "Durata", icon: Calendar, sectionId: "section-duration" },
-  { id: 5, label: "Bonus", icon: Gift, sectionId: "section-bonus" },
-  { id: 6, label: "Invio", icon: Send, sectionId: "section-send" },
+// === Wizard a 5 step ===
+// Ogni step elenca i campi RHF da validare prima di poter andare avanti.
+// I campi cliente sono validati solo in modalità "seller" (in "client_fill"
+// basta l'email perché i dati li compila il cliente sul link).
+const WIZARD_STEPS: Array<{
+  id: number;
+  label: string;
+  icon: any;
+  sectionId: string;
+  validateFields?: (mode: "seller" | "client_fill") => string[];
+}> = [
+  {
+    id: 1,
+    label: "Template & Preset",
+    icon: FileText,
+    sectionId: "section-template",
+    validateFields: () => ["templateId"],
+  },
+  {
+    id: 2,
+    label: "Cliente",
+    icon: Users,
+    sectionId: "section-client",
+    validateFields: (mode) => {
+      const base = ["clientData.email"];
+      if (mode === "client_fill") return base;
+      return [
+        ...base,
+        "clientData.societa",
+        "clientData.sede",
+        "clientData.indirizzo",
+        "clientData.p_iva",
+        "clientData.cellulare",
+        "clientData.cliente_nome",
+        "clientData.nato_a",
+        "clientData.residente_a",
+        "clientData.indirizzo_residenza",
+        "clientData.data_nascita",
+      ];
+    },
+  },
+  {
+    id: 3,
+    label: "Pacchetti & Bonus",
+    icon: Layers,
+    sectionId: "section-modular-sections",
+    validateFields: () => [],
+  },
+  {
+    id: 4,
+    label: "Prezzo & Durata",
+    icon: Euro,
+    sectionId: "section-payment",
+    validateFields: (mode) => {
+      if (mode === "client_fill") return [];
+      return ["totalValue", "partnershipPercentage", "contractStartDate", "contractEndDate"];
+    },
+  },
+  {
+    id: 5,
+    label: "Riepilogo & Invio",
+    icon: Send,
+    sectionId: "section-send",
+    validateFields: () => [],
+  },
 ];
+const TOTAL_STEPS = WIZARD_STEPS.length;
 
 const inputClass = "h-12 rounded-xl border border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 hover:border-gray-300 transition-all duration-200";
 const labelClass = "text-sm font-medium text-slate-700 mb-2 block";
@@ -247,9 +308,15 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     type: null, 
     isValidating: false 
   });
-  const [currentStep, setCurrentStep] = useState(1);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isEditing = !!contract; // Determine if we are editing an existing contract
+  // In modifica si parte direttamente dallo step Riepilogo, così l'utente
+  // vede tutti i dati e decide cosa cambiare (niente re-attraversamento).
+  const [currentStep, setCurrentStep] = useState<number>(isEditing ? TOTAL_STEPS : 1);
+  const [visitedSteps, setVisitedSteps] = useState<Set<number>>(
+    () => new Set(isEditing ? [1, 2, 3, 4, 5] : [1]),
+  );
+  const [stepBanner, setStepBanner] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Preview modal state
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -297,34 +364,117 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const coFillApplyingRef = useRef<boolean>(false);
   const coFillReconnectRef = useRef<any>(null);
 
+  // Mappa sezione → step del wizard. Quando MissingDataChecklist o un altro
+  // componente chiede di "saltare" a una sezione, prima portiamo l'utente
+  // sullo step corretto e poi facciamo lo scroll.
+  const sectionToStep = useMemo<Record<string, number>>(() => ({
+    "section-template": 1,
+    "section-client": 2,
+    "section-modular-sections": 3,
+    "section-bonus": 3,
+    "section-payment": 4,
+    "section-duration": 4,
+    "section-send": 5,
+    "section-summary": 5,
+  }), []);
+
   const scrollToSection = useCallback((sectionId: string) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    const targetStep = sectionToStep[sectionId];
+    if (targetStep && targetStep !== currentStep) {
+      setCurrentStep(targetStep);
+      setVisitedSteps((prev) => {
+        const n = new Set(prev);
+        n.add(targetStep);
+        return n;
+      });
+      // Lascia un tick per il render dello step prima dello scroll
+      setTimeout(() => {
+        const el = document.getElementById(sectionId);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 60);
+      return;
     }
-  }, []);
+    const element = document.getElementById(sectionId);
+    if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [sectionToStep, currentStep]);
 
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
+  // Validazione di uno step prima di avanzare. Restituisce true se i campi
+  // obbligatori dello step sono validi (per la modalità di compilazione
+  // corrente), altrimenti false e mostra un banner con il primo errore.
+  const validateStep = useCallback(async (stepId: number): Promise<boolean> => {
+    const step = WIZARD_STEPS.find((s) => s.id === stepId);
+    if (!step?.validateFields) return true;
+    const fields = step.validateFields(fillMode);
+    if (fields.length === 0) return true;
+    const ok = await form.trigger(fields as any, { shouldFocus: true });
+    if (!ok) {
+      const errs = form.formState.errors as any;
+      const firstField = fields.find((f) => {
+        const parts = f.split(".");
+        let cur: any = errs;
+        for (const p of parts) cur = cur?.[p];
+        return !!cur?.message;
+      });
+      let firstMsg = "Compila i campi obbligatori prima di proseguire.";
+      if (firstField) {
+        const parts = firstField.split(".");
+        let cur: any = errs;
+        for (const p of parts) cur = cur?.[p];
+        if (cur?.message) firstMsg = cur.message;
+      }
+      setStepBanner(firstMsg);
+      return false;
+    }
+    setStepBanner(null);
+    return true;
+  }, [form, fillMode]);
 
-    const handleScroll = () => {
-      const sections = STEPS.map(s => document.getElementById(s.sectionId)).filter(Boolean) as HTMLElement[];
-      const containerRect = container.getBoundingClientRect();
-      const containerTop = containerRect.top + 120;
-
-      for (let i = sections.length - 1; i >= 0; i--) {
-        const rect = sections[i].getBoundingClientRect();
-        if (rect.top <= containerTop + 50) {
-          setCurrentStep(i + 1);
-          break;
+  const goToStep = useCallback(
+    async (target: number, opts?: { skipValidation?: boolean }) => {
+      if (target < 1 || target > TOTAL_STEPS) return;
+      // Se vado avanti, valido solo gli step intermedi non ancora visitati.
+      if (!opts?.skipValidation && target > currentStep) {
+        for (let s = currentStep; s < target; s++) {
+          if (visitedSteps.has(s) && s !== currentStep) continue;
+          // eslint-disable-next-line no-await-in-loop
+          const ok = await validateStep(s);
+          if (!ok) return;
         }
       }
-    };
+      setStepBanner(null);
+      setCurrentStep(target);
+      setVisitedSteps((prev) => {
+        const n = new Set(prev);
+        n.add(target);
+        return n;
+      });
+      // Focus sul primo campo dello step (a11y)
+      setTimeout(() => {
+        const sec = WIZARD_STEPS.find((s) => s.id === target)?.sectionId;
+        if (sec) {
+          const el = document.getElementById(sec);
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          const focusable = el?.querySelector<HTMLElement>("input, select, textarea, button");
+          focusable?.focus({ preventScroll: true });
+        }
+      }, 60);
+    },
+    [currentStep, validateStep, visitedSteps],
+  );
 
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
+  const handleNext = useCallback(() => goToStep(currentStep + 1), [currentStep, goToStep]);
+  const handleBack = useCallback(() => goToStep(currentStep - 1, { skipValidation: true }), [currentStep, goToStep]);
+  const handleStepClick = useCallback(
+    (target: number) => {
+      // È possibile saltare a uno step già visitato senza validazione.
+      if (visitedSteps.has(target)) {
+        goToStep(target, { skipValidation: true });
+      } else {
+        goToStep(target);
+      }
+    },
+    [visitedSteps, goToStep],
+  );
 
   const { data: presets = [] } = useQuery<ContractPreset[]>({
     queryKey: ["/api/presets"],
@@ -865,6 +1015,41 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const currentTotalValue = form.watch("totalValue") || 0;
   const currentIsPercentageMode = form.watch("isPercentagePartnership") || false;
   const watchedClientData = form.watch("clientData");
+  const watchedSelectedSectionIds = form.watch("selectedSectionIds");
+  const watchedTotalValue = form.watch("totalValue");
+  const watchedIsPercent = form.watch("isPercentagePartnership");
+  const watchedPercentage = form.watch("partnershipPercentage");
+  const watchedStartDate = form.watch("contractStartDate");
+  const watchedEndDate = form.watch("contractEndDate");
+  const watchedRenewal = form.watch("renewalDuration");
+
+  const recapData: ContractRecapData = useMemo(() => {
+    const tmplSecs = getTemplateSections(selectedTemplate);
+    const cd: any = watchedClientData || {};
+    const tipo = (cd.tipo_cliente || cd.clientType || "azienda") as "azienda" | "privato";
+    const clientLabel = tipo === "privato"
+      ? (cd.cliente_nome || cd.nome || null)
+      : (cd.societa || cd.cliente_nome || cd.nome || null);
+    let durationMonths: number | null = null;
+    if (typeof watchedRenewal === "number") durationMonths = watchedRenewal;
+    else if (watchedRenewal && !isNaN(parseInt(String(watchedRenewal), 10))) durationMonths = parseInt(String(watchedRenewal), 10);
+    return {
+      templateName: selectedTemplate?.name || null,
+      clientType: tipo,
+      clientLabel,
+      clientEmail: cd.email || null,
+      modulesCount: Array.isArray(watchedSelectedSectionIds) ? watchedSelectedSectionIds.length : 0,
+      modulesTotal: tmplSecs.length,
+      bonusCount: Array.isArray(cd.bonus_list) ? cd.bonus_list.filter((b: any) => b?.bonus_descrizione).length : 0,
+      totalValue: watchedTotalValue != null ? Number(watchedTotalValue) : null,
+      isPercentagePartnership: !!watchedIsPercent,
+      partnershipPercentage: watchedPercentage != null ? Number(watchedPercentage) : null,
+      contractStartDate: watchedStartDate || null,
+      contractEndDate: watchedEndDate || null,
+      durationMonths,
+      presetName: appliedPresetName,
+    };
+  }, [selectedTemplate, watchedClientData, watchedSelectedSectionIds, watchedTotalValue, watchedIsPercent, watchedPercentage, watchedStartDate, watchedEndDate, watchedRenewal, appliedPresetName]);
 
   // Effetto: quando "stesso indirizzo" è attivo, replica sede→residenza e
   // mantiene i campi sincronizzati anche durante successive modifiche alla sede.
@@ -1230,43 +1415,45 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           </DialogHeader>
         </div>
 
-        {/* Step Navigation */}
+        {/* Step Navigation (wizard) */}
         <div className="px-8 pt-6 pb-4 border-b border-gray-100 flex-shrink-0 bg-white">
-          <div className="flex items-center justify-between">
-            {STEPS.map((step, index) => {
+          <div className="flex items-center justify-between overflow-x-auto sm:overflow-visible -mx-2 px-2">
+            {WIZARD_STEPS.map((step, index) => {
               const StepIcon = step.icon;
               const isActive = currentStep === step.id;
-              const isCompleted = currentStep > step.id;
+              const isCompleted = currentStep > step.id || (visitedSteps.has(step.id) && step.id < currentStep);
+              const isVisited = visitedSteps.has(step.id);
               return (
-                <div key={step.id} className="flex items-center flex-1 last:flex-none">
+                <div key={step.id} className="flex items-center flex-1 last:flex-none min-w-[110px]">
                   <button
                     type="button"
-                    onClick={() => {
-                      setCurrentStep(step.id);
-                      scrollToSection(step.sectionId);
-                    }}
-                    className="flex flex-col items-center group cursor-pointer"
+                    onClick={() => handleStepClick(step.id)}
+                    aria-current={isActive ? "step" : undefined}
+                    className="flex flex-col items-center group cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+                    data-testid={`wizard-step-${step.id}`}
                   >
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
                       isActive
-                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200 ring-2 ring-indigo-200"
                         : isCompleted
                         ? "bg-indigo-100 text-indigo-600"
+                        : isVisited
+                        ? "bg-slate-200 text-slate-600"
                         : "bg-gray-100 text-gray-400"
                     }`}>
-                      {isCompleted ? (
+                      {isCompleted && !isActive ? (
                         <Check className="h-5 w-5" />
                       ) : (
                         <StepIcon className="h-4 w-4" />
                       )}
                     </div>
-                    <span className={`text-xs mt-2 font-medium transition-colors duration-200 ${
-                      isActive ? "text-indigo-600" : isCompleted ? "text-indigo-500" : "text-gray-400"
+                    <span className={`text-xs mt-2 font-medium text-center transition-colors duration-200 whitespace-nowrap ${
+                      isActive ? "text-indigo-700" : isCompleted ? "text-indigo-500" : "text-gray-500"
                     }`}>
                       {step.label}
                     </span>
                   </button>
-                  {index < STEPS.length - 1 && (
+                  {index < WIZARD_STEPS.length - 1 && (
                     <div className={`flex-1 h-[2px] mx-3 mt-[-18px] transition-colors duration-300 ${
                       isCompleted ? "bg-indigo-300" : "bg-gray-200"
                     }`} />
@@ -1282,11 +1469,25 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-8 bg-white">
             <MissingDataPanel
               variant="accordion"
-              className="lg:hidden mb-6"
+              className="lg:hidden mb-3"
               clientData={watchedClientData}
               onJumpToField={jumpToClientField}
             />
+            <ContractRecapPanel data={recapData} variant="accordion" className="lg:hidden mb-6" />
             <form id="contract-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
+            {stepBanner && (
+              <div className="mb-4 flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm" data-testid="wizard-step-banner">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <strong className="block">Mancano alcuni dati per proseguire</strong>
+                  <span className="text-xs">{stepBanner}</span>
+                </div>
+                <button type="button" className="text-amber-700 hover:text-amber-900" onClick={() => setStepBanner(null)} aria-label="Chiudi">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            {currentStep === 1 && (<>
             {/* === Preset Offerta bar === */}
             {!isEditing && (
               <div className="mb-6 p-4 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/50 to-violet-50/30">
@@ -1429,9 +1630,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 )}
               </div>
             </div>
+            </>)}
 
-            {/* Section 2: Client Data */}
-            <div id="section-client" className="border-t border-gray-100 pt-8 mt-8">
+            {currentStep === 2 && (
+            /* Section 2: Client Data */
+            <div id="section-client" className="pt-2">
               <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                 <h3 className="text-xl font-semibold text-slate-900 flex items-center">
                   <Users className="mr-3 h-5 w-5 text-indigo-600" />
@@ -1953,8 +2156,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               </div>
             </div>
 
+            )}
+
+            {currentStep === 4 && (<>
             {/* Section 3: Payment */}
-            <div id="section-payment" className="border-t border-gray-100 pt-8 mt-8">
+            <div id="section-payment" className="pt-2">
               <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
                 <Euro className="mr-3 h-5 w-5 text-indigo-600" />
                 Modello di Pagamento
@@ -2256,7 +2462,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
             )}
 
             {/* Section 4: Contract Duration */}
-            <div id="section-duration" className="border-t border-gray-100 pt-8 mt-8">
+            <div id="section-duration" className="border-t border-gray-100 pt-8 mt-8" data-wizard-section="duration">
               <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
                 <Calendar className="mr-3 h-5 w-5 text-indigo-600" />
                 Durata Contratto
@@ -2337,6 +2543,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               </div>
             </div>
 
+            </>)}
+
+            {currentStep === 3 && (<>
             {/* Section 4b: Sezioni modulari (servizi opzionali dal template) */}
             {Array.isArray(getTemplateSections(selectedTemplate)) && getTemplateSections(selectedTemplate).length > 0 && (
               <div id="section-modular-sections" className="border-t border-gray-100 pt-8 mt-8">
@@ -2456,7 +2665,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
             )}
 
             {/* Section 5: Bonus */}
-            <div id="section-bonus" className="border-t border-gray-100 pt-8 mt-8">
+            <div id="section-bonus" className="border-t border-gray-100 pt-8 mt-8" data-wizard-section="bonus">
               <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
                 <Gift className="mr-3 h-5 w-5 text-indigo-600" />
                 Bonus e Servizi Inclusi
@@ -2529,8 +2738,52 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               </div>
             </div>
 
+            </>)}
+
+            {currentStep === 5 && (<>
+            {/* === Riepilogo finale === */}
+            <div id="section-summary" className="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-900 flex items-center">
+                  <FileText className="h-5 w-5 mr-2 text-indigo-600" /> Riepilogo del contratto
+                </h3>
+                <p className="text-xs text-slate-500">Controlla, modifica i blocchi se serve, poi invia.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {([
+                  { step: 1, label: "Template & Preset", icon: FileText, value: selectedTemplate?.name || (form.watch("templateId") ? `Template #${form.watch("templateId")}` : "—") },
+                  { step: 2, label: "Cliente", icon: Users, value: (form.watch("clientData.societa") || form.watch("clientData.cliente_nome") || form.watch("clientData.email") || "—") as string },
+                  { step: 3, label: "Pacchetti & Bonus", icon: Layers, value: `${(form.watch("selectedSectionIds")?.length ?? 0)} pacchetti · ${(form.watch("clientData.bonus_list")?.length ?? 0)} bonus` },
+                  { step: 4, label: "Prezzo & Durata", icon: Euro, value: form.watch("isPercentagePartnership")
+                    ? `${form.watch("partnershipPercentage") ?? "—"}% partnership`
+                    : (form.watch("totalValue") != null ? `€ ${Number(form.watch("totalValue") || 0).toLocaleString("it-IT")}` : "—") },
+                ]).map((row) => {
+                  const Icon = row.icon as any;
+                  return (
+                    <div key={row.step} className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 transition-colors">
+                      <Icon className="h-4 w-4 text-indigo-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">{row.label}</div>
+                        <div className="text-sm text-slate-800 truncate">{row.value || "—"}</div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => goToStep(row.step, { skipValidation: true })}
+                        className="h-8 px-2 text-indigo-600 hover:bg-indigo-50"
+                        data-testid={`recap-edit-step-${row.step}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5 mr-1" /> Modifica
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Section 6: Email / Send */}
-            <div id="section-send" className="border-t border-gray-100 pt-8 mt-8">
+            <div id="section-send" className="pt-2">
               <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
                 <Send className="mr-3 h-5 w-5 text-indigo-600" />
                 Invio Contratto
@@ -2632,58 +2885,95 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               </div>
             </div>
 
+            </>)}
+
             {/* Spacer for sticky footer */}
             <div className="h-4" />
             </form>
           </div>
-          <MissingDataPanel
-            variant="sidebar"
-            className="hidden lg:flex w-[320px] flex-shrink-0"
-            clientData={watchedClientData}
-            onJumpToField={jumpToClientField}
-          />
+          <div className="hidden lg:flex flex-col w-[320px] flex-shrink-0 gap-4 px-4 py-8 overflow-y-auto">
+            <ContractRecapPanel data={recapData} variant="sidebar" />
+            <MissingDataPanel
+              variant="sidebar"
+              className="flex-1"
+              clientData={watchedClientData}
+              onJumpToField={jumpToClientField}
+            />
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="bg-white/95 backdrop-blur-sm border-t border-gray-100 py-4 px-8 flex flex-col sm:flex-row justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={createContractMutation.isPending || gateLoading}
-            className="h-12 min-w-[140px] rounded-xl border border-gray-200 text-slate-700 hover:bg-gray-50"
-          >
-            Annulla
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              sendArgsRef.current = { send: false, previewToken: null, canonicalPayload: null };
-              form.handleSubmit(onSubmit)();
-            }}
-            disabled={createContractMutation.isPending || gateLoading}
-            className="h-12 min-w-[160px] rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-            data-testid="button-save-as-draft"
-          >
-            {createContractMutation.isPending && !sendArgsRef.current.send
-              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio…</>
-              : <>Salva come bozza</>
-            }
-          </Button>
-          <Button
-            type="button"
-            onClick={openSendGate}
-            disabled={createContractMutation.isPending || gateLoading || !emailConfigured}
-            className="h-12 min-w-[200px] rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50"
-            data-testid="button-open-send-gate"
-            aria-label="Apri la conferma di invio del contratto al cliente"
-          >
-            {gateLoading
-              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Preparazione anteprima…</>
-              : <><Send className="h-4 w-4 mr-2" />Procedi all'invio</>
-            }
-          </Button>
+        {/* Footer Wizard */}
+        <div className="bg-white/95 backdrop-blur-sm border-t border-gray-100 py-4 px-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              disabled={createContractMutation.isPending || gateLoading}
+              className="h-11 px-4 rounded-xl text-slate-600 hover:bg-gray-100"
+              data-testid="button-cancel"
+            >
+              Annulla
+            </Button>
+            <span className="text-xs text-slate-400 hidden sm:inline">Step {currentStep} di {TOTAL_STEPS}</span>
+          </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 1 || createContractMutation.isPending || gateLoading}
+              className="h-11 min-w-[120px] rounded-xl border border-gray-200 text-slate-700 hover:bg-gray-50"
+              data-testid="button-wizard-back"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Indietro
+            </Button>
+            {currentStep < TOTAL_STEPS ? (
+              <Button
+                type="button"
+                onClick={handleNext}
+                disabled={createContractMutation.isPending || gateLoading}
+                className="h-11 min-w-[140px] rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                data-testid="button-wizard-next"
+              >
+                Avanti
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    sendArgsRef.current = { send: false, previewToken: null, canonicalPayload: null };
+                    form.handleSubmit(onSubmit)();
+                  }}
+                  disabled={createContractMutation.isPending || gateLoading}
+                  className="h-11 min-w-[160px] rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                  data-testid="button-save-as-draft"
+                >
+                  {createContractMutation.isPending && !sendArgsRef.current.send
+                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio…</>
+                    : <>Salva come bozza</>
+                  }
+                </Button>
+                <Button
+                  type="button"
+                  onClick={openSendGate}
+                  disabled={createContractMutation.isPending || gateLoading || !emailConfigured}
+                  className="h-11 min-w-[200px] rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50"
+                  data-testid="button-open-send-gate"
+                  aria-label="Apri la conferma di invio del contratto al cliente"
+                >
+                  {gateLoading
+                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Preparazione anteprima…</>
+                    : <><Send className="h-4 w-4 mr-2" />Procedi all'invio</>
+                  }
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </DialogContent>
 
