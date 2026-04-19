@@ -136,10 +136,19 @@ function presenceRemoveSession(sessionId: string): void {
 function presenceCleanupOnce(): void {
   const now = Date.now();
   const expired: string[] = [];
+  const contractsToFlush = new Set<number>();
   for (const [sid, s] of presenceSessions) {
-    if (now - s.lastPingAt > PRESENCE_TIMEOUT_MS) expired.push(sid);
+    if (now - s.lastPingAt > PRESENCE_TIMEOUT_MS) {
+      expired.push(sid);
+      contractsToFlush.add(s.contractId);
+    }
   }
   for (const sid of expired) presenceRemoveSession(sid);
+  // Flush last_activity_at una volta sola per contratto, così il "Visto N min fa"
+  // resta accurato anche dopo disconnessioni brusche (timeout, no close event).
+  for (const cid of contractsToFlush) {
+    presenceFlushActivity(cid).catch(() => {});
+  }
 }
 
 setInterval(presenceCleanupOnce, 15_000).unref?.();
