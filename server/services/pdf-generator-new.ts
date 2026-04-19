@@ -1020,7 +1020,11 @@ function generateAuditDetails(log: AuditLog, allLogs: AuditLog[] = []): string {
     }
     case 'otp_sent': {
       const phoneNumber = metadata.actualPhoneNumber || metadata.phoneNumber || 'Numero non disponibile';
-      const otpMethod = metadata.method === 'sms' ? 'SMS' : 'Email';
+      // Per coerenza con la riga "Firmato": prima twilioVerify (sempre veritiero
+      // anche su log storici), poi il campo method, poi etichetta neutra.
+      const otpMethod = (typeof metadata.twilioVerify === 'boolean')
+        ? (metadata.twilioVerify ? 'SMS' : 'Email')
+        : (metadata.method === 'sms' ? 'SMS' : metadata.method === 'email' ? 'Email' : 'OTP');
       const twilioUsed = metadata.twilioVerify ? 'Twilio Verify' : 'Sistema personalizzato';
       return `
         <div style="font-weight: 500;">📱 Codice OTP inviato via ${otpMethod}</div>
