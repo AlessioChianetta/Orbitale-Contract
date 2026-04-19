@@ -23,8 +23,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ITALIAN_PROVINCES } from "@/lib/validation-utils";
 import { getMissingClientFields, getClientType } from "@/lib/required-client-fields";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import {
