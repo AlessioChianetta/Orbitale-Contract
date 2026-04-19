@@ -387,10 +387,12 @@ function ClientFillFlow({
   contract,
   companySettings,
   onCompleted,
+  embedded = false,
 }: {
   contract: any;
   companySettings: any;
   onCompleted: () => void;
+  embedded?: boolean;
 }) {
   const { toast } = useToast();
   const initial = (contract.clientData || {}) as Record<string, any>;
@@ -463,21 +465,29 @@ function ClientFillFlow({
     }
   };
 
+  const wrapperClass = embedded ? "" : "min-h-screen bg-slate-50";
+  const contentClass = embedded
+    ? "max-w-3xl mx-auto space-y-6"
+    : "max-w-3xl mx-auto px-6 py-8 space-y-6";
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white">
-        <div className="max-w-3xl mx-auto px-6 py-6">
-          <div className="text-sm opacity-90">{companySettings?.companyName || "Contratto"}</div>
-          <h1 className="text-xl sm:text-2xl font-bold">Compila i tuoi dati e firma il contratto</h1>
-          <p className="text-sm text-white/80 mt-2">
-            Controlla l'anteprima delle condizioni qui sotto, inserisci i tuoi dati e procedi con la firma sicura via codice OTP.
-          </p>
+    <div className={wrapperClass}>
+      {/* Header — solo in modalità standalone */}
+      {!embedded && (
+        <div className="bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white">
+          <div className="max-w-3xl mx-auto px-6 py-6">
+            <div className="text-sm opacity-90">{companySettings?.companyName || "Contratto"}</div>
+            <h1 className="text-xl sm:text-2xl font-bold">Compila i tuoi dati e firma il contratto</h1>
+            <p className="text-sm text-white/80 mt-2">
+              Controlla l'anteprima delle condizioni qui sotto, inserisci i tuoi dati e procedi con la firma sicura via codice OTP.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-        {/* Anteprima condizioni */}
+      <div className={contentClass}>
+        {/* Anteprima condizioni — saltata in modalità embedded perché il
+            documento completo è già visibile sotto */}
+        {!embedded && (
         <Card className="rounded-2xl shadow-sm border border-slate-200">
           <CardHeader>
             <CardTitle className="text-lg">Anteprima del contratto</CardTitle>
@@ -511,6 +521,7 @@ function ClientFillFlow({
             </p>
           </CardContent>
         </Card>
+        )}
 
         {/* Tipo cliente */}
         <Card className="rounded-2xl shadow-sm border border-slate-200">
@@ -940,17 +951,6 @@ export default function ClientView() {
     (contract as any).fillMode === "client_fill" &&
     (contract as any).dataComplete === false &&
     contract.status !== "signed";
-  if (isClientFillPending) {
-    return (
-      <ClientFillFlow
-        contract={contract}
-        companySettings={companySettings}
-        onCompleted={() => {
-          queryClient.invalidateQueries({ queryKey: [`/api/client/contracts/${code}`] });
-        }}
-      />
-    );
-  }
 
   return (
     <ProfessionalContractDocument
@@ -978,6 +978,31 @@ export default function ClientView() {
       paymentPlan={paymentPlan}
       bonusList={bonusList}
       usingCustomInstallments={usingCustomInstallments}
+      beforeDocumentContent={
+        isClientFillPending ? (
+          <Card className="border border-indigo-200 bg-indigo-50 shadow-sm mb-6">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold text-indigo-900 mb-1 flex items-center gap-2">
+                <PenTool className="h-5 w-5" />
+                Compila i tuoi dati per sbloccare la firma
+              </h3>
+              <p className="text-sm text-indigo-800">
+                Puoi scorrere e leggere tutto il contratto qui sotto. Per procedere con la firma e la verifica OTP, prima inserisci i tuoi dati nel modulo qui in alto.
+              </p>
+              <div className="mt-5">
+                <ClientFillFlow
+                  embedded
+                  contract={contract}
+                  companySettings={companySettings}
+                  onCompleted={() => {
+                    queryClient.invalidateQueries({ queryKey: [`/api/client/contracts/${code}`] });
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        ) : undefined
+      }
       /*
        * `sections` prop non passato: il body del contratto in
        * `template.content` è già il `generatedContent` con le sezioni
@@ -985,14 +1010,21 @@ export default function ClientView() {
        * doppio rendering.
        */
       signatureArea={
-        <SignatureArea
-          signatureId="marketing"
-          onSign={(signature) => setSignatures(prev => ({ ...prev, marketing: signature }))}
-          onGlobalSign={handleGlobalSignature}
-          disabled={contract.status === 'signed'}
-        />
+        isClientFillPending ? (
+          <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            Firma disponibile dopo aver compilato i tuoi dati nel modulo in alto.
+          </div>
+        ) : (
+          <SignatureArea
+            signatureId="marketing"
+            onSign={(signature) => setSignatures(prev => ({ ...prev, marketing: signature }))}
+            onGlobalSign={handleGlobalSignature}
+            disabled={contract.status === 'signed'}
+          />
+        )
       }
       afterDocumentContent={
+        isClientFillPending ? null : (
         <>
           {contract.status !== "signed" && !signatures.marketing && (
             <Card className="border border-orange-200 bg-orange-50 shadow-lg">
@@ -1438,6 +1470,7 @@ export default function ClientView() {
             </Card>
           )}
         </>
+        )
       }
     />
   );

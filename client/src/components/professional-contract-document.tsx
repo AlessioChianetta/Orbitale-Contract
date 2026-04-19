@@ -78,6 +78,7 @@ interface ProfessionalContractDocumentProps {
     content: string;
   }>;
   signatureArea?: React.ReactNode;
+  beforeDocumentContent?: React.ReactNode;
   afterDocumentContent?: React.ReactNode;
   /**
    * When true, missing fields render as blanks (the same way the customer-facing
@@ -130,6 +131,7 @@ export default function ProfessionalContractDocument({
   usingCustomInstallments,
   sections: modularSections,
   signatureArea,
+  beforeDocumentContent,
   afterDocumentContent,
   hidePlaceholders,
 }: ProfessionalContractDocumentProps) {
@@ -922,6 +924,11 @@ export default function ProfessionalContractDocument({
 
         <main ref={contentRef} className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-12 py-4 sm:py-8 lg:py-12">
+            {beforeDocumentContent && (
+              <div className="mb-6">
+                {beforeDocumentContent}
+              </div>
+            )}
             {documentContent}
             {afterDocumentContent && (
               <div className="mt-8">
