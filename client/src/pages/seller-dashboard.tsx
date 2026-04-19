@@ -793,9 +793,14 @@ export default function SellerDashboard() {
                       <div className="hidden sm:flex justify-center">
                         <div className="flex flex-col items-center gap-1">
                           {getStatusBadge(contract.status, contract.isArchived)}
-                          {!contract.isArchived && contract.status !== "draft" && (
-                            <PresenceBadge p={presenceMap.get(contract.id)} contractStatus={contract.status} />
-                          )}
+                          {!contract.isArchived && (() => {
+                            const pres = presenceMap.get(contract.id);
+                            // Per i draft mostriamo il badge SOLO quando c'è presenza
+                            // attiva (es. cliente in co-fill) — niente "Mai aperto"
+                            // sui draft appena creati.
+                            if (contract.status === "draft" && (!pres || !pres.live)) return null;
+                            return <PresenceBadge p={pres} contractStatus={contract.status} />;
+                          })()}
                           {contract.coFillToken && contract.status === "draft" && !contract.isArchived && (() => {
                             const cd = (contract.clientData || {}) as Record<string, unknown>;
                             const totalRequired = getRequiredClientFields(getClientType(cd as Record<string, any>)).length;

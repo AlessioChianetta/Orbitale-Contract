@@ -3094,6 +3094,19 @@ export function registerRoutes(app: Express): Server {
           } else if (msg?.type === "ping") {
             try { ws.send(JSON.stringify({ type: "pong" } satisfies CoFillOutgoing)); } catch {}
           }
+          // Keep the presence bridge alive on ANY traffic from the co-fill
+          // client (update / ping / etc.) so it survives past the 30s timeout.
+          if (presenceBridgeId) {
+            const bs = presenceSessions.get(presenceBridgeId);
+            if (bs) {
+              const t = Date.now();
+              bs.lastPingAt = t;
+              if (t - bs.lastDbFlushAt > PRESENCE_DB_FLUSH_MS) {
+                bs.lastDbFlushAt = t;
+                presenceFlushActivity(bs.contractId).catch(() => {});
+              }
+            }
+          }
         });
 
         ws.on("close", () => {
