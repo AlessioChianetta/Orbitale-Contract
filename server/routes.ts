@@ -1170,6 +1170,12 @@ export function registerRoutes(app: Express): Server {
       const contractData = insertContractSchema.partial().parse({
         ...req.body,
         generatedContent,
+        // Persist the recipient email also for drafts so it survives reopen.
+        sentToEmail:
+          req.body.sendToEmail ||
+          req.body.clientData?.email ||
+          existingContract.sentToEmail ||
+          null,
       });
 
       // If the client asked to send immediately, verify SMTP is configured BEFORE
@@ -1357,6 +1363,8 @@ export function registerRoutes(app: Express): Server {
         status: "draft",
         fillMode,
         generatedContent,
+        // Persist the recipient email also for drafts so it survives reopen.
+        sentToEmail: req.body.sendToEmail || req.body.clientData?.email || null,
       });
 
       const contract = await storage.createContract(contractData);
