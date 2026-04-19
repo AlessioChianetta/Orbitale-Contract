@@ -2403,22 +2403,24 @@ export function registerRoutes(app: Express): Server {
         20,
       );
       const nowMs = Date.now();
-      // È in lockout se esiste una sotto-finestra di 10 min con ≥ THRESHOLD
-      // fallimenti, e il fallimento più recente di quella finestra è entro 30 min.
-      let lockoutUntil: number | null = null;
-      for (let i = 0; i + OTP_LOCKOUT_THRESHOLD - 1 < recentFailureTs.length; i++) {
-        const newest = recentFailureTs[i].getTime();
-        const oldestInGroup = recentFailureTs[i + OTP_LOCKOUT_THRESHOLD - 1].getTime();
-        if (newest - oldestInGroup <= OTP_DETECTION_WINDOW_MS) {
-          const candidateUntil = newest + OTP_LOCKOUT_DURATION_MS;
-          if (candidateUntil > nowMs) {
-            lockoutUntil = candidateUntil;
-            break;
+      // Helper: dato un array desc di timestamp ms, calcola lockoutUntil se
+      // esiste una sotto-finestra di 10 min con >= THRESHOLD fallimenti e
+      // il più recente è entro 30 min da ora.
+      const computeLockoutUntil = (tsDescMs: number[]): number | null => {
+        for (let i = 0; i + OTP_LOCKOUT_THRESHOLD - 1 < tsDescMs.length; i++) {
+          const newest = tsDescMs[i];
+          const oldestInGroup = tsDescMs[i + OTP_LOCKOUT_THRESHOLD - 1];
+          if (newest - oldestInGroup <= OTP_DETECTION_WINDOW_MS) {
+            const until = newest + OTP_LOCKOUT_DURATION_MS;
+            if (until > nowMs) return until;
           }
         }
-      }
-      if (lockoutUntil !== null) {
-        const remainingMin = Math.max(1, Math.ceil((lockoutUntil - nowMs) / 60000));
+        return null;
+      };
+      const recentFailureMsDesc = recentFailureTs.map((d) => d.getTime());
+      const initialLockoutUntil = computeLockoutUntil(recentFailureMsDesc);
+      if (initialLockoutUntil !== null) {
+        const remainingMin = Math.max(1, Math.ceil((initialLockoutUntil - nowMs) / 60000));
         return res.status(429).json({
           message: `Troppi tentativi non riusciti. Per sicurezza la firma è bloccata per circa ${remainingMin} minuti. Riprova più tardi o contatta il venditore per ricevere un nuovo codice.`,
         });
