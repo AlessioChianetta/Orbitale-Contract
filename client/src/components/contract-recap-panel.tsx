@@ -120,7 +120,7 @@ export default function ContractRecapPanel({ data, variant = "sidebar", classNam
   }
 
   return (
-    <aside className={`rounded-2xl border border-slate-200 bg-white p-4 sticky top-4 self-start ${className}`} data-testid="contract-recap-panel">
+    <aside className={`rounded-2xl border border-slate-200 bg-white p-4 ${className}`} data-testid="contract-recap-panel">
       <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3 flex items-center gap-2">
         <FileText className="h-3.5 w-3.5" />
         Riepilogo contratto
