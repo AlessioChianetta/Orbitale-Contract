@@ -10,6 +10,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar, Send, Gift, Check, Info, AlertTriangle, Eye, Sparkles, BookmarkPlus, Layers } from "lucide-react";
 import type { ContractPreset } from "@shared/schema";
 import DynamicFormFields from "./dynamic-form-fields";
@@ -225,6 +226,8 @@ const labelClass = "text-sm font-medium text-slate-700 mb-2 block";
 
 export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(contract?.templateId || null);
   const [sendImmediately, setSendImmediately] = useState(false);
   const { data: emailStatus } = useEmailStatus();
@@ -985,15 +988,24 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           </div>
           <div>
             <Label className="text-xs font-medium text-slate-700">Visibilità</Label>
-            <Select value={savePresetVisibility} onValueChange={(v) => setSavePresetVisibility(v as "personal" | "shared")}>
+            <Select
+              value={savePresetVisibility}
+              onValueChange={(v) => setSavePresetVisibility(v as "personal" | "shared")}
+              disabled={!isAdmin}
+            >
               <SelectTrigger className="mt-1" data-testid="select-save-preset-visibility">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="personal">Solo io (personale)</SelectItem>
-                <SelectItem value="shared">Tutta l'azienda (condiviso) — solo admin</SelectItem>
+                {isAdmin && (
+                  <SelectItem value="shared">Tutta l'azienda (condiviso)</SelectItem>
+                )}
               </SelectContent>
             </Select>
+            {!isAdmin && (
+              <p className="text-[11px] text-slate-400 mt-1">I preset condivisi possono essere creati solo dagli admin.</p>
+            )}
           </div>
         </div>
         <DialogFooter>

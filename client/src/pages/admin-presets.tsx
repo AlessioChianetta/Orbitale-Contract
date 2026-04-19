@@ -207,6 +207,7 @@ export default function AdminPresetsPage() {
                       disabled={duplicateMutation.isPending}
                       className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-50"
                       title="Duplica preset"
+                      aria-label={`Duplica preset ${p.name}`}
                       data-testid={`button-duplicate-preset-${p.id}`}
                     >
                       <Copy className="h-4 w-4" />
@@ -218,6 +219,7 @@ export default function AdminPresetsPage() {
                           onClick={() => handleEdit(p)}
                           className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
                           title="Modifica"
+                          aria-label={`Modifica preset ${p.name}`}
                           data-testid={`button-edit-preset-${p.id}`}
                         >
                           <Edit className="h-4 w-4" />
@@ -228,6 +230,7 @@ export default function AdminPresetsPage() {
                           disabled={deleteMutation.isPending}
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
                           title="Elimina"
+                          aria-label={`Elimina preset ${p.name}`}
                           data-testid={`button-delete-preset-${p.id}`}
                         >
                           <Trash2 className="h-4 w-4" />
