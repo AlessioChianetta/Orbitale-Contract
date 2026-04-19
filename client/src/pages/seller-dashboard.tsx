@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +60,130 @@ import EmailConfigBanner from "@/components/email-config-banner";
 import { Link } from "wouter";
 
 const PAGE_SIZE = 10;
+
+// Presence (Task #12) — formato relativo "visto N min fa" in italiano.
+function fmtRelativeIt(fromMs: number): string {
+  const diff = Math.max(0, Date.now() - fromMs);
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s fa`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min fa`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h fa`;
+  const d = Math.floor(h / 24);
+  return `${d}g fa`;
+}
+function fmtLiveDuration(fromMs: number): string {
+  const diff = Math.max(0, Date.now() - fromMs);
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  if (m < 60) return `${m}m${r > 0 ? ` ${r}s` : ""}`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+function fmtAbsoluteIt(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("it-IT", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch { return iso; }
+}
+
+type PresenceRow = {
+  contractId: number;
+  live: boolean;
+  liveSessions: number;
+  liveSinceMs: number | null;
+  firstOpenedAt: string | null;
+  lastActivityAt: string | null;
+};
+
+const ABANDONED_THRESHOLD_MS = 30 * 60 * 1000;
+
+function isAbandoned(p: PresenceRow | undefined, contractStatus: string): boolean {
+  if (!p) return false;
+  if (p.live) return false;
+  if (contractStatus === "signed") return false;
+  if (!p.firstOpenedAt) return false;
+  if (!p.lastActivityAt) return false;
+  return Date.now() - new Date(p.lastActivityAt).getTime() > ABANDONED_THRESHOLD_MS;
+}
+
+function usePresence(intervalMs: number = 10000) {
+  const { data } = useQuery<PresenceRow[]>({
+    queryKey: ["/api/contracts/presence"],
+    refetchInterval: intervalMs,
+    refetchIntervalInBackground: false,
+  });
+  const map = useMemo(() => {
+    const m = new Map<number, PresenceRow>();
+    if (Array.isArray(data)) for (const p of data) m.set(p.contractId, p);
+    return m;
+  }, [data]);
+  return map;
+}
+
+function PresenceBadge({ p, contractStatus }: { p: PresenceRow | undefined; contractStatus: string }) {
+  // Forza re-render ogni 30s per aggiornare i tempi relativi
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((x) => x + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
+  if (!p) return null;
+  const tooltip = p.firstOpenedAt
+    ? `Aperto la prima volta: ${fmtAbsoluteIt(p.firstOpenedAt)}`
+    : "Mai aperto dal cliente";
+  if (p.live && p.liveSinceMs) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-100"
+        title={tooltip}
+        data-testid={`presence-live-${p.contractId}`}
+      >
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        In linea · {fmtLiveDuration(p.liveSinceMs)}
+      </span>
+    );
+  }
+  if (isAbandoned(p, contractStatus)) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-100"
+        title={tooltip}
+        data-testid={`presence-abandoned-${p.contractId}`}
+      >
+        Abbandonato
+      </span>
+    );
+  }
+  if (p.lastActivityAt) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-100"
+        title={tooltip}
+        data-testid={`presence-lastseen-${p.contractId}`}
+      >
+        Visto {fmtRelativeIt(new Date(p.lastActivityAt).getTime())}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-50 border border-slate-100"
+      title="Mai aperto dal cliente"
+      data-testid={`presence-never-${p.contractId}`}
+    >
+      Mai aperto
+    </span>
+  );
+}
 
 export default function SellerDashboard() {
   const { user, logoutMutation } = useAuth();
@@ -288,6 +412,8 @@ export default function SellerDashboard() {
     [visibleContracts]
   );
 
+  const presenceMap = usePresence(10000);
+
   const filteredContracts = useMemo(() => {
     let result = [...visibleContracts];
     if (searchQuery.trim()) {
@@ -302,6 +428,10 @@ export default function SellerDashboard() {
     if (statusFilter !== "all") {
       if (statusFilter === "archived") {
         result = result.filter((c: any) => c.isArchived);
+      } else if (statusFilter === "presence_live") {
+        result = result.filter((c: any) => presenceMap.get(c.id)?.live);
+      } else if (statusFilter === "presence_abandoned") {
+        result = result.filter((c: any) => isAbandoned(presenceMap.get(c.id), c.status));
       } else {
         result = result.filter((c: any) => c.status === statusFilter);
       }
@@ -318,7 +448,7 @@ export default function SellerDashboard() {
       }
     });
     return result;
-  }, [visibleContracts, searchQuery, statusFilter, sortBy, sortOrder]);
+  }, [visibleContracts, searchQuery, statusFilter, sortBy, sortOrder, presenceMap]);
 
   const totalPages = Math.max(1, Math.ceil(filteredContracts.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -500,6 +630,8 @@ export default function SellerDashboard() {
                     className="appearance-none pl-9 pr-8 py-2.5 rounded-xl border border-gray-200 text-sm text-slate-700 bg-gray-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
                   >
                     <option value="all">Tutti</option>
+                    <option value="presence_live">🟢 In linea ora</option>
+                    <option value="presence_abandoned">🟡 Abbandonati</option>
                     <option value="draft">Bozza</option>
                     <option value="sent">Inviato</option>
                     <option value="viewed">Visualizzato</option>
@@ -660,6 +792,9 @@ export default function SellerDashboard() {
                       <div className="hidden sm:flex justify-center">
                         <div className="flex flex-col items-center gap-1">
                           {getStatusBadge(contract.status, contract.isArchived)}
+                          {!contract.isArchived && contract.status !== "draft" && (
+                            <PresenceBadge p={presenceMap.get(contract.id)} contractStatus={contract.status} />
+                          )}
                           {contract.coFillToken && contract.status === "draft" && !contract.isArchived && (() => {
                             const cd = (contract.clientData || {}) as Record<string, unknown>;
                             const totalRequired = getRequiredClientFields(getClientType(cd as Record<string, any>)).length;

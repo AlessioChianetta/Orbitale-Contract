@@ -752,6 +752,69 @@ export default function ClientView() {
   const clientCode = contract?.contractCode || ""; // Added contractCode
   const companySettings = contract?.companySettings; // Extracted companySettings
 
+  // Presenza live (Task #12) — apriamo un WS dedicato e inviamo un ping ogni
+  // 15s. Nessuna UI per il cliente: serve solo a far accendere il pallino
+  // verde "in linea ora" nella dashboard del venditore. Reconnect con backoff
+  // semplice in caso di interruzioni di rete.
+  useEffect(() => {
+    if (!clientCode) return;
+    let ws: WebSocket | null = null;
+    let pingTimer: any = null;
+    let reconnectTimer: any = null;
+    let reconnectDelay = 2000;
+    let stopped = false;
+
+    const connect = () => {
+      if (stopped) return;
+      try {
+        const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+        ws = new WebSocket(`${proto}//${window.location.host}/ws/client-presence/${clientCode}`);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+      ws.onopen = () => {
+        reconnectDelay = 2000;
+        const sendPing = () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            try { ws.send(JSON.stringify({ type: "ping", t: Date.now() })); } catch {}
+          }
+        };
+        sendPing();
+        pingTimer = setInterval(sendPing, 15000);
+      };
+      ws.onclose = () => {
+        if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+        scheduleReconnect();
+      };
+      ws.onerror = () => { try { ws?.close(); } catch {} };
+    };
+    const scheduleReconnect = () => {
+      if (stopped) return;
+      if (reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+        connect();
+      }, reconnectDelay);
+    };
+    connect();
+
+    const handleBeforeUnload = () => {
+      stopped = true;
+      try { ws?.close(); } catch {}
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      stopped = true;
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      if (pingTimer) clearInterval(pingTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      try { ws?.close(); } catch {}
+    };
+  }, [clientCode]);
+
   // Inizializza il numero di telefono dal contratto quando viene caricato
   useEffect(() => {
     if (contract && contract.clientData) {

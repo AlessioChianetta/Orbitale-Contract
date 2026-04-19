@@ -19,6 +19,131 @@ import { nanoid } from "nanoid";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { pool } from "./db";
+
+// ============================================================================
+// Client presence (Task #12) — in-memory tracking of clients viewing
+// /client/:code via the /ws/client-presence/:contractCode WebSocket. Source of
+// truth for "live" boolean; first_opened_at / last_activity_at are mirrored to
+// the contracts table (debounced) so they survive process restarts.
+// ============================================================================
+
+type PresenceSession = {
+  sessionId: string;
+  contractCode: string;
+  contractId: number;
+  openedAt: number;
+  lastPingAt: number;
+  lastDbFlushAt: number;
+};
+const presenceSessions = new Map<string, PresenceSession>(); // sessionId -> session
+const presenceByContract = new Map<number, Set<string>>(); // contractId -> sessionIds
+const presenceFirstSessionAt = new Map<number, number>(); // contractId -> earliest live session openedAt
+
+const PRESENCE_HEARTBEAT_MS = 15_000;
+const PRESENCE_TIMEOUT_MS = 30_000;
+const PRESENCE_DB_FLUSH_MS = 30_000;
+
+let presenceSchemaReady: Promise<void> | null = null;
+async function ensurePresenceSchema(): Promise<void> {
+  if (!presenceSchemaReady) {
+    presenceSchemaReady = (async () => {
+      await pool.query(
+        `ALTER TABLE contracts
+           ADD COLUMN IF NOT EXISTS first_opened_at TIMESTAMP NULL,
+           ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP NULL`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_contracts_last_activity_at
+           ON contracts(last_activity_at)`
+      );
+      console.log("[PRESENCE] Schema ready (first_opened_at, last_activity_at).");
+    })().catch((e) => {
+      // Reset so a later call can retry instead of being permanently degraded
+      console.error("[PRESENCE] Failed to ensure schema, will retry on next call:", e);
+      presenceSchemaReady = null;
+      throw e;
+    });
+  }
+  return presenceSchemaReady;
+}
+
+async function presenceMarkOpen(contractId: number): Promise<void> {
+  await ensurePresenceSchema();
+  const now = new Date();
+  try {
+    await pool.query(
+      `UPDATE contracts
+         SET first_opened_at = COALESCE(first_opened_at, $2),
+             last_activity_at = $2
+         WHERE id = $1`,
+      [contractId, now]
+    );
+  } catch (e) {
+    console.error("[PRESENCE] markOpen DB error", e);
+  }
+}
+
+async function presenceFlushActivity(contractId: number): Promise<void> {
+  await ensurePresenceSchema();
+  try {
+    await pool.query(
+      `UPDATE contracts SET last_activity_at = NOW() WHERE id = $1`,
+      [contractId]
+    );
+  } catch (e) {
+    console.error("[PRESENCE] flushActivity DB error", e);
+  }
+}
+
+function presenceAddSession(s: PresenceSession): boolean {
+  presenceSessions.set(s.sessionId, s);
+  let set = presenceByContract.get(s.contractId);
+  const wasEmpty = !set || set.size === 0;
+  if (!set) {
+    set = new Set();
+    presenceByContract.set(s.contractId, set);
+  }
+  set.add(s.sessionId);
+  if (wasEmpty) presenceFirstSessionAt.set(s.contractId, s.openedAt);
+  return wasEmpty;
+}
+
+function presenceRemoveSession(sessionId: string): void {
+  const s = presenceSessions.get(sessionId);
+  if (!s) return;
+  presenceSessions.delete(sessionId);
+  const set = presenceByContract.get(s.contractId);
+  if (set) {
+    set.delete(sessionId);
+    if (set.size === 0) {
+      presenceByContract.delete(s.contractId);
+      presenceFirstSessionAt.delete(s.contractId);
+    } else {
+      // Recompute earliest among remaining
+      let earliest = Number.POSITIVE_INFINITY;
+      for (const sid of set) {
+        const ss = presenceSessions.get(sid);
+        if (ss && ss.openedAt < earliest) earliest = ss.openedAt;
+      }
+      if (earliest !== Number.POSITIVE_INFINITY) {
+        presenceFirstSessionAt.set(s.contractId, earliest);
+      }
+    }
+  }
+}
+
+function presenceCleanupOnce(): void {
+  const now = Date.now();
+  const expired: string[] = [];
+  for (const [sid, s] of presenceSessions) {
+    if (now - s.lastPingAt > PRESENCE_TIMEOUT_MS) expired.push(sid);
+  }
+  for (const sid of expired) presenceRemoveSession(sid);
+}
+
+setInterval(presenceCleanupOnce, 15_000).unref?.();
+
 import { chatContratto, guidedContractWizard, generateContractFromAI, type ChatMessage } from "./services/provider-factory";
 import rateLimit from "express-rate-limit";
 
@@ -544,6 +669,59 @@ export function registerRoutes(app: Express): Server {
         success: false,
         message: error?.message || "Invio email di prova fallito.",
       });
+    }
+  });
+
+  // Presence (Task #12) — returns live + last-activity for contracts
+  // visible to the seller. In-memory map is the source of truth for `live`,
+  // DB columns mirror first/last activity. Cached briefly to keep polling cheap.
+  let presenceCache: { at: number; companyId: number; sellerId?: number; data: any } | null = null;
+  app.get("/api/contracts/presence", requireAuth, async (req, res) => {
+    try {
+      await ensurePresenceSchema();
+      const sellerId = req.user.role === "seller" ? req.user.id : undefined;
+      const companyId = req.user.companyId;
+      const now = Date.now();
+      if (
+        presenceCache &&
+        presenceCache.companyId === companyId &&
+        presenceCache.sellerId === sellerId &&
+        now - presenceCache.at < 2500
+      ) {
+        return res.json(presenceCache.data);
+      }
+      // Pull contractIds visible to this user, then fetch presence columns
+      const params: any[] = [companyId];
+      let where = "u.company_id = $1";
+      if (sellerId) {
+        params.push(sellerId);
+        where += ` AND c.seller_id = $${params.length}`;
+      }
+      const result = await pool.query(
+        `SELECT c.id, c.first_opened_at, c.last_activity_at
+           FROM contracts c
+           INNER JOIN users u ON u.id = c.seller_id
+           WHERE ${where}`,
+        params
+      );
+      const data = result.rows.map((r: any) => {
+        const id = r.id as number;
+        const liveCount = presenceByContract.get(id)?.size || 0;
+        const liveSince = presenceFirstSessionAt.get(id) || null;
+        return {
+          contractId: id,
+          live: liveCount > 0,
+          liveSessions: liveCount,
+          liveSinceMs: liveSince,
+          firstOpenedAt: r.first_opened_at ? new Date(r.first_opened_at).toISOString() : null,
+          lastActivityAt: r.last_activity_at ? new Date(r.last_activity_at).toISOString() : null,
+        };
+      });
+      presenceCache = { at: now, companyId, sellerId, data };
+      res.json(data);
+    } catch (e) {
+      console.error("Presence endpoint error:", e);
+      res.status(500).json({ message: "Failed to fetch presence" });
     }
   });
 
@@ -1494,6 +1672,11 @@ export function registerRoutes(app: Express): Server {
           }
         });
       }
+
+      // Mirror "first opened" + "last activity" on the contract row so the
+      // seller dashboard can show last-seen even if the client closes the
+      // page before the presence WS connects.
+      presenceMarkOpen(contract.id).catch(() => {});
 
       // Update status if first view. Per i contratti in modalità
       // "client_fill" il cliente passa a "viewed" solo dopo aver
@@ -2721,9 +2904,83 @@ export function registerRoutes(app: Express): Server {
     }
   }
 
+  // WebSocket server for /ws/client-presence/:contractCode (Task #12).
+  // No auth: knowledge of the contractCode IS the token (same trust model as
+  // the public /api/client/contracts/:code endpoint and the signing link).
+  const presenceWss = new WebSocketServer({ noServer: true });
+
   httpServer.on("upgrade", async (req, socket, head) => {
     try {
       const url = new URL(req.url || "", `http://${req.headers.host}`);
+
+      // --- Client presence WS (anonymous, contractCode-scoped) ---
+      const presM = url.pathname.match(/^\/ws\/client-presence\/([A-Za-z0-9_-]+)$/);
+      if (presM) {
+        const contractCode = presM[1];
+        const ip = (req.socket.remoteAddress || "unknown").replace(/^::ffff:/, "");
+        if (!checkConnRate(ip)) {
+          socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        let contract: any = null;
+        try { contract = await storage.getContractByCode(contractCode); } catch {}
+        if (!contract || !contract.id) {
+          socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        presenceWss.handleUpgrade(req, socket, head, async (ws) => {
+          const sessionId = nanoid(12);
+          const now = Date.now();
+          const sess: PresenceSession = {
+            sessionId,
+            contractCode,
+            contractId: contract.id,
+            openedAt: now,
+            lastPingAt: now,
+            lastDbFlushAt: now,
+          };
+          presenceAddSession(sess);
+          // First open of this session → upsert first_opened_at + last_activity_at
+          presenceMarkOpen(contract.id).catch(() => {});
+
+          ws.on("message", (raw) => {
+            const s = presenceSessions.get(sessionId);
+            if (!s) return;
+            let msg: any = null;
+            try { msg = JSON.parse(String(raw)); } catch { return; }
+            if (msg && msg.type === "ping") {
+              const t = Date.now();
+              s.lastPingAt = t;
+              try { ws.send(JSON.stringify({ type: "pong", t })); } catch {}
+              if (t - s.lastDbFlushAt > PRESENCE_DB_FLUSH_MS) {
+                s.lastDbFlushAt = t;
+                presenceFlushActivity(s.contractId).catch(() => {});
+              }
+            }
+          });
+          ws.on("close", () => {
+            const s = presenceSessions.get(sessionId);
+            if (s) presenceFlushActivity(s.contractId).catch(() => {});
+            presenceRemoveSession(sessionId);
+          });
+          ws.on("error", () => {
+            try { ws.close(); } catch {}
+            presenceRemoveSession(sessionId);
+          });
+          // Send hello
+          try {
+            ws.send(JSON.stringify({
+              type: "hello",
+              sessionId,
+              heartbeatMs: PRESENCE_HEARTBEAT_MS,
+            }));
+          } catch {}
+        });
+        return;
+      }
+
       const m = url.pathname.match(/^\/ws\/co-fill\/([A-Za-z0-9_-]+)$/);
       if (!m) return; // let other upgrade handlers (e.g. Vite HMR) handle it
       const token = m[1];
