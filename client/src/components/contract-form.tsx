@@ -401,94 +401,6 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [sectionToStep, currentStep]);
 
-  // Validazione di uno step prima di avanzare. Restituisce true se i campi
-  // obbligatori dello step sono validi (per la modalità di compilazione
-  // corrente), altrimenti false e mostra un banner con il primo errore.
-  const validateStep = useCallback(async (stepId: number): Promise<boolean> => {
-    const step = WIZARD_STEPS.find((s) => s.id === stepId);
-    if (!step?.validateFields) return true;
-    const fields = step.validateFields(fillMode);
-    if (fields.length === 0) return true;
-    type FormValues = z.infer<typeof contractFormSchema>;
-    const typedFields = fields as Array<FieldPath<FormValues>>;
-    const ok = await form.trigger(typedFields, { shouldFocus: true });
-    if (!ok) {
-      const errs = form.formState.errors as FieldErrors<FormValues>;
-      const lookupError = (path: string): string | undefined => {
-        const parts = path.split(".");
-        let cur: unknown = errs;
-        for (const p of parts) {
-          if (cur && typeof cur === "object" && p in (cur as Record<string, unknown>)) {
-            cur = (cur as Record<string, unknown>)[p];
-          } else {
-            return undefined;
-          }
-        }
-        if (cur && typeof cur === "object" && "message" in cur) {
-          const msg = (cur as { message?: unknown }).message;
-          return typeof msg === "string" ? msg : undefined;
-        }
-        return undefined;
-      };
-      let firstMsg = "Compila i campi obbligatori prima di proseguire.";
-      for (const f of fields) {
-        const m = lookupError(f);
-        if (m) { firstMsg = m; break; }
-      }
-      setStepBanner(firstMsg);
-      return false;
-    }
-    setStepBanner(null);
-    return true;
-  }, [form, fillMode]);
-
-  const goToStep = useCallback(
-    async (target: number, opts?: { skipValidation?: boolean }) => {
-      if (target < 1 || target > TOTAL_STEPS) return;
-      // Se vado avanti, valido solo gli step intermedi non ancora visitati.
-      if (!opts?.skipValidation && target > currentStep) {
-        for (let s = currentStep; s < target; s++) {
-          if (visitedSteps.has(s) && s !== currentStep) continue;
-          // eslint-disable-next-line no-await-in-loop
-          const ok = await validateStep(s);
-          if (!ok) return;
-        }
-      }
-      setStepBanner(null);
-      setCurrentStep(target);
-      setVisitedSteps((prev) => {
-        const n = new Set(prev);
-        n.add(target);
-        return n;
-      });
-      // Focus sul primo campo dello step (a11y)
-      setTimeout(() => {
-        const sec = WIZARD_STEPS.find((s) => s.id === target)?.sectionId;
-        if (sec) {
-          const el = document.getElementById(sec);
-          el?.scrollIntoView({ behavior: "smooth", block: "start" });
-          const focusable = el?.querySelector<HTMLElement>("input, select, textarea, button");
-          focusable?.focus({ preventScroll: true });
-        }
-      }, 60);
-    },
-    [currentStep, validateStep, visitedSteps],
-  );
-
-  const handleNext = useCallback(() => goToStep(currentStep + 1), [currentStep, goToStep]);
-  const handleBack = useCallback(() => goToStep(currentStep - 1, { skipValidation: true }), [currentStep, goToStep]);
-  const handleStepClick = useCallback(
-    (target: number) => {
-      // È possibile saltare a uno step già visitato senza validazione.
-      if (visitedSteps.has(target)) {
-        goToStep(target, { skipValidation: true });
-      } else {
-        goToStep(target);
-      }
-    },
-    [visitedSteps, goToStep],
-  );
-
   const { data: presets = [] } = useQuery<ContractPreset[]>({
     queryKey: ["/api/presets"],
   });
@@ -560,6 +472,91 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       },
     },
   });
+
+  // Validazione di uno step prima di avanzare. Restituisce true se i campi
+  // obbligatori dello step sono validi (per la modalità di compilazione
+  // corrente), altrimenti false e mostra un banner con il primo errore.
+  const validateStep = useCallback(async (stepId: number): Promise<boolean> => {
+    const step = WIZARD_STEPS.find((s) => s.id === stepId);
+    if (!step?.validateFields) return true;
+    const fields = step.validateFields(fillMode);
+    if (fields.length === 0) return true;
+    type FormValues = z.infer<typeof contractFormSchema>;
+    const typedFields = fields as Array<FieldPath<FormValues>>;
+    const ok = await form.trigger(typedFields, { shouldFocus: true });
+    if (!ok) {
+      const errs = form.formState.errors as FieldErrors<FormValues>;
+      const lookupError = (path: string): string | undefined => {
+        const parts = path.split(".");
+        let cur: unknown = errs;
+        for (const p of parts) {
+          if (cur && typeof cur === "object" && p in (cur as Record<string, unknown>)) {
+            cur = (cur as Record<string, unknown>)[p];
+          } else {
+            return undefined;
+          }
+        }
+        if (cur && typeof cur === "object" && "message" in cur) {
+          const msg = (cur as { message?: unknown }).message;
+          return typeof msg === "string" ? msg : undefined;
+        }
+        return undefined;
+      };
+      let firstMsg = "Compila i campi obbligatori prima di proseguire.";
+      for (const f of fields) {
+        const m = lookupError(f);
+        if (m) { firstMsg = m; break; }
+      }
+      setStepBanner(firstMsg);
+      return false;
+    }
+    setStepBanner(null);
+    return true;
+  }, [form, fillMode]);
+
+  const goToStep = useCallback(
+    async (target: number, opts?: { skipValidation?: boolean }) => {
+      if (target < 1 || target > TOTAL_STEPS) return;
+      if (!opts?.skipValidation && target > currentStep) {
+        for (let s = currentStep; s < target; s++) {
+          if (visitedSteps.has(s) && s !== currentStep) continue;
+          // eslint-disable-next-line no-await-in-loop
+          const ok = await validateStep(s);
+          if (!ok) return;
+        }
+      }
+      setStepBanner(null);
+      setCurrentStep(target);
+      setVisitedSteps((prev) => {
+        const n = new Set(prev);
+        n.add(target);
+        return n;
+      });
+      setTimeout(() => {
+        const sec = WIZARD_STEPS.find((s) => s.id === target)?.sectionId;
+        if (sec) {
+          const el = document.getElementById(sec);
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          const focusable = el?.querySelector<HTMLElement>("input, select, textarea, button");
+          focusable?.focus({ preventScroll: true });
+        }
+      }, 60);
+    },
+    [currentStep, validateStep, visitedSteps],
+  );
+
+  const handleNext = useCallback(() => goToStep(currentStep + 1), [currentStep, goToStep]);
+  const handleBack = useCallback(() => goToStep(currentStep - 1, { skipValidation: true }), [currentStep, goToStep]);
+  const handleStepClick = useCallback(
+    (target: number) => {
+      if (visitedSteps.has(target)) {
+        goToStep(target, { skipValidation: true });
+      } else {
+        goToStep(target);
+      }
+    },
+    [visitedSteps, goToStep],
+  );
 
   const bonusFields = useFieldArray({
     control: form.control,
