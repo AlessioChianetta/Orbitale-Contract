@@ -1,0 +1,38 @@
+ select "id", "company_name", "address", "city", "postal_code", "tax_id", "vat_id", "unique_code", "pec", "logo_url", "contract_title", "otp_method", "twilio_account_sid", "twilio_auth_token", "twilio_verify_service_sid", "twilio_whatsapp_from", "smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_secure", "email_from_address", "email_from_name", "updated_at" from "company_settings" where "company_settings"."id" = $1 -- params: [1]
+✅ Notifica firma inviata, messageId: <2e516a47-f6a1-173c-208d-0ad285926567@gmail.com>
+✅ Notifica firma inviata con successo!
+👤 Destinatario: chianettaalessio@gmail.com
+📱 Invio congratulazioni WhatsApp...
+[TWILIO] 🎉 Invio congratulazioni WhatsApp...
+[TWILIO] 📱 Numero: 3123
+[TWILIO] 👤 Cliente: sdf
+[TWILIO] 📱 Tentativo di invio messaggio WhatsApp...
+[TWILIO] 📞 Numero destinatario: 3123
+[TWILIO] 📤 Invio messaggio WhatsApp a: whatsapp:+393123
+[TWILIO] 📝 Messaggio: 🎉 *Congratulazioni sdf!*
+
+Il tuo contratto è stat...
+[TWILIO] ❌ Errore nell'invio del messaggio WhatsApp: RestException [Error]: The 'To' number +393123 is not a valid phone number.
+    at success (/home/runner/workspace/node_modules/twilio/lib/base/Version.js:79:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async sendWhatsAppMessage (/home/runner/workspace/server/services/twilio-service.ts:232:29)
+    at async sendCongratulationsWhatsApp (/home/runner/workspace/server/services/twilio-service.ts:288:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:1791:13) {
+  status: 400,
+  code: 21211,
+  moreInfo: 'https://www.twilio.com/docs/errors/21211',
+  details: undefined
+}
+[TWILIO] ❌ Errore nell'invio delle congratulazioni WhatsApp: Error: Failed to send WhatsApp message: The 'To' number +393123 is not a valid phone number.
+    at sendWhatsAppMessage (/home/runner/workspace/server/services/twilio-service.ts:244:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async sendCongratulationsWhatsApp (/home/runner/workspace/server/services/twilio-service.ts:288:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:1791:13)
+❌ Errore nell'invio delle congratulazioni WhatsApp: Error: Failed to send WhatsApp message: The 'To' number +393123 is not a valid phone number.
+    at sendWhatsAppMessage (/home/runner/workspace/server/services/twilio-service.ts:244:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async sendCongratulationsWhatsApp (/home/runner/workspace/server/services/twilio-service.ts:288:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:1791:13)
+1:36:57 AM [express] POST /api/client/contracts/HoKMi1_q59pvJ6g6/sign 200 in 15275ms :: {"message":"…
+Query: select "id", "username", "password", "role", "email", "full_name", "company_id", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content
