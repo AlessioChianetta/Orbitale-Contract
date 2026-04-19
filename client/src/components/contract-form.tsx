@@ -556,17 +556,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     [currentStep, validateStep, visitedSteps],
   );
 
-  const handleNext = useCallback(() => goToStep(currentStep + 1), [currentStep, goToStep]);
+  const handleNext = useCallback(() => goToStep(currentStep + 1, { skipValidation: true }), [currentStep, goToStep]);
   const handleBack = useCallback(() => goToStep(currentStep - 1, { skipValidation: true }), [currentStep, goToStep]);
   const handleStepClick = useCallback(
-    (target: number) => {
-      if (visitedSteps.has(target)) {
-        goToStep(target, { skipValidation: true });
-      } else {
-        goToStep(target);
-      }
-    },
-    [visitedSteps, goToStep],
+    (target: number) => goToStep(target, { skipValidation: true }),
+    [goToStep],
   );
 
   const bonusFields = useFieldArray({
