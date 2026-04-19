@@ -56,6 +56,7 @@ export interface IStorage {
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   getContractAuditLogs(contractId: number): Promise<AuditLog[]>;
   getRecentAuditLogCount(contractId: number, action: string, sinceMs: number): Promise<number>;
+  getRecentAuditLogTimestamps(contractId: number, action: string, sinceMs: number, limit: number): Promise<Date[]>;
 
   // OTP methods
   createOtpCode(otp: InsertOtpCode): Promise<OtpCode>;
@@ -418,6 +419,28 @@ export class DatabaseStorage implements IStorage {
         ),
       );
     return rows.length;
+  }
+
+  async getRecentAuditLogTimestamps(
+    contractId: number,
+    action: string,
+    sinceMs: number,
+    limit: number,
+  ): Promise<Date[]> {
+    const since = new Date(Date.now() - sinceMs);
+    const rows = await db
+      .select({ timestamp: auditLogs.timestamp })
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.contractId, contractId),
+          eq(auditLogs.action, action),
+          gte(auditLogs.timestamp, since),
+        ),
+      )
+      .orderBy(desc(auditLogs.timestamp))
+      .limit(limit);
+    return rows.map((r) => r.timestamp);
   }
 
   // OTP methods

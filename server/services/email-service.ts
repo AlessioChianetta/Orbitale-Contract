@@ -301,11 +301,14 @@ export async function sendOtpLockoutAlertEmail(opts: {
   companyId: number;
   to: string;
   contractCode: string;
+  contractLink: string;
+  attemptIp: string;
   clientName?: string | null;
   failedAttempts: number;
-  windowMinutes: number;
+  detectionWindowMinutes: number;
+  lockoutMinutes: number;
 }): Promise<{ messageId?: string }> {
-  const { companyId, to, contractCode, clientName, failedAttempts, windowMinutes } = opts;
+  const { companyId, to, contractCode, contractLink, attemptIp, clientName, failedAttempts, detectionWindowMinutes, lockoutMinutes } = opts;
   if (!to || !/.+@.+\..+/.test(to)) {
     throw new Error("Indirizzo email destinatario non valido.");
   }
@@ -335,12 +338,15 @@ export async function sendOtpLockoutAlertEmail(opts: {
         </div>
         <div class="content">
           <p>Ciao,</p>
-          <p>il cliente <strong>${escapeHtml(safeClient)}</strong> sta provando a firmare il contratto <strong>${escapeHtml(contractCode)}</strong> ma ha inserito un codice OTP errato per <strong>${failedAttempts}</strong> volte negli ultimi <strong>${windowMinutes} minuti</strong>.</p>
-          <p>Per sicurezza la pagina di firma è stata temporaneamente bloccata. Probabilmente il cliente ha bisogno di aiuto: potresti contattarlo per verificare che abbia ricevuto il codice corretto e accompagnarlo nella firma.</p>
+          <p>il cliente <strong>${escapeHtml(safeClient)}</strong> sta provando a firmare il contratto <strong>${escapeHtml(contractCode)}</strong> ma ha inserito un codice OTP errato per <strong>${failedAttempts}</strong> volte negli ultimi <strong>${detectionWindowMinutes} minuti</strong>.</p>
+          <p>Per sicurezza la pagina di firma è stata temporaneamente bloccata per circa <strong>${lockoutMinutes} minuti</strong>. Probabilmente il cliente ha bisogno di aiuto: contattalo per verificare che abbia ricevuto il codice corretto e accompagnarlo nella firma.</p>
           <div class="meta">
             <div><strong>Codice contratto:</strong> ${escapeHtml(contractCode)}</div>
+            <div><strong>Link al contratto:</strong> <a href="${escapeHtml(contractLink)}">${escapeHtml(contractLink)}</a></div>
+            <div><strong>IP dell'ultimo tentativo:</strong> ${escapeHtml(attemptIp)}</div>
             <div><strong>Tentativi falliti:</strong> ${failedAttempts}</div>
-            <div><strong>Finestra:</strong> ultimi ${windowMinutes} minuti</div>
+            <div><strong>Finestra di rilevazione:</strong> ${detectionWindowMinutes} minuti</div>
+            <div><strong>Durata blocco:</strong> ${lockoutMinutes} minuti</div>
           </div>
           <p style="font-size:12px;color:#666;">Il blocco si rimuove automaticamente trascorsa la finestra. Il cliente potrà richiedere un nuovo codice e completare la firma.</p>
         </div>

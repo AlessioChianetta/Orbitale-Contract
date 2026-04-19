@@ -2311,6 +2311,17 @@ export function registerRoutes(app: Express): Server {
             hour: "2-digit", minute: "2-digit",
           })
         : "—";
+      // IP del firmatario: lo recuperiamo dall'audit log "signed" del contratto.
+      // Serve come prova legale visibile al cliente sulla pagina di conferma
+      // (richiesto dalle acceptance criteria dell'incidente #75).
+      let signerIp = "—";
+      try {
+        const logs = await storage.getContractAuditLogs(contract.id);
+        const signedLog = [...logs].reverse().find((l) => l.action === "signed");
+        if (signedLog?.ipAddress) signerIp = signedLog.ipAddress;
+      } catch (logErr: any) {
+        console.error("[ROUTES] /firmato: impossibile leggere IP firmatario:", logErr?.message || logErr);
+      }
 
       res.set("Cache-Control", "no-store");
       res.send(`<!doctype html>
@@ -2342,6 +2353,8 @@ export function registerRoutes(app: Express): Server {
       <dd>${escapeHtml(contract.contractCode)}</dd>
       <dt>Firmato il</dt>
       <dd>${escapeHtml(signedAt)}</dd>
+      <dt>IP del firmatario</dt>
+      <dd>${escapeHtml(signerIp)}</dd>
       ${clientEmail ? `<dt>Copia inviata a</dt><dd>${escapeHtml(clientEmail)}</dd>` : ""}
     </dl>
     <p class="footer">${escapeHtml(senderName)}</p>
@@ -2369,89 +2382,113 @@ export function registerRoutes(app: Express): Server {
       }
 
       // ---------- LOCKOUT ANTI-BRUTEFORCE PER CONTRATTO ----------
-      // Conta i tentativi OTP falliti per questo contratto. Politica:
-      //   - se ci sono >= 5 tentativi falliti negli ultimi 30 min → blocco
-      // Equivale a "5 tentativi in 10 min → blocco di ~30 min" (i 5 fallimenti
-      // restano in finestra per almeno 30 min, garantendo la durata del blocco).
+      // Politica esplicita richiesta per l'incidente #75:
+      //   - 5 tentativi OTP falliti in una finestra di 10 minuti → trigger
+      //   - una volta scattato, il blocco dura 30 minuti dall'ultimo fallimento
+      //     (il "lockout state" è derivato dal timestamp del tentativo che ha
+      //     fatto raggiungere la soglia, non da un campo dedicato in DB).
       // È additivo al rate-limit per IP già attivo (`otpRateLimiter`).
-      const OTP_LOCKOUT_WINDOW_MS = 30 * 60 * 1000;
+      const OTP_DETECTION_WINDOW_MS = 10 * 60 * 1000; // 10 min: rilevazione
+      const OTP_LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 min: blocco
       const OTP_LOCKOUT_THRESHOLD = 5;
-      const OTP_LOCKOUT_WINDOW_MIN = Math.round(OTP_LOCKOUT_WINDOW_MS / 60000);
-      const previousFailures = await storage.getRecentAuditLogCount(
+      const OTP_LOCKOUT_WINDOW_MIN = Math.round(OTP_LOCKOUT_DURATION_MS / 60000);
+      const OTP_DETECTION_WINDOW_MIN = Math.round(OTP_DETECTION_WINDOW_MS / 60000);
+
+      // Recuperiamo i timestamp dei fallimenti recenti entro la durata del lockout
+      // (30 min): bastano per decidere sia il trigger sia la persistenza del blocco.
+      const recentFailureTs = await storage.getRecentAuditLogTimestamps(
         contract.id,
         "otp_failed",
-        OTP_LOCKOUT_WINDOW_MS,
+        OTP_LOCKOUT_DURATION_MS,
+        20,
       );
-      if (previousFailures >= OTP_LOCKOUT_THRESHOLD) {
+      const nowMs = Date.now();
+      // È in lockout se esiste una sotto-finestra di 10 min con ≥ THRESHOLD
+      // fallimenti, e il fallimento più recente di quella finestra è entro 30 min.
+      let lockoutUntil: number | null = null;
+      for (let i = 0; i + OTP_LOCKOUT_THRESHOLD - 1 < recentFailureTs.length; i++) {
+        const newest = recentFailureTs[i].getTime();
+        const oldestInGroup = recentFailureTs[i + OTP_LOCKOUT_THRESHOLD - 1].getTime();
+        if (newest - oldestInGroup <= OTP_DETECTION_WINDOW_MS) {
+          const candidateUntil = newest + OTP_LOCKOUT_DURATION_MS;
+          if (candidateUntil > nowMs) {
+            lockoutUntil = candidateUntil;
+            break;
+          }
+        }
+      }
+      if (lockoutUntil !== null) {
+        const remainingMin = Math.max(1, Math.ceil((lockoutUntil - nowMs) / 60000));
         return res.status(429).json({
-          message: `Troppi tentativi non riusciti. Per sicurezza la firma è bloccata per circa ${OTP_LOCKOUT_WINDOW_MIN} minuti. Riprova più tardi o contatta il venditore per ricevere un nuovo codice.`,
+          message: `Troppi tentativi non riusciti. Per sicurezza la firma è bloccata per circa ${remainingMin} minuti. Riprova più tardi o contatta il venditore per ricevere un nuovo codice.`,
         });
       }
 
       // Determine verification method based on company settings
       const otpCompanySettings = await storage.getCompanySettings(contract.companyId);
       const useOtpMethod = otpCompanySettings?.otpMethod || "email";
-      
+
       let validOtp = null;
       let otpValid = false;
 
-      console.log(`[ROUTES] 🔍 Verifica OTP - Metodo configurato: ${useOtpMethod}`);
-      console.log(`[ROUTES] 🔢 Codice ricevuto: ${otpCode}`);
+      // Funzione di mascheramento riutilizzata in log e audit (NIENTE OTP in chiaro).
+      const rawCode = typeof otpCode === "string" ? otpCode : "";
+      const maskedAttempt = rawCode.length > 0
+        ? `${rawCode.slice(0, 1)}${"•".repeat(Math.max(rawCode.length - 2, 0))}${rawCode.length > 1 ? rawCode.slice(-1) : ""}`
+        : "(vuoto)";
+
+      console.log(`[ROUTES] 🔍 Verifica OTP - Metodo: ${useOtpMethod}, codice (mascherato): ${maskedAttempt}`);
 
       if (useOtpMethod === "twilio") {
-        // Check if there's a Twilio Verify placeholder record
         validOtp = await storage.getValidOtpCode(contract.id, "TWILIO_VERIFY");
-        
+
         if (validOtp && validOtp.code === "TWILIO_VERIFY") {
-          // Usa Twilio Verify per la verifica
           try {
             const { verifyOTPSMS } = await import('./services/twilio-service');
-            // Usa il numero di telefono salvato nel record OTP (che include modifiche del cliente)
             const phoneNumber = validOtp.phoneNumber;
-
-            console.log(`[ROUTES] ✅ Verifica OTP via Twilio Verify per ${phoneNumber}`);
+            console.log(`[ROUTES] ✅ Verifica via Twilio Verify per ${phoneNumber}`);
             otpValid = await verifyOTPSMS(phoneNumber, otpCode, otpCompanySettings);
-            console.log(`[ROUTES] 🎯 Risultato verifica Twilio: ${otpValid ? 'VALIDO' : 'NON VALIDO'}`);
+            console.log(`[ROUTES] 🎯 Risultato Twilio: ${otpValid ? 'VALIDO' : 'NON VALIDO'}`);
           } catch (error) {
-            console.error('[ROUTES] ❌ Errore nella verifica Twilio:', error);
+            console.error('[ROUTES] ❌ Errore verifica Twilio:', error);
             otpValid = false;
           }
         } else {
-          console.log(`[ROUTES] ⚠️ Metodo Twilio configurato ma nessun record TWILIO_VERIFY trovato, fallback a verifica tradizionale`);
+          console.log(`[ROUTES] ⚠️ Twilio configurato ma nessun record TWILIO_VERIFY, fallback verifica tradizionale`);
           validOtp = await storage.getValidOtpCode(contract.id, otpCode);
           otpValid = !!validOtp;
-          console.log(`[ROUTES] 🎯 Verifica OTP tradizionale (fallback): ${otpValid ? 'VALIDO' : 'NON VALIDO'}`);
+          console.log(`[ROUTES] 🎯 Risultato fallback: ${otpValid ? 'VALIDO' : 'NON VALIDO'}`);
         }
       } else {
-        // Email method or fallback - use traditional OTP verification
-        console.log(`[ROUTES] 📧 Verifica OTP tramite codice personalizzato (metodo: ${useOtpMethod})`);
+        console.log(`[ROUTES] 📧 Verifica OTP tradizionale (metodo: ${useOtpMethod})`);
         validOtp = await storage.getValidOtpCode(contract.id, otpCode);
         otpValid = !!validOtp;
-        console.log(`[ROUTES] 🎯 Risultato verifica OTP tradizionale: ${otpValid ? 'VALIDO' : 'NON VALIDO'}`);
-        
+        console.log(`[ROUTES] 🎯 Risultato: ${otpValid ? 'VALIDO' : 'NON VALIDO'}`);
         if (validOtp) {
-          console.log(`[ROUTES] ✅ OTP trovato - ID: ${validOtp.id}, Codice: ${validOtp.code}, Telefono: ${validOtp.phoneNumber}`);
+          console.log(`[ROUTES] ✅ OTP record trovato - ID: ${validOtp.id}, Telefono: ${validOtp.phoneNumber}`);
         } else {
-          console.log(`[ROUTES] ❌ Nessun OTP valido trovato per il contratto ${contract.id} con codice ${otpCode}`);
+          console.log(`[ROUTES] ❌ Nessun OTP valido per il contratto ${contract.id} (tentativo mascherato: ${maskedAttempt})`);
         }
       }
 
       if (!otpValid) {
-        // Audit del tentativo fallito: NON registriamo mai il codice in chiaro,
-        // solo prima/ultima cifra mascherata + lunghezza, IP e user agent.
-        const rawCode = typeof otpCode === "string" ? otpCode : "";
-        const maskedCode = rawCode.length > 0
-          ? `${rawCode.slice(0, 1)}${"•".repeat(Math.max(rawCode.length - 2, 0))}${rawCode.length > 1 ? rawCode.slice(-1) : ""}`
-          : "(vuoto)";
+        // Audit del tentativo fallito: codice MAI in chiaro, solo metadati richiesti.
+        const previousFailures = recentFailureTs.length;
+        const attemptNumber = previousFailures + 1;
+        const ipAddress = getRealClientIP(req);
+        const userAgent = req.get("User-Agent") ?? undefined;
         try {
           await storage.createAuditLog({
             contractId: contract.id,
             action: "otp_failed",
-            userAgent: req.get("User-Agent") ?? undefined,
-            ipAddress: getRealClientIP(req),
+            userAgent,
+            ipAddress,
             metadata: {
-              codeMasked: maskedCode,
+              attemptedCodeMasked: maskedAttempt,
               codeLength: rawCode.length,
+              ip: ipAddress,
+              ua: userAgent ?? null,
+              attemptNumber,
               method: useOtpMethod,
             },
           });
@@ -2459,27 +2496,31 @@ export function registerRoutes(app: Express): Server {
           console.error("[ROUTES] ⚠️ Errore scrittura audit otp_failed:", auditErr?.message || auditErr);
         }
 
-        // Se questo tentativo fa raggiungere la soglia, avvisa il venditore
-        // (una volta sola: solo quando il contatore passa esattamente a soglia).
-        const newFailureCount = previousFailures + 1;
-        if (newFailureCount === OTP_LOCKOUT_THRESHOLD) {
+        // Avvisa il venditore quando il tentativo corrente fa scattare la soglia
+        // (una sola volta: solo se i precedenti < THRESHOLD e il nuovo li raggiunge).
+        if (previousFailures < OTP_LOCKOUT_THRESHOLD && attemptNumber >= OTP_LOCKOUT_THRESHOLD) {
           (async () => {
             try {
               const seller = await storage.getUser(contract.sellerId);
               if (seller?.email && seller.companyId) {
                 const cd = (contract.clientData as any) || {};
                 const clientName = cd.cliente_nome || cd.nome || cd.ragione_sociale || null;
+                const baseUrl = getBaseUrl();
+                const contractLink = `${baseUrl}/client/${encodeURIComponent(contract.contractCode)}`;
                 await sendOtpLockoutAlertEmail({
                   companyId: seller.companyId,
                   to: seller.email,
                   contractCode: contract.contractCode,
+                  contractLink,
+                  attemptIp: ipAddress || "n/d",
                   clientName,
-                  failedAttempts: newFailureCount,
-                  windowMinutes: OTP_LOCKOUT_WINDOW_MIN,
+                  failedAttempts: attemptNumber,
+                  detectionWindowMinutes: OTP_DETECTION_WINDOW_MIN,
+                  lockoutMinutes: OTP_LOCKOUT_WINDOW_MIN,
                 });
               }
             } catch (alertErr: any) {
-              console.error("[ROUTES] ⚠️ Invio alert lockout al venditore fallito:", alertErr?.message || alertErr);
+              console.error("[ROUTES] ⚠️ Alert lockout al venditore fallito:", alertErr?.message || alertErr);
             }
           })();
         }
