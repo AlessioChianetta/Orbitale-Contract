@@ -376,9 +376,16 @@ export default function SellerDashboard() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Invio non riuscito");
+      const sentCount = Array.isArray(json.sent) ? json.sent.length : Number(json.sent ?? 0);
+      const failedArr: Array<{ id: number; error: string }> = Array.isArray(json.failed) ? json.failed : [];
+      const failedCount = failedArr.length;
+      const failedSummary = failedCount > 0
+        ? ` Errori: ${failedArr.slice(0, 3).map((f) => `#${f.id} (${f.error})`).join("; ")}${failedCount > 3 ? "…" : ""}.`
+        : "";
       toast({
-        title: "Invio completato",
-        description: `${json.sent ?? 0} link inviati${json.failed ? `, ${json.failed} errori` : ""}.`,
+        title: failedCount > 0 ? "Invio parziale" : "Invio completato",
+        description: `${sentCount} link inviati${failedCount > 0 ? `, ${failedCount} errori.${failedSummary}` : "."}`,
+        variant: failedCount > 0 && sentCount === 0 ? "destructive" : undefined,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
       setSelectedIds(new Set());
