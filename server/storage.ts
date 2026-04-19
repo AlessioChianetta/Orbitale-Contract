@@ -553,7 +553,7 @@ export class DatabaseStorage implements IStorage {
       .values({
         ...input,
         updatedAt: new Date(),
-      } as any)
+      })
       .returning();
     return row;
   }
@@ -576,7 +576,7 @@ export class DatabaseStorage implements IStorage {
     if (existing.visibility === "shared" && !isAdmin) return undefined;
     const [row] = await db
       .update(contractPresets)
-      .set({ ...input, updatedAt: new Date() } as any)
+      .set({ ...input, updatedAt: new Date() })
       .where(eq(contractPresets.id, id))
       .returning();
     return row;

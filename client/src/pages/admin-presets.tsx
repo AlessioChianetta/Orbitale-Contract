@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, FileText, Layers, Gift, Euro, Calendar, Users, Lock, AlertCircle, ArrowLeft } from "lucide-react";
+import { Plus, Edit, Trash2, Copy, FileText, Layers, Gift, Euro, Calendar, Users, Lock, AlertCircle, ArrowLeft } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import PresetEditor from "@/components/preset-editor";
@@ -36,6 +36,39 @@ export default function AdminPresetsPage() {
       toast({ title: "Preset eliminato" });
     },
     onError: () => toast({ title: "Errore eliminazione", variant: "destructive" }),
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: async (p: ContractPreset) => {
+      // Crea una copia con visibilità "personal" (così funziona anche per
+      // i venditori) e nome "<originale> (copia)".
+      const payload = {
+        name: `${p.name} (copia)`,
+        description: p.description ?? null,
+        visibility: "personal" as const,
+        templateId: p.templateId,
+        selectedSectionIds: Array.isArray(p.selectedSectionIds) ? p.selectedSectionIds : [],
+        bonusList: Array.isArray(p.bonusList) ? p.bonusList : [],
+        paymentPlan: Array.isArray(p.paymentPlan) ? p.paymentPlan : [],
+        rataList: Array.isArray(p.rataList) ? p.rataList : [],
+        totalValue: p.totalValue,
+        isPercentagePartnership: p.isPercentagePartnership,
+        partnershipPercentage: p.partnershipPercentage,
+        autoRenewal: p.autoRenewal,
+        renewalDuration: p.renewalDuration,
+        defaultDurationMonths: p.defaultDurationMonths,
+        fillMode: p.fillMode,
+      };
+      const res = await apiRequest("POST", "/api/presets", payload);
+      return await res.json() as ContractPreset;
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/presets"] });
+      toast({ title: "Preset duplicato", description: `Aperto "${created.name}" per la modifica.` });
+      setEditing(created);
+      setEditorOpen(true);
+    },
+    onError: () => toast({ title: "Errore duplicazione", variant: "destructive" }),
   });
 
   const handleEdit = (p: ContractPreset) => { setEditing(p); setEditorOpen(true); };
@@ -168,12 +201,23 @@ export default function AdminPresetsPage() {
                     </div>
                   </div>
                   <div className="shrink-0 flex items-center gap-1 self-center">
-                    {(isMine || user?.role === "admin") ? (
+                    <button
+                      type="button"
+                      onClick={() => duplicateMutation.mutate(p)}
+                      disabled={duplicateMutation.isPending}
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-50"
+                      title="Duplica preset"
+                      data-testid={`button-duplicate-preset-${p.id}`}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    {(isMine || isAdmin) && (
                       <>
                         <button
                           type="button"
                           onClick={() => handleEdit(p)}
                           className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                          title="Modifica"
                           data-testid={`button-edit-preset-${p.id}`}
                         >
                           <Edit className="h-4 w-4" />
@@ -183,13 +227,12 @@ export default function AdminPresetsPage() {
                           onClick={() => handleDelete(p)}
                           disabled={deleteMutation.isPending}
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                          title="Elimina"
                           data-testid={`button-delete-preset-${p.id}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </>
-                    ) : (
-                      <span className="text-[11px] text-slate-400 italic px-2">Solo lettura</span>
                     )}
                   </div>
                 </div>

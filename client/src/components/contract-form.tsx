@@ -413,22 +413,22 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       setSelectedTemplateId(preset.templateId);
     }
 
-    const sectionIds = Array.isArray(preset.selectedSectionIds) ? preset.selectedSectionIds as string[] : [];
+    const sectionIds = Array.isArray(preset.selectedSectionIds) ? preset.selectedSectionIds : [];
     // Imposta sezioni dopo templateId, in modo che — anche se il reset effect
     // dovesse partire — questo setValue lo sovrascriva.
     form.setValue("selectedSectionIds", sectionIds, { shouldDirty: true });
 
-    const bonusList = Array.isArray(preset.bonusList) ? preset.bonusList as any[] : [];
+    const bonusList = Array.isArray(preset.bonusList) ? preset.bonusList : [];
     form.setValue("clientData.bonus_list", bonusList, { shouldDirty: true });
 
-    const paymentPlan = Array.isArray(preset.paymentPlan) ? preset.paymentPlan as any[] : [];
+    const paymentPlan = Array.isArray(preset.paymentPlan) ? preset.paymentPlan : [];
     form.setValue(
       "clientData.payment_plan",
       paymentPlan.length ? paymentPlan : [{ rata_importo: "", rata_scadenza: "" }],
       { shouldDirty: true },
     );
 
-    const rataList = Array.isArray(preset.rataList) ? preset.rataList as any[] : [];
+    const rataList = Array.isArray(preset.rataList) ? preset.rataList : [];
     form.setValue("clientData.rata_list", rataList, { shouldDirty: true });
 
     if (preset.totalValue != null) {
@@ -444,11 +444,15 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     }
 
     form.setValue("renewalDuration", preset.renewalDuration ?? 12, { shouldDirty: true });
+    // autoRenewal: se il preset prevede rinnovo automatico, abilitalo
+    if (typeof preset.autoRenewal === "boolean") {
+      form.setValue("autoRenewal" as any, preset.autoRenewal, { shouldDirty: true });
+    }
 
     // Modalità di compilazione (seller / client_fill) preferita dal preset
-    if ((preset as any).fillMode === "client_fill" || (preset as any).fillMode === "seller") {
-      form.setValue("fillMode", (preset as any).fillMode, { shouldDirty: true });
-      setFillMode((preset as any).fillMode);
+    if (preset.fillMode === "client_fill" || preset.fillMode === "seller") {
+      form.setValue("fillMode", preset.fillMode, { shouldDirty: true });
+      setFillMode(preset.fillMode);
     }
 
     // Calcola data fine sulla base della durata standard del preset
@@ -488,7 +492,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           totalValue: formValues.totalValue,
           isPercentagePartnership: formValues.isPercentagePartnership,
           partnershipPercentage: formValues.partnershipPercentage,
-          autoRenewal: (formValues as any).autoRenewal ?? false,
+          autoRenewal: Boolean((formValues as { autoRenewal?: boolean }).autoRenewal),
           renewalDuration: formValues.renewalDuration,
           fillMode: formValues.fillMode || "seller",
           defaultDurationMonths: (() => {
@@ -980,7 +984,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           </div>
           <div>
             <Label className="text-xs font-medium text-slate-700">Visibilità</Label>
-            <Select value={savePresetVisibility} onValueChange={(v) => setSavePresetVisibility(v as any)}>
+            <Select value={savePresetVisibility} onValueChange={(v) => setSavePresetVisibility(v as "personal" | "shared")}>
               <SelectTrigger className="mt-1" data-testid="select-save-preset-visibility">
                 <SelectValue />
               </SelectTrigger>
@@ -1147,13 +1151,31 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 {appliedPresetName && !presetMissingTemplate && (
                   <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
                     <CheckCircle className="h-4 w-4 shrink-0" />
-                    <span>Preset <strong>"{appliedPresetName}"</strong> applicato. Compila ora i dati cliente.</span>
+                    <span className="flex-1">Preset <strong>"{appliedPresetName}"</strong> applicato. Compila ora i dati cliente.</span>
+                    <button
+                      type="button"
+                      onClick={() => { setAppliedPresetName(null); setSelectedPresetId(""); }}
+                      className="p-1 rounded hover:bg-emerald-100 text-emerald-700"
+                      aria-label="Chiudi avviso preset"
+                      data-testid="button-dismiss-preset-banner"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 )}
                 {presetMissingTemplate && (
                   <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span>Il template del preset <strong>"{appliedPresetName}"</strong> non è più disponibile. Seleziona un nuovo template qui sotto.</span>
+                    <span className="flex-1">Il template del preset <strong>"{appliedPresetName}"</strong> non è più disponibile. Seleziona un nuovo template qui sotto.</span>
+                    <button
+                      type="button"
+                      onClick={() => { setPresetMissingTemplate(false); setAppliedPresetName(null); setSelectedPresetId(""); }}
+                      className="p-1 rounded hover:bg-amber-100 text-amber-700"
+                      aria-label="Chiudi avviso template mancante"
+                      data-testid="button-dismiss-missing-template"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 )}
               </div>
