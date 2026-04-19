@@ -3138,6 +3138,75 @@ export function registerRoutes(app: Express): Server {
   return httpServer;
 }
 
+// Etichette user-friendly delle variabili template che il sistema sa
+// risolvere. Quando l'utility findUnresolvedPlaceholders trova un
+// segnaposto rimasto, il client le usa per dire al venditore "manca X"
+// in italiano invece di mostrare la chiave grezza.
+export const PLACEHOLDER_LABELS: Record<string, { label: string; hint?: string }> = {
+  livello_accesso: { label: "Livello di accesso", hint: "Sezione Prezzo & Durata → Variabili contratto" },
+  canone_mensile: { label: "Canone mensile", hint: "Sezione Prezzo & Durata → Variabili contratto" },
+  costo_attivazione: { label: "Costo di attivazione", hint: "Sezione Prezzo & Durata → Variabili contratto" },
+};
+
+// Formatta un importo numerico (string|number) come "EUR 297,00".
+// Usato per le variabili monetarie iniettate nei placeholder template.
+export function formatEur(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "";
+  const n = typeof value === "number" ? value : parseFloat(String(value).replace(",", "."));
+  if (!Number.isFinite(n)) return "";
+  return `EUR ${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Inietta in clientData le variabili-prodotto (livello_accesso,
+// canone_mensile, costo_attivazione) prendendole dalle colonne dedicate
+// del contratto/payload. Se il valore non c'è la chiave non viene
+// aggiunta: in questo modo `findUnresolvedPlaceholders` può segnalarla
+// come mancante anziché sostituirla con stringa vuota silenziosa.
+export function withProductPlaceholders(
+  clientData: any,
+  vars: { accessLevel?: string | null; monthlyFee?: string | number | null; activationFee?: string | number | null },
+): any {
+  const out: any = { ...(clientData || {}) };
+  if (vars.accessLevel && String(vars.accessLevel).trim() !== "" && !out.livello_accesso) {
+    out.livello_accesso = String(vars.accessLevel).trim();
+  }
+  if (vars.monthlyFee !== null && vars.monthlyFee !== undefined && vars.monthlyFee !== "" && !out.canone_mensile) {
+    const f = formatEur(vars.monthlyFee);
+    if (f) out.canone_mensile = f;
+  }
+  if (vars.activationFee !== null && vars.activationFee !== undefined && vars.activationFee !== "" && !out.costo_attivazione) {
+    const f = formatEur(vars.activationFee);
+    if (f) out.costo_attivazione = f;
+  }
+  return out;
+}
+
+// Cerca nel testo finale del contratto eventuali placeholder `{{nome}}`
+// rimasti non risolti (es. `{{livello_accesso}}`). Restituisce la lista
+// dei nomi unici (in ordine di apparizione). Ignora i marcatori di
+// blocco `<!-- BLOCK:NAME -->` che usano una sintassi diversa.
+export function findUnresolvedPlaceholders(html: string): string[] {
+  if (!html) return [];
+  const found = new Set<string>();
+  const out: string[] = [];
+  const re = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const name = m[1];
+    if (!found.has(name)) {
+      found.add(name);
+      out.push(name);
+    }
+  }
+  return out;
+}
+
+export type ProductPlaceholderVars = {
+  accessLevel?: string | null;
+  monthlyFee?: string | number | null;
+  activationFee?: string | number | null;
+};
+
 // Helper function to generate contract content from template
 async function generateContractContent(
   templateContent: string, 
@@ -3150,8 +3219,16 @@ async function generateContractContent(
   partnershipPercentage?: number | null,
   contractStartDate?: string,
   contractEndDate?: string,
-  selectedSectionIds?: string[] | null
+  selectedSectionIds?: string[] | null,
+  productVars?: ProductPlaceholderVars,
 ): Promise<string> {
+  // Inietta in clientData le variabili-prodotto (livello_accesso,
+  // canone_mensile, costo_attivazione) lette dalle colonne dedicate del
+  // contratto. Avviene prima di qualsiasi sostituzione così i placeholder
+  // del template orbitale vengono compilati come tutti gli altri.
+  if (productVars) {
+    clientData = withProductPlaceholders(clientData, productVars);
+  }
   let content = templateContent;
 
   // Inject modular sections. If template has a <!-- BLOCK:SECTIONS --> marker we

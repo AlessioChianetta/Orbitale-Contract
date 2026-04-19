@@ -58,6 +58,14 @@ export const contracts = pgTable("contracts", {
   isPercentagePartnership: boolean("is_percentage_partnership").default(false), // New: Partnership type
   partnershipPercentage: numeric("partnership_percentage", { precision: 5, scale: 2 }), // New: Revenue percentage (e.g., 15.50%)
   selectedSectionIds: jsonb("selected_section_ids").default([]), // Array of section IDs selected for this contract
+  // Variabili-prodotto per il template Sistema Orbitale (e simili):
+  //  - accessLevel  → sostituisce {{livello_accesso}}
+  //  - monthlyFee   → sostituisce {{canone_mensile}} (formattato "EUR 297,00")
+  //  - activationFee→ sostituisce {{costo_attivazione}} (formattato come sopra)
+  // Sono nullable per retro-compatibilità con i contratti esistenti.
+  accessLevel: text("access_level"),
+  monthlyFee: numeric("monthly_fee", { precision: 12, scale: 2 }),
+  activationFee: numeric("activation_fee", { precision: 12, scale: 2 }),
   coFillToken: text("co_fill_token"), // Token of co-fill session that created/owns this draft (nullable)
   // Modalità di compilazione del contratto:
   //  - "seller": flusso classico, il venditore compila tutti i dati cliente
@@ -284,6 +292,20 @@ export const insertContractSchema = createInsertSchema(contracts).omit({
   contractEndDate: z.union([z.string(), z.date()]).nullable().optional().transform((val) => {
     if (typeof val === 'string') return new Date(val);
     return val;
+  }),
+  // Variabili-prodotto: accettano string o number e vengono normalizzate
+  // a stringa (Drizzle numeric === string lato app) per evitare problemi
+  // di precisione e per mantenere la stessa shape su Postgres.
+  accessLevel: z.string().trim().min(1).nullable().optional(),
+  monthlyFee: z.union([z.string(), z.number()]).nullable().optional().transform((v) => {
+    if (v === undefined || v === null || v === "") return null;
+    const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+    return isNaN(n) ? null : n.toFixed(2);
+  }),
+  activationFee: z.union([z.string(), z.number()]).nullable().optional().transform((v) => {
+    if (v === undefined || v === null || v === "") return null;
+    const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+    return isNaN(n) ? null : n.toFixed(2);
   }),
 });
 
