@@ -381,6 +381,17 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     "section-summary": 5,
   }), []);
 
+  // Scorre la sezione in cima SOLO al pannello centrale del wizard.
+  // Evita scrollIntoView (che fa scorrere tutti gli antenati scrollabili,
+  // incluso il contenuto del dialog stesso, nascondendo l'header).
+  const scrollSectionIntoPanel = useCallback((sectionId: string) => {
+    const container = scrollContainerRef.current;
+    const el = document.getElementById(sectionId);
+    if (!container || !el) return;
+    const top = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+    container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, []);
+
   const scrollToSection = useCallback((sectionId: string) => {
     const targetStep = sectionToStep[sectionId];
     if (targetStep && targetStep !== currentStep) {
@@ -392,14 +403,12 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       });
       // Lascia un tick per il render dello step prima dello scroll
       setTimeout(() => {
-        const el = document.getElementById(sectionId);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        scrollSectionIntoPanel(sectionId);
       }, 60);
       return;
     }
-    const element = document.getElementById(sectionId);
-    if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [sectionToStep, currentStep]);
+    scrollSectionIntoPanel(sectionId);
+  }, [sectionToStep, currentStep, scrollSectionIntoPanel]);
 
   const { data: presets = [] } = useQuery<ContractPreset[]>({
     queryKey: ["/api/presets"],
@@ -535,8 +544,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       setTimeout(() => {
         const sec = WIZARD_STEPS.find((s) => s.id === target)?.sectionId;
         if (sec) {
+          // Riporta in cima il pannello centrale (senza toccare header/footer del dialog).
+          const container = scrollContainerRef.current;
+          if (container) container.scrollTo({ top: 0, behavior: "smooth" });
           const el = document.getElementById(sec);
-          el?.scrollIntoView({ behavior: "smooth", block: "start" });
           const focusable = el?.querySelector<HTMLElement>("input, select, textarea, button");
           focusable?.focus({ preventScroll: true });
         }
@@ -1411,7 +1422,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       </DialogContent>
     </Dialog>
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-[1280px] w-[95vw] h-[95vh] p-0 gap-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-white grid grid-rows-[auto_auto_minmax(0,1fr)_auto]">
+      <DialogContent className="max-w-[1280px] w-[95vw] max-h-[95vh] p-0 gap-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-white grid grid-rows-[auto_auto_minmax(0,1fr)_auto]">
         {/* Header */}
         <div className="p-8 bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white flex-shrink-0">
           <DialogHeader>
