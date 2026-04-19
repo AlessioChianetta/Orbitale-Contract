@@ -3029,6 +3029,24 @@ export function registerRoutes(app: Express): Server {
         if (!room) { room = new Set(); coFillRooms.set(token, room); }
         room.add(peer);
 
+        // Bridge: a co-fill CLIENT peer also counts as live presence on the
+        // linked draft contract so the seller dashboard pulses green.
+        let presenceBridgeId: string | null = null;
+        if (peer.role === "client" && sess.contractId) {
+          const nowB = Date.now();
+          presenceBridgeId = nanoid(12);
+          const pSess: PresenceSession = {
+            sessionId: presenceBridgeId,
+            contractCode: `cofill:${token}`,
+            contractId: sess.contractId,
+            openedAt: nowB,
+            lastPingAt: nowB,
+            lastDbFlushAt: nowB,
+          };
+          presenceAddSession(pSess);
+          presenceMarkOpen(sess.contractId).catch(() => {});
+        }
+
         coFillAudit("peer_connected", { token, ip, role: peer.role, userId: authedUserId, clientId });
 
         // Send initial state and presence
@@ -3082,6 +3100,11 @@ export function registerRoutes(app: Express): Server {
           room?.delete(peer);
           if (room && room.size === 0) coFillRooms.delete(token);
           coFillBroadcast(token, coFillPresence(token));
+          if (presenceBridgeId) {
+            const s = presenceSessions.get(presenceBridgeId);
+            if (s) presenceFlushActivity(s.contractId).catch(() => {});
+            presenceRemoveSession(presenceBridgeId);
+          }
           coFillAudit("peer_disconnected", { token, clientId, role: peer.role, userId: peer.userId });
         });
       });

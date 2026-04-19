@@ -138,6 +138,7 @@ function PresenceBadge({ p, contractStatus }: { p: PresenceRow | undefined; cont
     ? `Aperto la prima volta: ${fmtAbsoluteIt(p.firstOpenedAt)}`
     : "Mai aperto dal cliente";
   if (p.live && p.liveSinceMs) {
+    const sessions = p.liveSessions || 1;
     return (
       <span
         className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-100"
@@ -148,7 +149,7 @@ function PresenceBadge({ p, contractStatus }: { p: PresenceRow | undefined; cont
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         </span>
-        In linea · {fmtLiveDuration(p.liveSinceMs)}
+        In linea{sessions > 1 ? ` · ${sessions} dispositivi` : ""} · {fmtLiveDuration(p.liveSinceMs)}
       </span>
     );
   }
@@ -412,7 +413,7 @@ export default function SellerDashboard() {
     [visibleContracts]
   );
 
-  const presenceMap = usePresence(10000);
+  const presenceMap = usePresence(5000);
 
   const filteredContracts = useMemo(() => {
     let result = [...visibleContracts];
