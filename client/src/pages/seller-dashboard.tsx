@@ -342,6 +342,16 @@ export default function SellerDashboard() {
     setSelectedIds(next);
   };
 
+  const sendableSelectedIds = useMemo(() => {
+    const ids: number[] = [];
+    for (const c of (contracts as any[]) || []) {
+      if (selectedIds.has(c.id) && !c.isArchived && c.status === "draft" && c.fillMode === "client_fill") {
+        ids.push(c.id);
+      }
+    }
+    return ids;
+  }, [contracts, selectedIds]);
+
   if (statsLoading || contractsLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100 flex items-center justify-center">
@@ -354,15 +364,6 @@ export default function SellerDashboard() {
   }
 
   const selectedCount = selectedIds.size;
-  const sendableSelectedIds = useMemo(() => {
-    const ids: number[] = [];
-    for (const c of contracts as any[]) {
-      if (selectedIds.has(c.id) && !c.isArchived && c.status === "draft" && c.fillMode === "client_fill") {
-        ids.push(c.id);
-      }
-    }
-    return ids;
-  }, [contracts, selectedIds]);
 
   const bulkSendSelected = async () => {
     if (sendableSelectedIds.length === 0) return;
