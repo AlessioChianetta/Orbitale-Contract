@@ -1192,6 +1192,51 @@ export function registerRoutes(app: Express): Server {
       const missingFields = getMissingClientFields(contract.clientData as any);
       const dataComplete = missingFields.length === 0;
 
+      // In modalità "client_fill" prima della compilazione, generiamo
+      // un'anteprima del contratto usando i dati cliente parziali (i
+      // placeholder per i campi mancanti restano vuoti). Così il cliente
+      // può comunque scorrere e leggere il corpo del template scelto dal
+      // venditore mentre compila il modulo in alto.
+      let exposedGeneratedContent: string | null = contract.generatedContent;
+      let publicTemplate: any = null;
+      if (cFillMode === "client_fill" && !dataComplete) {
+        try {
+          const tplForPreview = await storage.getTemplate(
+            contract.templateId,
+            (contract as any).companyId
+          );
+          if (tplForPreview) {
+            exposedGeneratedContent = await generateContractContent(
+              tplForPreview.content,
+              contract.clientData,
+              tplForPreview,
+              contract.autoRenewal ?? undefined,
+              contract.renewalDuration ?? undefined,
+              contract.totalValue ?? undefined,
+              contract.isPercentagePartnership ?? undefined,
+              contract.partnershipPercentage as any,
+              contract.contractStartDate ?? undefined,
+              contract.contractEndDate ?? undefined,
+              contract.selectedSectionIds ?? undefined,
+            );
+            publicTemplate = {
+              id: tplForPreview.id,
+              name: tplForPreview.name,
+              content: tplForPreview.content,
+              customContent: (tplForPreview as any).customContent ?? null,
+              paymentText: (tplForPreview as any).paymentText ?? null,
+              predefinedBonuses: (tplForPreview as any).predefinedBonuses ?? null,
+              sections: (tplForPreview as any).sections ?? null,
+            };
+          } else {
+            exposedGeneratedContent = null;
+          }
+        } catch (previewErr) {
+          console.error("Failed to generate client_fill preview content", previewErr);
+          exposedGeneratedContent = null;
+        }
+      }
+
       const safeContract = {
         id: contract.id,
         contractCode: contract.contractCode,
@@ -1200,7 +1245,8 @@ export function registerRoutes(app: Express): Server {
         fillMode: cFillMode,
         dataComplete,
         clientData: contract.clientData,
-        generatedContent: (cFillMode === "client_fill" && !dataComplete) ? null : contract.generatedContent,
+        template: publicTemplate,
+        generatedContent: exposedGeneratedContent,
         totalValue: contract.totalValue,
         signatures: contract.signatures,
         signedAt: contract.signedAt,
