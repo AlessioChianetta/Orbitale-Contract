@@ -3102,7 +3102,18 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   variant="outline"
                   onClick={() => {
                     sendArgsRef.current = { send: false, previewToken: null, canonicalPayload: null };
-                    form.handleSubmit(onSubmit)();
+                    const values = form.getValues();
+                    const tplId = values.templateId || selectedTemplateId;
+                    if (!tplId) {
+                      toast({
+                        title: "Seleziona un template",
+                        description: "Per salvare la bozza devi prima scegliere un template di contratto.",
+                        variant: "destructive",
+                      });
+                      scrollToSection("section-template");
+                      return;
+                    }
+                    onSubmit({ ...values, templateId: tplId } as ContractForm);
                   }}
                   disabled={createContractMutation.isPending || gateLoading}
                   className="h-11 min-w-[160px] rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
