@@ -297,15 +297,35 @@ export const insertContractSchema = createInsertSchema(contracts).omit({
   // a stringa (Drizzle numeric === string lato app) per evitare problemi
   // di precisione e per mantenere la stessa shape su Postgres.
   accessLevel: z.string().trim().min(1).nullable().optional(),
-  monthlyFee: z.union([z.string(), z.number()]).nullable().optional().transform((v) => {
+  // Canone mensile: se valorizzato, deve essere strettamente > 0
+  // (un canone "0" è quasi sempre un errore di compilazione e va
+  // segnalato anche quando arriva da chiamate API dirette).
+  monthlyFee: z.union([z.string(), z.number()]).nullable().optional().transform((v, ctx) => {
     if (v === undefined || v === null || v === "") return null;
     const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
-    return isNaN(n) ? null : n.toFixed(2);
+    if (isNaN(n)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Canone mensile non valido" });
+      return z.NEVER;
+    }
+    if (n <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Il canone mensile deve essere maggiore di 0" });
+      return z.NEVER;
+    }
+    return n.toFixed(2);
   }),
-  activationFee: z.union([z.string(), z.number()]).nullable().optional().transform((v) => {
+  // Costo di attivazione: 0 è ammesso ("non previsto"), negativo no.
+  activationFee: z.union([z.string(), z.number()]).nullable().optional().transform((v, ctx) => {
     if (v === undefined || v === null || v === "") return null;
     const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
-    return isNaN(n) ? null : n.toFixed(2);
+    if (isNaN(n)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Costo di attivazione non valido" });
+      return z.NEVER;
+    }
+    if (n < 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Il costo di attivazione non può essere negativo" });
+      return z.NEVER;
+    }
+    return n.toFixed(2);
   }),
 });
 

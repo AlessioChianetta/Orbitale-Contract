@@ -96,8 +96,20 @@ const contractFormSchema = z.object({
   // backend che le formatta e le inietta nei placeholder
   // {{livello_accesso}}, {{canone_mensile}}, {{costo_attivazione}}.
   accessLevel: z.string().optional().default(""),
-  monthlyFee: z.number().nonnegative().optional(),
-  activationFee: z.number().nonnegative().optional(),
+  // Canone mensile: se compilato deve essere > 0 (un canone "0" non ha
+  // senso commercialmente e di solito è un errore di compilazione).
+  // valueAsNumber: true di react-hook-form produce NaN per input vuoto,
+  // quindi normalizziamo NaN → undefined prima di validare.
+  monthlyFee: z.preprocess(
+    (v) => (typeof v === "number" && Number.isNaN(v) ? undefined : v),
+    z.number().positive("Il canone mensile deve essere maggiore di 0").optional(),
+  ),
+  // Costo di attivazione: 0 è un valore legittimo ("non previsto dal
+  // livello scelto"), quindi accettiamo >= 0.
+  activationFee: z.preprocess(
+    (v) => (typeof v === "number" && Number.isNaN(v) ? undefined : v),
+    z.number().nonnegative("Il costo di attivazione non può essere negativo").optional(),
+  ),
 }).refine((data) => {
   // In modalità "client_fill" anche le condizioni economiche possono
   // essere lasciate vuote dal venditore: il cliente le vedrà comunque
@@ -454,12 +466,12 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       contractEndDate: contract?.contractEndDate ? new Date(contract.contractEndDate).toISOString().split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to 1 year from now
       isPercentagePartnership: contract?.isPercentagePartnership || false,
       partnershipPercentage: contract?.partnershipPercentage || undefined,
-      accessLevel: (contract as any)?.accessLevel || "",
-      monthlyFee: (contract as any)?.monthlyFee != null && (contract as any)?.monthlyFee !== ""
-        ? Number((contract as any).monthlyFee)
+      accessLevel: contract?.accessLevel || "",
+      monthlyFee: contract?.monthlyFee != null && contract?.monthlyFee !== ""
+        ? Number(contract.monthlyFee)
         : undefined,
-      activationFee: (contract as any)?.activationFee != null && (contract as any)?.activationFee !== ""
-        ? Number((contract as any).activationFee)
+      activationFee: contract?.activationFee != null && contract?.activationFee !== ""
+        ? Number(contract.activationFee)
         : undefined,
       selectedSectionIds: (() => {
         const raw = (contract as { selectedSectionIds?: string[] | null } | undefined)?.selectedSectionIds;
@@ -2254,8 +2266,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         <option value="">Seleziona livello…</option>
                         <option value="Livello 1 — Free">Livello 1 — Free</option>
                         <option value="Livello 2 — Starter">Livello 2 — Starter</option>
-                        <option value="Livello 3 — Silver">Livello 3 — Silver</option>
-                        <option value="Livello 4 — Gold">Livello 4 — Gold</option>
+                        <option value="Livello 3 — Professional">Livello 3 — Professional</option>
+                        <option value="Livello 4 — Setter AI + Hunter">Livello 4 — Setter AI + Hunter</option>
                         <option value="Livello 5 — Enterprise">Livello 5 — Enterprise</option>
                         <option value="Livello 6 — Enterprise + Consulenza">Livello 6 — Enterprise + Consulenza</option>
                       </select>

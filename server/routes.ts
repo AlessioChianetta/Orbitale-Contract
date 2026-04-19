@@ -284,8 +284,20 @@ export function registerRoutes(app: Express): Server {
     // Variabili-prodotto orbitali, valori grezzi (numero o stringa).
     // Vengono iniettate come placeholder formattati lato server.
     accessLevel: z.string().nullable().optional(),
-    monthlyFee: z.union([z.string(), z.number()]).nullable().optional(),
-    activationFee: z.union([z.string(), z.number()]).nullable().optional(),
+    // Stessi vincoli economici dell'insertContractSchema, replicati qui
+    // perché /preview riceve il payload prima del parse principale e
+    // dobbiamo bloccare valori incoerenti (canone <= 0, attivazione < 0)
+    // anche su chiamate API dirette.
+    monthlyFee: z.union([z.string(), z.number()]).nullable().optional().refine((v) => {
+      if (v === undefined || v === null || v === "") return true;
+      const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+      return !isNaN(n) && n > 0;
+    }, { message: "Il canone mensile deve essere maggiore di 0" }),
+    activationFee: z.union([z.string(), z.number()]).nullable().optional().refine((v) => {
+      if (v === undefined || v === null || v === "") return true;
+      const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+      return !isNaN(n) && n >= 0;
+    }, { message: "Il costo di attivazione non può essere negativo" }),
     // Distingue token di anteprima per creazione vs aggiornamento di un
     // contratto già esistente. Il client deve dichiararlo esplicitamente
     // perché il token verrà legato a quello scope.
@@ -892,9 +904,9 @@ export function registerRoutes(app: Express): Server {
         original.contractEndDate ? original.contractEndDate.toISOString() : undefined,
         parseSelectedIds(original.selectedSectionIds),
         {
-          accessLevel: (original as any).accessLevel ?? null,
-          monthlyFee: (original as any).monthlyFee ?? null,
-          activationFee: (original as any).activationFee ?? null,
+          accessLevel: original.accessLevel ?? null,
+          monthlyFee: original.monthlyFee ?? null,
+          activationFee: original.activationFee ?? null,
         },
       );
 
@@ -987,9 +999,9 @@ export function registerRoutes(app: Express): Server {
         contract.contractEndDate ? contract.contractEndDate.toISOString() : undefined,
         parseSelectedIds(contract.selectedSectionIds),
         {
-          accessLevel: (contract as any).accessLevel ?? null,
-          monthlyFee: (contract as any).monthlyFee ?? null,
-          activationFee: (contract as any).activationFee ?? null,
+          accessLevel: contract.accessLevel ?? null,
+          monthlyFee: contract.monthlyFee ?? null,
+          activationFee: contract.activationFee ?? null,
         },
       );
 
@@ -1129,9 +1141,9 @@ export function registerRoutes(app: Express): Server {
         req.body.contractEndDate,
         req.body.selectedSectionIds ?? existingContract.selectedSectionIds ?? null,
         {
-          accessLevel: req.body.accessLevel ?? (existingContract as any).accessLevel ?? null,
-          monthlyFee: req.body.monthlyFee ?? (existingContract as any).monthlyFee ?? null,
-          activationFee: req.body.activationFee ?? (existingContract as any).activationFee ?? null,
+          accessLevel: req.body.accessLevel ?? existingContract.accessLevel ?? null,
+          monthlyFee: req.body.monthlyFee ?? existingContract.monthlyFee ?? null,
+          activationFee: req.body.activationFee ?? existingContract.activationFee ?? null,
         },
       );
 
@@ -1859,9 +1871,9 @@ export function registerRoutes(app: Express): Server {
               contract.contractEndDate ?? undefined,
               contract.selectedSectionIds ?? undefined,
               {
-                accessLevel: (contract as any).accessLevel ?? null,
-                monthlyFee: (contract as any).monthlyFee ?? null,
-                activationFee: (contract as any).activationFee ?? null,
+                accessLevel: contract.accessLevel ?? null,
+                monthlyFee: contract.monthlyFee ?? null,
+                activationFee: contract.activationFee ?? null,
               },
             );
             publicTemplate = {
@@ -1988,9 +2000,9 @@ export function registerRoutes(app: Express): Server {
               contract.contractEndDate,
               contract.selectedSectionIds ?? null,
               {
-                accessLevel: (contract as any).accessLevel ?? null,
-                monthlyFee: (contract as any).monthlyFee ?? null,
-                activationFee: (contract as any).activationFee ?? null,
+                accessLevel: contract.accessLevel ?? null,
+                monthlyFee: contract.monthlyFee ?? null,
+                activationFee: contract.activationFee ?? null,
               },
             );
           }
