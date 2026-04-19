@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { BulkSendConfirmDialog } from "@/components/bulk-send-confirm-dialog";
 import { getRequiredClientFields, getClientType, getMissingClientFields } from "@/lib/required-client-fields";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -79,6 +80,7 @@ export default function SellerDashboard() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [showBulkWizard, setShowBulkWizard] = useState(false);
   const [bulkSending, setBulkSending] = useState(false);
+  const [bulkSendGateOpen, setBulkSendGateOpen] = useState(false);
 
   const downloadPDF = async (contractId: number, contractCode: string) => {
     try {
@@ -366,15 +368,15 @@ export default function SellerDashboard() {
 
   const selectedCount = selectedIds.size;
 
-  const bulkSendSelected = async () => {
-    if (sendableSelectedIds.length === 0) return;
+  const bulkSendSelected = async (previewToken: string, eligibleIds: number[]) => {
+    if (eligibleIds.length === 0) return;
     setBulkSending(true);
     try {
       const res = await fetch("/api/contracts/bulk-send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ids: sendableSelectedIds }),
+        body: JSON.stringify({ ids: eligibleIds, previewToken }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Invio non riuscito");
@@ -391,6 +393,7 @@ export default function SellerDashboard() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
       setSelectedIds(new Set());
+      setBulkSendGateOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Errore", description: e?.message || "Riprova tra poco." });
     } finally {
@@ -539,7 +542,7 @@ export default function SellerDashboard() {
                   {sendableSelectedIds.length > 0 && (
                     <Button
                       size="sm"
-                      onClick={bulkSendSelected}
+                      onClick={() => setBulkSendGateOpen(true)}
                       disabled={bulkSending}
                       className="bg-indigo-600 hover:bg-indigo-700 text-white"
                       data-testid="button-bulk-send"
@@ -838,6 +841,14 @@ export default function SellerDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BulkSendConfirmDialog
+        open={bulkSendGateOpen}
+        onOpenChange={setBulkSendGateOpen}
+        contractIds={sendableSelectedIds}
+        onConfirm={(token, eligibleIds) => bulkSendSelected(token, eligibleIds)}
+        sending={bulkSending}
+      />
     </div>
   );
 }

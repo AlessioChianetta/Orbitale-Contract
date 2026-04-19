@@ -19,6 +19,7 @@ import PaymentCalculatorAdvanced from "./payment-calculator-advanced";
 import EmailConfigBanner, { useEmailStatus } from "./email-config-banner";
 import MissingDataPanel from "./missing-data-panel";
 import CoFillDialog from "./co-fill-dialog";
+import SendConfirmationGate, { type SendGateEmailData, type SendGatePreviewData } from "./send-confirmation-gate";
 import { REQUIRED_CLIENT_FIELDS, SYNCED_FIELD_KEYS, getRequiredClientFields, getClientType, type RequiredClientField, type ClientType } from "@/lib/required-client-fields";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF, validateItalianMobile, looksLikeAddress, ITALIAN_PROVINCES } from "@/lib/validation-utils";
 import { resolveSelectedSections, defaultSelectedIds, parseSections, type ModularSection } from "@shared/sections";
@@ -253,6 +254,21 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<{ template: any; companySettings: any; generatedContent: string } | null>(null);
+
+  // Send-confirmation gate state
+  const [gateOpen, setGateOpen] = useState(false);
+  const [gateLoading, setGateLoading] = useState(false);
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [gatePreviewData, setGatePreviewData] = useState<SendGatePreviewData | null>(null);
+  const [gateEmailData, setGateEmailData] = useState<SendGateEmailData | null>(null);
+  // Riferimento per le opzioni di invio dell'ultima sottomissione (draft vs send),
+  // letto da onSubmit. Evita l'asincronia di setState quando lanciamo
+  // form.handleSubmit() programmaticamente.
+  const sendArgsRef = useRef<{
+    send: boolean;
+    previewToken: string | null;
+    canonicalPayload: Record<string, any> | null;
+  }>({ send: false, previewToken: null, canonicalPayload: null });
 
   // Preset Offerta state
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
@@ -697,41 +713,158 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     }
   };
 
-  const onSubmit = (data: ContractForm) => {
-    // Filter out empty bonus and payment entries
-    const filteredData = {
-      ...data,
-      sendImmediately,
-      sendToEmail,
-      fillMode,
-      autoRenewal: true, // Sempre attivo
-      renewalDuration: data.renewalDuration,
-      // Keep partnershipPercentage as number (no conversion needed)
-      partnershipPercentage: data.partnershipPercentage,
-      clientData: {
-        ...data.clientData,
-        bonus_list: data.clientData.bonus_list?.filter(bonus => 
-          bonus.bonus_descrizione && bonus.bonus_descrizione.trim() !== ""
-        ) || [],
-        // Use rata_list (manual) if available, otherwise use payment_plan (automatic)
-        payment_plan: data.isPercentagePartnership ? [] : (
-          // If we have manual rates (rata_list), ignore payment_plan completely
-          data.clientData.rata_list && data.clientData.rata_list.length > 0 ? [] :
-          // Otherwise use automatic payment_plan, but filter out empty entries
-          data.clientData.payment_plan?.filter(payment => 
-            payment.rata_importo && payment.rata_importo.toString().trim() !== "" && 
-            payment.rata_scadenza && payment.rata_scadenza.trim() !== ""
-          ) || []
-        ),
-        // Manual rates from rate personalizzate
-        rata_list: data.clientData.rata_list?.filter(rata => 
-          rata.rata_importo && rata.rata_importo > 0 && 
-          rata.rata_scadenza && rata.rata_scadenza.trim() !== ""
-        ) || [],
-      },
+  // Costruisce il payload canonico inviato sia a /api/contracts/preview
+  // (per la firma del previewToken HMAC) sia a POST/PUT /api/contracts.
+  // È fondamentale che le due chiamate condividano gli stessi dati,
+  // altrimenti il server rifiuta con PREVIEW_TOKEN_PAYLOAD_CHANGED.
+  const buildCanonicalSendPayload = (raw: ContractForm, sendEmail: string) => {
+    const filteredClient = {
+      ...raw.clientData,
+      bonus_list: raw.clientData.bonus_list?.filter(
+        (b) => b.bonus_descrizione && b.bonus_descrizione.trim() !== "",
+      ) || [],
+      payment_plan: raw.isPercentagePartnership
+        ? []
+        : raw.clientData.rata_list && raw.clientData.rata_list.length > 0
+          ? []
+          : raw.clientData.payment_plan?.filter(
+              (p) =>
+                p.rata_importo &&
+                p.rata_importo.toString().trim() !== "" &&
+                p.rata_scadenza &&
+                p.rata_scadenza.trim() !== "",
+            ) || [],
+      rata_list: raw.clientData.rata_list?.filter(
+        (r) => r.rata_importo && r.rata_importo > 0 && r.rata_scadenza && r.rata_scadenza.trim() !== "",
+      ) || [],
     };
+    return {
+      templateId: raw.templateId,
+      clientData: filteredClient,
+      totalValue: raw.totalValue ? Math.round(raw.totalValue * 100) : null,
+      isPercentagePartnership: !!raw.isPercentagePartnership,
+      partnershipPercentage: raw.partnershipPercentage ?? null,
+      autoRenewal: true,
+      renewalDuration: raw.renewalDuration,
+      contractStartDate: raw.contractStartDate,
+      contractEndDate: raw.contractEndDate,
+      selectedSectionIds: Array.isArray(raw.selectedSectionIds)
+        ? raw.selectedSectionIds
+        : defaultSelectedIds(getTemplateSections(selectedTemplate)),
+      fillMode,
+      sendToEmail: sendEmail,
+    };
+  };
 
-    createContractMutation.mutate(filteredData);
+  // Apre il gate "Conferma invio contratto al cliente": valida i campi
+  // minimi, scarica in parallelo l'anteprima documento (con previewToken
+  // HMAC) e l'anteprima dell'email, poi mostra la modale.
+  const openSendGate = async () => {
+    const values = form.getValues();
+    const templateId = values.templateId || selectedTemplateId;
+    if (!templateId) {
+      toast({ title: "Seleziona un template", description: "Per inviare il contratto devi prima scegliere un template.", variant: "destructive" });
+      scrollToSection("section-template");
+      return;
+    }
+    const cd: any = values.clientData || {};
+    const isPrivato = (cd.tipo_cliente || "azienda") === "privato";
+    if (fillMode === "seller") {
+      const referenteOk = isPrivato ? true : !!cd.cliente_nome;
+      if (!cd.societa || !referenteOk || !cd.email) {
+        toast({
+          title: "Compila i dati cliente",
+          description: isPrivato
+            ? "Servono almeno cognome e nome del cliente ed email per inviare il contratto."
+            : "Servono almeno società, nome del referente ed email del cliente per inviare il contratto.",
+          variant: "destructive",
+        });
+        scrollToSection("section-client");
+        return;
+      }
+      if (values.isPercentagePartnership) {
+        if (!values.partnershipPercentage || values.partnershipPercentage <= 0) {
+          toast({ title: "Inserisci la percentuale di partnership", description: "Deve essere maggiore di zero.", variant: "destructive" });
+          scrollToSection("section-payment");
+          return;
+        }
+      } else if (!values.totalValue || values.totalValue <= 0) {
+        toast({ title: "Inserisci il prezzo totale", description: "Deve essere maggiore di zero.", variant: "destructive" });
+        scrollToSection("section-payment");
+        return;
+      }
+    } else if (!cd.email) {
+      toast({ title: "Inserisci l'email del cliente", description: "Per inviare il link serve almeno un'email valida.", variant: "destructive" });
+      scrollToSection("section-client");
+      return;
+    }
+    const emailToSend = (sendToEmail || cd.email || "").trim();
+    if (!emailToSend) {
+      toast({ title: "Email destinatario mancante", description: "Specifica una casella valida nella sezione Invio.", variant: "destructive" });
+      scrollToSection("section-send");
+      return;
+    }
+
+    setGateLoading(true);
+    setGateError(null);
+    setGatePreviewData(null);
+    setGateEmailData(null);
+    setGateOpen(true);
+    try {
+      const targetContractId = isEditing && contract ? contract.id : (draftContractId ?? undefined);
+      const canonical = buildCanonicalSendPayload(values, emailToSend);
+      // Memorizzo il payload canonico: lo userò invariato in onSubmit
+      // così l'hash che verrà ricalcolato dal server combacia esattamente
+      // con quello firmato dentro il previewToken.
+      sendArgsRef.current = {
+        ...sendArgsRef.current,
+        canonicalPayload: canonical,
+      };
+      const previewPayload = { ...canonical, contractId: targetContractId };
+      const [previewRes, emailRes] = await Promise.all([
+        apiRequest("POST", "/api/contracts/preview", previewPayload),
+        apiRequest("POST", "/api/contracts/preview-email", {
+          contractCode: contract?.contractCode || (isEditing ? contract?.contractCode : "ANTEPRIMA"),
+          emailTo: emailToSend,
+          clientData: canonical.clientData,
+        }),
+      ]);
+      const previewJson = await previewRes.json();
+      const emailJson = await emailRes.json();
+      setGatePreviewData(previewJson);
+      setGateEmailData(emailJson);
+    } catch (err: any) {
+      const msg = err?.message || "Impossibile preparare l'anteprima.";
+      setGateError(msg);
+    } finally {
+      setGateLoading(false);
+    }
+  };
+
+  const onSubmit = (data: ContractForm) => {
+    // Le opzioni di invio sono gestite dal gate di conferma esplicito:
+    // `Salva come bozza` => { send: false }
+    // `Procedi all'invio` (dopo conferma gate) => { send: true, previewToken, canonicalPayload }
+    const { send, previewToken, canonicalPayload } = sendArgsRef.current;
+    // Quando l'utente invia per davvero, riusiamo IL PAYLOAD ESATTO già
+    // mostrato e firmato dal server. Questo garantisce che l'hash
+    // ricalcolato in POST/PUT combaci con quello dentro il previewToken,
+    // evitando falsi positivi di "PAYLOAD_CHANGED".
+    if (send && canonicalPayload) {
+      createContractMutation.mutate({
+        ...(canonicalPayload as any),
+        sendImmediately: true,
+        previewToken,
+      });
+      return;
+    }
+    // Bozza: applico la stessa normalizzazione del payload canonico.
+    const canonical = buildCanonicalSendPayload(data, sendToEmail || "");
+    createContractMutation.mutate({
+      ...(canonical as any),
+      sendImmediately: false,
+      previewToken: null,
+    });
   };
 
   const currentTotalValue = form.watch("totalValue") || 0;
@@ -955,6 +1088,67 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       }}
       onSessionEnd={() => setCoFillToken(null)}
     />
+    {(() => {
+      const values = form.getValues();
+      const cd: any = values.clientData || {};
+      const usingCustomInstallments = Array.isArray(cd.rata_list) && cd.rata_list.length > 0;
+      const rawPaymentData = usingCustomInstallments ? cd.rata_list : (cd.payment_plan || []);
+      const paymentPlan = rawPaymentData
+        .map((p: any, i: number) => ({
+          rata_numero: i + 1,
+          rata_importo: String(p.rata_importo ?? p.amount ?? "0.00"),
+          rata_scadenza: String(p.rata_scadenza ?? p.date ?? ""),
+        }))
+        .filter((p: any) => p.rata_importo && p.rata_importo !== "0.00" && p.rata_scadenza);
+      const predefined = Array.isArray(gatePreviewData?.template?.predefinedBonuses)
+        ? gatePreviewData!.template.predefinedBonuses.map((b: any) => ({
+            bonus_descrizione:
+              (b.description || "") +
+              (b.value ? ` (${b.value}${b.type === "percentage" ? "%" : "€"})` : ""),
+          }))
+        : [];
+      const manual = Array.isArray(cd.bonus_list)
+        ? cd.bonus_list.filter((b: any) => b?.bonus_descrizione)
+        : [];
+      const bonusList = [...predefined, ...manual];
+      return (
+        <SendConfirmationGate
+          open={gateOpen}
+          onOpenChange={(open) => {
+            setGateOpen(open);
+            if (!open) setGateError(null);
+          }}
+          loading={gateLoading}
+          error={gateError}
+          previewData={gatePreviewData}
+          emailData={gateEmailData}
+          documentProps={{
+            clientData: cd,
+            paymentPlan,
+            bonusList,
+            usingCustomInstallments,
+            contract: {
+              isPercentagePartnership: !!values.isPercentagePartnership,
+              partnershipPercentage: values.partnershipPercentage,
+              renewalDuration: values.renewalDuration,
+              contractStartDate: values.contractStartDate,
+              contractEndDate: values.contractEndDate,
+            },
+          }}
+          contextLabel={isEditing && contract ? `Contratto ${contract.contractCode}` : undefined}
+          sending={createContractMutation.isPending && sendArgsRef.current.send}
+          onConfirm={() => {
+            if (!gatePreviewData?.previewToken) return;
+            sendArgsRef.current = {
+              ...sendArgsRef.current,
+              send: true,
+              previewToken: gatePreviewData.previewToken,
+            };
+            form.handleSubmit(onSubmit)();
+          }}
+        />
+      );
+    })()}
     {/* Salva preset dialog */}
     <Dialog open={savePresetDialogOpen} onOpenChange={setSavePresetDialogOpen}>
       <DialogContent className="max-w-md">
@@ -2413,39 +2607,16 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   <EmailConfigBanner compact className="mb-2" />
                 )}
 
-                <div
-                  className={`p-5 rounded-xl border-2 transition-all duration-200 ${
-                    !emailConfigured
-                      ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-70"
-                      : sendImmediately
-                      ? "border-indigo-300 bg-indigo-50/30 cursor-pointer"
-                      : "border-gray-200 hover:border-gray-300 cursor-pointer"
-                  }`}
-                  onClick={() => {
-                    if (!emailConfigured) return;
-                    setSendImmediately(!sendImmediately);
-                  }}
-                  data-testid="toggle-send-immediately"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 mr-6">
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        Invia immediatamente al cliente
-                      </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {emailConfigured
-                          ? "Il contratto verrà inviato subito dopo la generazione"
-                          : "Disponibile dopo aver configurato l'email aziendale"}
+                <div className="p-5 rounded-xl border-2 border-indigo-100 bg-indigo-50/40">
+                  <div className="flex items-start gap-3">
+                    <Send className="h-5 w-5 text-indigo-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-slate-700">
+                      <p className="font-semibold text-slate-900 mb-1">Invio sicuro al cliente</p>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Quando sei pronto, premi <strong>Procedi all'invio</strong>: aprirò una conferma con
+                        l'esatta email che riceverà il cliente, il documento e il link sicuro. Niente parte
+                        finché non confermi.
                       </p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <div className={`w-14 h-7 rounded-full transition-all duration-300 relative ${
-                        emailConfigured && sendImmediately ? "bg-indigo-600" : "bg-gray-200"
-                      }`}>
-                        <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${
-                          emailConfigured && sendImmediately ? "left-[30px]" : "left-0.5"
-                        }`} />
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -2465,33 +2636,43 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         </div>
 
         {/* Footer */}
-        <div className="bg-white/95 backdrop-blur-sm border-t border-gray-100 py-4 px-8 flex justify-end gap-3">
+        <div className="bg-white/95 backdrop-blur-sm border-t border-gray-100 py-4 px-8 flex flex-col sm:flex-row justify-end gap-3">
           <Button
             type="button"
             variant="outline"
             onClick={onClose}
-            disabled={createContractMutation.isPending}
-            className="h-12 min-w-[160px] rounded-xl border border-gray-200 text-slate-700 hover:bg-gray-50"
+            disabled={createContractMutation.isPending || gateLoading}
+            className="h-12 min-w-[140px] rounded-xl border border-gray-200 text-slate-700 hover:bg-gray-50"
           >
             Annulla
           </Button>
           <Button
-            type="submit"
-            form="contract-form"
-            disabled={createContractMutation.isPending}
-            className="h-12 min-w-[160px] rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white shadow-lg hover:shadow-xl transition-all duration-200"
+            type="button"
+            variant="outline"
             onClick={() => {
-              console.log("Submit button clicked");
-              console.log("Form values:", form.getValues());
-              console.log("Form errors:", form.formState.errors);
-              console.log("Is valid:", form.formState.isValid);
-              console.log("Partnership mode:", isPercentageMode);
-              console.log("Partnership percentage:", form.getValues("partnershipPercentage"));
+              sendArgsRef.current = { send: false, previewToken: null, canonicalPayload: null };
+              form.handleSubmit(onSubmit)();
             }}
+            disabled={createContractMutation.isPending || gateLoading}
+            className="h-12 min-w-[160px] rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+            data-testid="button-save-as-draft"
           >
-            {createContractMutation.isPending 
-              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generazione...</>
-              : isEditing ? "Aggiorna Contratto" : "Genera e Invia Contratto"
+            {createContractMutation.isPending && !sendArgsRef.current.send
+              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvataggio…</>
+              : <>Salva come bozza</>
+            }
+          </Button>
+          <Button
+            type="button"
+            onClick={openSendGate}
+            disabled={createContractMutation.isPending || gateLoading || !emailConfigured}
+            className="h-12 min-w-[200px] rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50"
+            data-testid="button-open-send-gate"
+            aria-label="Apri la conferma di invio del contratto al cliente"
+          >
+            {gateLoading
+              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Preparazione anteprima…</>
+              : <><Send className="h-4 w-4 mr-2" />Procedi all'invio</>
             }
           </Button>
         </div>

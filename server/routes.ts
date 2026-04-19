@@ -12,7 +12,8 @@ import cookie from "cookie";
 // @ts-ignore - no shipped types
 import signature from "cookie-signature";
 import { generatePDF } from "./services/pdf-generator-new";
-import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, getBaseUrl } from "./services/email-service";
+import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, getBaseUrl, buildContractRequestEmail } from "./services/email-service";
+import { hashContractPayload, hashBulkIds, signPreviewToken, verifyPreviewToken, type PreviewScope } from "./services/preview-token";
 import { generateOTP, sendOTP } from "./services/otp-service";
 import { nanoid } from "nanoid";
 import path from "path";
@@ -144,7 +145,17 @@ export function registerRoutes(app: Express): Server {
     contractStartDate: z.string().optional(),
     contractEndDate: z.string().optional(),
     selectedSectionIds: z.array(z.string()).optional(),
+    fillMode: z.enum(["seller", "client_fill"]).optional(),
+    sendToEmail: z.string().optional(),
+    // Distingue token di anteprima per creazione vs aggiornamento di un
+    // contratto già esistente. Il client deve dichiararlo esplicitamente
+    // perché il token verrà legato a quello scope.
+    contractId: z.number().int().positive().optional(),
   });
+
+  function previewScopeFor(input: { contractId?: number | null }): PreviewScope {
+    return input.contractId ? (`update-contract:${input.contractId}` as const) : "create-contract";
+  }
 
   app.post("/api/contracts/preview", requireAuth, async (req, res) => {
     try {
@@ -180,13 +191,68 @@ export function registerRoutes(app: Express): Server {
             logoUrl: settings.logoUrl,
           }
         : null;
-      res.json({ template, generatedContent, companySettings: safeSettings });
+      const scope = previewScopeFor({ contractId: input.contractId ?? null });
+      const payloadHash = hashContractPayload(input);
+      const previewToken = signPreviewToken({ hash: payloadHash, scope, userId: req.user.id });
+      res.json({
+        template,
+        generatedContent,
+        companySettings: safeSettings,
+        previewToken,
+        previewTokenScope: scope,
+        previewTokenExpiresAt: Date.now() + 10 * 60 * 1000,
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Dati anteprima non validi", errors: error.errors });
       }
       console.error("Preview error:", error);
       res.status(500).json({ message: "Impossibile generare l'anteprima" });
+    }
+  });
+
+  // --------------------------------------------------------------
+  // Anteprima dell'EMAIL che il cliente riceverà al momento dell'invio.
+  // Restituisce subject, mittente, destinatario, link di firma e l'HTML
+  // identico a quello che spediremo. Non spedisce nulla.
+  // --------------------------------------------------------------
+  app.post("/api/contracts/preview-email", requireAuth, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const contractCode = (body.contractCode || "ANTEPRIMA").toString();
+      const emailTo = (body.emailTo || body.sendToEmail || "").toString() || undefined;
+      const clientData = body.clientData || {};
+
+      // Verifica preventiva configurazione SMTP per dare un messaggio chiaro
+      const emailStatus = await getEmailConfigStatusForCompany(req.user.companyId);
+      if (!emailStatus.configured) {
+        return res.status(400).json({
+          message: "Email aziendale non configurata: impossibile generare l'anteprima dell'email.",
+          code: "EMAIL_NOT_CONFIGURED",
+          emailConfig: emailStatus,
+        });
+      }
+
+      const built = await buildContractRequestEmail({
+        contract: { sellerId: req.user.id, clientData } as any,
+        contractCode,
+        emailTo,
+        companyId: req.user.companyId,
+      });
+      res.json({
+        subject: built.subject,
+        html: built.html,
+        fromName: built.fromName,
+        fromEmail: built.fromEmail,
+        fromHeader: built.fromHeader,
+        to: built.to,
+        signLink: built.signLink,
+        clientName: built.clientName,
+        contractCode: built.contractCode,
+      });
+    } catch (error: any) {
+      console.error("Preview-email error:", error?.message || error);
+      res.status(400).json({ message: error?.message || "Impossibile generare l'anteprima email" });
     }
   });
 
@@ -850,6 +916,19 @@ export function registerRoutes(app: Express): Server {
       // contract half-saved with the client seeing an error.
       let emailNotConfigured: { configured: boolean; missingFields: string[] } | null = null;
       if (req.body.sendImmediately) {
+        // Gate: invio immediato richiede sempre un previewToken HMAC valido
+        const expectedHash = hashContractPayload(req.body);
+        const verification = verifyPreviewToken(req.body.previewToken, {
+          hash: expectedHash,
+          scope: `update-contract:${contractId}`,
+          userId: req.user.id,
+        });
+        if (!verification.ok) {
+          return res.status(400).json({
+            message: verification.reason,
+            code: `PREVIEW_TOKEN_${verification.code}`,
+          });
+        }
         const emailStatus = await getEmailConfigStatusForCompany(req.user.companyId);
         if (!emailStatus.configured) {
           emailNotConfigured = emailStatus;
@@ -1001,6 +1080,22 @@ export function registerRoutes(app: Express): Server {
 
       // Send email if contract is being sent immediately
       if (req.body.sendImmediately) {
+        // Gate: l'invio immediato richiede sempre un previewToken HMAC
+        // valido, prodotto da /api/contracts/preview e poi confermato
+        // dall'utente nel gate "Conferma invio contratto al cliente".
+        const expectedHash = hashContractPayload(req.body);
+        const verification = verifyPreviewToken(req.body.previewToken, {
+          hash: expectedHash,
+          scope: "create-contract",
+          userId: req.user.id,
+        });
+        if (!verification.ok) {
+          await storage.deleteContracts([contract.id], req.user.companyId).catch(() => {});
+          return res.status(400).json({
+            message: verification.reason,
+            code: `PREVIEW_TOKEN_${verification.code}`,
+          });
+        }
         const emailToSend = req.body.sendToEmail || contractData.clientData.email;
         console.log('🚀 Richiesta invio immediato contratto');
         console.log('📧 Email di destinazione:', emailToSend);
@@ -1204,12 +1299,86 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // BULK send preview: restituisce l'elenco dei destinatari + un previewToken
+  // HMAC che il client dovrà rispedire al momento dell'invio reale.
+  app.post("/api/contracts/bulk-send/preview", requireAuth, async (req, res) => {
+    try {
+      const ids: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map((x: any) => Number(x)).filter(Boolean) : [];
+      if (ids.length === 0) return res.status(400).json({ message: "Nessun contratto selezionato." });
+      if (ids.length > BULK_IDS_MAX) return res.status(400).json({ message: `Massimo ${BULK_IDS_MAX} contratti per invio.` });
+
+      const emailStatus = await getEmailConfigStatusForCompany(req.user.companyId);
+      const recipients: Array<{
+        id: number;
+        contractCode: string;
+        templateName: string | null;
+        clientLabel: string;
+        email: string | null;
+        eligible: boolean;
+        reason?: string;
+      }> = [];
+
+      for (const id of ids) {
+        const c = await storage.getContract(id, req.user.companyId);
+        if (!c) { recipients.push({ id, contractCode: "?", templateName: null, clientLabel: "?", email: null, eligible: false, reason: "non trovato" }); continue; }
+        if (req.user.role === "seller" && c.sellerId !== req.user.id) {
+          recipients.push({ id, contractCode: c.contractCode, templateName: null, clientLabel: "?", email: null, eligible: false, reason: "non autorizzato" }); continue;
+        }
+        const cd: any = c.clientData || {};
+        const clientLabel = cd.societa || cd.cliente_nome || cd.nome || "—";
+        const email = c.sentToEmail || cd.email || null;
+        let templateName: string | null = null;
+        try {
+          const t = await storage.getTemplate(c.templateId, req.user.companyId);
+          templateName = t?.name ?? null;
+        } catch {}
+        let eligible = true;
+        let reason: string | undefined;
+        if (c.isArchived) { eligible = false; reason = "contratto archiviato"; }
+        else if (c.status !== "draft") { eligible = false; reason = `stato non valido (${c.status})`; }
+        else if ((c as any).fillMode !== "client_fill") { eligible = false; reason = "non è in modalità 'compila il cliente'"; }
+        else if (!email) { eligible = false; reason = "email mancante"; }
+        recipients.push({ id, contractCode: c.contractCode, templateName, clientLabel, email, eligible, reason });
+      }
+
+      const eligibleIds = recipients.filter((r) => r.eligible).map((r) => r.id);
+      const previewToken = eligibleIds.length > 0
+        ? signPreviewToken({ hash: hashBulkIds(eligibleIds), scope: "bulk-send", userId: req.user.id })
+        : null;
+
+      res.json({
+        recipients,
+        eligibleIds,
+        previewToken,
+        previewTokenExpiresAt: previewToken ? Date.now() + 10 * 60 * 1000 : null,
+        emailConfig: emailStatus,
+      });
+    } catch (err: any) {
+      console.error("[bulk-send/preview] errore:", err?.message || err);
+      res.status(500).json({ message: "Anteprima invio in blocco non riuscita." });
+    }
+  });
+
   // BULK send: prende una lista di id e invia il link a ognuno (best-effort).
   app.post("/api/contracts/bulk-send", requireAuth, async (req, res) => {
     try {
       const ids: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map((x: any) => Number(x)).filter(Boolean) : [];
       if (ids.length === 0) return res.status(400).json({ message: "Nessun contratto selezionato." });
       if (ids.length > BULK_IDS_MAX) return res.status(400).json({ message: `Massimo ${BULK_IDS_MAX} contratti per invio.` });
+
+      // Gate: invio in blocco richiede sempre un previewToken HMAC firmato
+      // sull'esatto insieme di id che l'utente ha visto nell'anteprima.
+      const tokenCheck = verifyPreviewToken(req.body?.previewToken, {
+        hash: hashBulkIds(ids),
+        scope: "bulk-send",
+        userId: req.user.id,
+      });
+      if (!tokenCheck.ok) {
+        return res.status(400).json({
+          message: tokenCheck.reason,
+          code: `PREVIEW_TOKEN_${tokenCheck.code}`,
+        });
+      }
 
       const emailStatus = await getEmailConfigStatusForCompany(req.user.companyId);
       if (!emailStatus.configured) {

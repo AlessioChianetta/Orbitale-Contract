@@ -159,6 +159,67 @@ export function getBaseUrl(): string {
   return "http://localhost:5000";
 }
 
+export interface ContractRequestEmailContent {
+  subject: string;
+  html: string;
+  fromName: string;
+  fromEmail: string;
+  fromHeader: string;
+  to: string;
+  signLink: string;
+  contractCode: string;
+  clientName: string;
+}
+
+/**
+ * Costruisce il contenuto dell'email di richiesta firma senza spedirla.
+ * Usato sia da `sendContractEmail` (per l'invio reale) sia dal gate di
+ * conferma per mostrare al venditore una preview esatta di ciò che il
+ * cliente riceverà.
+ */
+export async function buildContractRequestEmail(opts: {
+  contract: Pick<Contract, "sellerId" | "clientData">;
+  contractCode: string;
+  emailTo?: string;
+  companyId?: number | null;
+}): Promise<ContractRequestEmailContent> {
+  const settings = opts.companyId
+    ? await loadSettingsForCompany(opts.companyId)
+    : await loadSettingsForSeller(opts.contract.sellerId);
+  if (!settings) {
+    throw new Error("Impostazioni azienda non trovate per il venditore del contratto.");
+  }
+  if (!settings.emailFromAddress) {
+    throw new Error("Indirizzo mittente non configurato. Imposta 'Email mittente' in Impostazioni Azienda → Configurazione Email.");
+  }
+
+  const fromName = settings.emailFromName?.trim() || settings.companyName?.trim() || FALLBACK_DISPLAY_NAME;
+  const fromEmail = settings.emailFromAddress;
+
+  const clientData = (opts.contract.clientData as any) || {};
+  const clientEmail = (opts.emailTo || clientData?.email || "").trim();
+  const clientName = clientData?.cliente_nome || clientData?.nome || "Cliente";
+  if (!clientEmail) {
+    throw new Error("Email destinatario mancante per l'invio del contratto.");
+  }
+
+  const baseUrl = getBaseUrl();
+  const signLink = `${baseUrl}/client/${opts.contractCode}?email=${encodeURIComponent(clientEmail)}`;
+  const html = renderContractRequestHtml({ clientName, contractUrl: signLink, contractCode: opts.contractCode, senderName: fromName });
+  const subject = `Nuovo contratto da firmare — ${fromName}`;
+  return {
+    subject,
+    html,
+    fromName,
+    fromEmail,
+    fromHeader: buildFrom(fromName, fromEmail),
+    to: clientEmail,
+    signLink,
+    contractCode: opts.contractCode,
+    clientName,
+  };
+}
+
 export async function sendContractEmail(
   contract: Contract,
   contractCode: string,
@@ -168,33 +229,22 @@ export async function sendContractEmail(
   if (!settings) {
     throw new Error("Impostazioni azienda non trovate per il venditore del contratto.");
   }
-  const { transporter, fromAddress, fromName } = getTransporterForCompany(settings);
-
-  const clientData = contract.clientData as any;
-  const clientEmail = emailTo || clientData?.email;
-  const clientName = clientData?.cliente_nome || clientData?.nome || "Cliente";
-
-  if (!clientEmail) {
-    throw new Error("Email destinatario mancante per l'invio del contratto.");
-  }
-
-  const baseUrl = getBaseUrl();
-  const contractUrl = `${baseUrl}/client/${contractCode}?email=${encodeURIComponent(clientEmail)}`;
-  const html = renderContractRequestHtml({ clientName, contractUrl, contractCode, senderName: fromName });
+  const { transporter } = getTransporterForCompany(settings);
+  const built = await buildContractRequestEmail({ contract, contractCode, emailTo });
 
   console.log("📤 Invio email contratto via SMTP", {
     host: settings.smtpHost,
-    to: clientEmail,
-    from: buildFrom(fromName, fromAddress),
+    to: built.to,
+    from: built.fromHeader,
     contractCode,
   });
 
   try {
     const info = await transporter.sendMail({
-      from: buildFrom(fromName, fromAddress),
-      to: clientEmail,
-      subject: `Nuovo contratto da firmare — ${fromName}`,
-      html,
+      from: built.fromHeader,
+      to: built.to,
+      subject: built.subject,
+      html: built.html,
     });
     console.log("✅ Email contratto inviata, messageId:", info.messageId);
   } catch (error: any) {
