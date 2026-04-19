@@ -82,10 +82,12 @@ ${H3}Il Team di Dipendenti AI (riferimento trasversale)</h3>
 // version of the contract stays in sync with the modular sections (single
 // source of truth — same 36.x titles and same content).
 function buildInlinePackagesHtml(): string {
+  // Each pkg.content already includes its own CARD wrapper (<div>…</div>),
+  // so we only emit the heading above it. Wrapping again would leave
+  // unbalanced <div> elements and break PDF rendering.
   return getOrbitalServicePackages()
     .map(
       (pkg) => `
-${CARD}
 ${H3}${pkg.title}</h3>
 ${pkg.content}`,
     )
@@ -316,12 +318,23 @@ ${H2}ARTICOLO 3 — PACCHETTI DI SERVIZI INCLUSI (Capitolo 36 del Manuale)</h2>
 <p style="font-style: italic; color: #64748b;">La Piattaforma è organizzata in <strong>11 Pacchetti di Servizi</strong> (Capitolo 36 del Manuale operativo: 36.1 → 36.11), descritti in dettaglio affinché il Cliente abbia piena consapevolezza di ciò che acquisisce. La disponibilità di ciascun Pacchetto dipende dal Livello di Accesso sottoscritto ({{livello_accesso}}).</p>
 `;
 
+const BONUS_BLOCK = `
+${H2}BONUS INCLUSI</h2>
+<p style="font-style: italic; color: #64748b;">Eventuali bonus aggiuntivi specifici dell'offerta sottoscritta dal Cliente.</p>
+<ul>
+<!-- BLOCK:BONUS_LIST -->
+<li>{{bonus_descrizione}}</li>
+<!-- END_BLOCK:BONUS_LIST -->
+</ul>
+`;
+
 export function getOrbitalContractFullHtml(): string {
   return `${PREMESSE_AND_DEFINITIONS}
 ${ART3_HEADER}
 ${TEAM_TABLE}
 ${buildInlinePackagesHtml()}
 ${ACCESS_LEVELS_TABLE_NO_PRICES}
+${BONUS_BLOCK}
 ${REMAINING_ARTICLES}`;
 }
 
@@ -335,6 +348,7 @@ ${TEAM_TABLE}
 ${SECTIONS_MARKER}
 
 ${ACCESS_LEVELS_TABLE_NO_PRICES}
+${BONUS_BLOCK}
 ${REMAINING_ARTICLES}`;
 }
 

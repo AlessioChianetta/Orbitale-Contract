@@ -661,7 +661,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                             form.setValue("sections", packages, { shouldDirty: true });
                             toast({
                               title: "Template modulare importato",
-                              description: "Corpo del contratto e 11 Pacchetti di Servizi caricati. Personalizza la selezione per ogni contratto.",
+                              description: `Corpo del contratto e ${packages.length} Pacchetti di Servizi caricati. Personalizza la selezione per ogni contratto.`,
                             });
                           }}
                           disabled={isPending}
