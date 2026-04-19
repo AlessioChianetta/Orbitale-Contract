@@ -229,7 +229,7 @@ export default function SendConfirmationGate(props: SendConfirmationGateProps) {
                       <iframe
                         title="Anteprima email"
                         srcDoc={emailData.html}
-                        sandbox=""
+                        sandbox="allow-popups allow-popups-to-escape-sandbox"
                         className="w-full h-[600px] bg-white"
                         data-testid="iframe-preview-email"
                       />

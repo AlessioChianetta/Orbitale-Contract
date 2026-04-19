@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Loader2, Mail, ShieldCheck, AlertTriangle, Send, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { useEffect, useState, Fragment } from "react";
+import { Loader2, Mail, ShieldCheck, AlertTriangle, Send, Clock, CheckCircle2, XCircle, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,6 +14,8 @@ type Recipient = {
   templateName: string | null;
   clientLabel: string;
   email: string | null;
+  totalEuro: number | null;
+  emailSubject: string;
   eligible: boolean;
   reason?: string;
 };
@@ -40,12 +42,14 @@ export function BulkSendConfirmDialog({ open, onOpenChange, contractIds, onConfi
   const [data, setData] = useState<BulkPreviewResponse | null>(null);
   const [consent, setConsent] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) {
       setData(null);
       setConsent(false);
       setError(null);
+      setExpandedId(null);
       return;
     }
     let cancelled = false;
@@ -171,39 +175,77 @@ export function BulkSendConfirmDialog({ open, onOpenChange, contractIds, onConfi
                   <table className="w-full text-sm">
                     <thead className="text-xs text-slate-500 uppercase">
                       <tr>
-                        <th className="text-left font-medium pb-2">Stato</th>
-                        <th className="text-left font-medium pb-2">Codice</th>
-                        <th className="text-left font-medium pb-2">Cliente</th>
-                        <th className="text-left font-medium pb-2">Email</th>
+                        <th className="text-left font-medium pb-2 w-20">Stato</th>
+                        <th className="text-left font-medium pb-2">Codice / Cliente</th>
+                        <th className="text-left font-medium pb-2">Destinazione</th>
+                        <th className="text-right font-medium pb-2">Importo</th>
+                        <th className="text-right font-medium pb-2 w-12"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.recipients.map((r) => (
-                        <tr key={r.id} className="border-t border-slate-100" data-testid={`bulk-recipient-${r.id}`}>
-                          <td className="py-2 align-top">
-                            {r.eligible ? (
-                              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                                <CheckCircle2 className="h-3 w-3 mr-1" /> OK
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700" title={r.reason}>
-                                <XCircle className="h-3 w-3 mr-1" /> Esclusa
-                              </Badge>
+                      {data.recipients.map((r) => {
+                        const isOpen = expandedId === r.id;
+                        return (
+                          <Fragment key={r.id}>
+                            <tr className="border-t border-slate-100" data-testid={`bulk-recipient-${r.id}`}>
+                              <td className="py-2 align-top">
+                                {r.eligible ? (
+                                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                                    <CheckCircle2 className="h-3 w-3 mr-1" /> OK
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700" title={r.reason}>
+                                    <XCircle className="h-3 w-3 mr-1" /> Esclusa
+                                  </Badge>
+                                )}
+                              </td>
+                              <td className="py-2 align-top">
+                                <div className="font-mono text-xs text-slate-600">{r.contractCode}</div>
+                                <div className="text-slate-800">{r.clientLabel || "—"}</div>
+                                {r.templateName && <div className="text-xs text-slate-500">{r.templateName}</div>}
+                                {!r.eligible && r.reason && (
+                                  <div className="text-xs text-rose-600">{r.reason}</div>
+                                )}
+                              </td>
+                              <td className="py-2 text-slate-700 align-top">
+                                <div className="break-all">{r.email || <span className="text-rose-600">—</span>}</div>
+                              </td>
+                              <td className="py-2 text-right text-slate-700 align-top">
+                                {r.totalEuro != null
+                                  ? `€ ${r.totalEuro.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  : "—"}
+                              </td>
+                              <td className="py-2 text-right align-top">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setExpandedId(isOpen ? null : r.id)}
+                                  data-testid={`bulk-preview-toggle-${r.id}`}
+                                  aria-label={isOpen ? "Nascondi anteprima email" : "Mostra anteprima email"}
+                                >
+                                  {isOpen ? <ChevronUp className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                              </td>
+                            </tr>
+                            {isOpen && (
+                              <tr className="border-t border-slate-100 bg-slate-50">
+                                <td colSpan={5} className="px-3 py-3">
+                                  <div className="text-xs text-slate-500 mb-1">Oggetto email:</div>
+                                  <div className="text-sm text-slate-900 mb-2 italic">{r.emailSubject || "—"}</div>
+                                  <div className="text-xs text-slate-500 mb-1">Link sicuro per il cliente:</div>
+                                  <div className="text-xs font-mono text-indigo-700 break-all">
+                                    {`${window.location.origin}/client/${r.contractCode}`}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 mt-2">
+                                    Il token di firma viene generato e attivato al momento dell'invio.
+                                  </div>
+                                </td>
+                              </tr>
                             )}
-                          </td>
-                          <td className="py-2 font-mono text-xs text-slate-600 align-top">{r.contractCode}</td>
-                          <td className="py-2 text-slate-800 align-top">
-                            {r.clientLabel || "—"}
-                            {r.templateName && <div className="text-xs text-slate-500">{r.templateName}</div>}
-                            {!r.eligible && r.reason && (
-                              <div className="text-xs text-rose-600">{r.reason}</div>
-                            )}
-                          </td>
-                          <td className="py-2 text-slate-700 break-all align-top">
-                            {r.email || <span className="text-rose-600">—</span>}
-                          </td>
-                        </tr>
-                      ))}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </ScrollArea>

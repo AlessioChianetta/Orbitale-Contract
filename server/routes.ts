@@ -234,7 +234,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const built = await buildContractRequestEmail({
-        contract: { sellerId: req.user.id, clientData } as any,
+        contract: { sellerId: req.user.id, clientData },
         contractCode,
         emailTo,
         companyId: req.user.companyId,
@@ -1308,25 +1308,45 @@ export function registerRoutes(app: Express): Server {
       if (ids.length > BULK_IDS_MAX) return res.status(400).json({ message: `Massimo ${BULK_IDS_MAX} contratti per invio.` });
 
       const emailStatus = await getEmailConfigStatusForCompany(req.user.companyId);
+      const settings = await storage.getCompanySettings(req.user.companyId);
+      const subjectTemplate = settings?.contractTitle
+        ? `${settings.contractTitle} — {{codice}}`
+        : "Compila e firma il contratto — {{codice}}";
       const recipients: Array<{
         id: number;
         contractCode: string;
         templateName: string | null;
         clientLabel: string;
         email: string | null;
+        totalEuro: number | null;
+        emailSubject: string;
         eligible: boolean;
         reason?: string;
       }> = [];
 
       for (const id of ids) {
         const c = await storage.getContract(id, req.user.companyId);
-        if (!c) { recipients.push({ id, contractCode: "?", templateName: null, clientLabel: "?", email: null, eligible: false, reason: "non trovato" }); continue; }
+        if (!c) {
+          recipients.push({
+            id, contractCode: "?", templateName: null, clientLabel: "?",
+            email: null, totalEuro: null, emailSubject: "",
+            eligible: false, reason: "non trovato",
+          });
+          continue;
+        }
         if (req.user.role === "seller" && c.sellerId !== req.user.id) {
-          recipients.push({ id, contractCode: c.contractCode, templateName: null, clientLabel: "?", email: null, eligible: false, reason: "non autorizzato" }); continue;
+          recipients.push({
+            id, contractCode: c.contractCode, templateName: null, clientLabel: "?",
+            email: null, totalEuro: null, emailSubject: "",
+            eligible: false, reason: "non autorizzato",
+          });
+          continue;
         }
         const cd: any = c.clientData || {};
         const clientLabel = cd.societa || cd.cliente_nome || cd.nome || "—";
         const email = c.sentToEmail || cd.email || null;
+        const totalEuro = typeof c.totalValue === "number" ? c.totalValue / 100 : null;
+        const emailSubject = subjectTemplate.replace("{{codice}}", c.contractCode);
         let templateName: string | null = null;
         try {
           const t = await storage.getTemplate(c.templateId, req.user.companyId);
@@ -1338,7 +1358,10 @@ export function registerRoutes(app: Express): Server {
         else if (c.status !== "draft") { eligible = false; reason = `stato non valido (${c.status})`; }
         else if ((c as any).fillMode !== "client_fill") { eligible = false; reason = "non è in modalità 'compila il cliente'"; }
         else if (!email) { eligible = false; reason = "email mancante"; }
-        recipients.push({ id, contractCode: c.contractCode, templateName, clientLabel, email, eligible, reason });
+        recipients.push({
+          id, contractCode: c.contractCode, templateName, clientLabel,
+          email, totalEuro, emailSubject, eligible, reason,
+        });
       }
 
       const eligibleIds = recipients.filter((r) => r.eligible).map((r) => r.id);
