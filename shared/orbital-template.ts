@@ -53,7 +53,7 @@ ${H2}ARTICOLO 2 — OGGETTO DEL CONTRATTO</h2>
 
 const TEAM_TABLE = `
 ${CARD}
-${H3}3.1. Il Team di Dipendenti AI</h3>
+${H3}Il Team di Dipendenti AI (riferimento trasversale)</h3>
 <p>La Piattaforma mette a disposizione del Cliente un team completo di Dipendenti AI specializzati, ciascuno dedicato a una funzione aziendale specifica. La disponibilità di ciascun Dipendente dipende dal Livello di Accesso sottoscritto.</p>
 <table style="width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px;">
 <thead>
@@ -78,156 +78,19 @@ ${H3}3.1. Il Team di Dipendenti AI</h3>
 </div>
 `;
 
-const FULL_PACKAGES_INLINE = `
+// Built dynamically from getOrbitalServicePackages() so the inline (full)
+// version of the contract stays in sync with the modular sections (single
+// source of truth — same 36.x titles and same content).
+function buildInlinePackagesHtml(): string {
+  return getOrbitalServicePackages()
+    .map(
+      (pkg) => `
 ${CARD}
-${H3}3.2. Setter AI — Risposta Automatica e Prenotazione Appuntamenti</h3>
-<p>Il Setter AI (Stella) è il Dipendente AI centrale della Piattaforma. Funziona come un venditore virtuale che:</p>
-<ul>
-<li>risponde automaticamente ai messaggi in arrivo su WhatsApp e Instagram in pochi secondi, 24/7;</li>
-<li>attinge alla Knowledge Base del Cliente per fornire risposte accurate basate sui documenti caricati;</li>
-<li>qualifica i lead attraverso domande strategiche utilizzando il framework BANT (Budget, Authority, Need, Timeline);</li>
-<li>propone fasce orarie per appuntamenti basate sulla disponibilità del calendario del Cliente;</li>
-<li>prenota automaticamente gli appuntamenti e invia conferma al lead e notifica al Cliente;</li>
-<li>gestisce le obiezioni più comuni seguendo script personalizzabili con variazioni naturali nel linguaggio;</li>
-<li>esegue l'escalation automatica a un operatore umano quando il lead lo richiede o quando rileva frustrazione;</li>
-<li>opera con un ritardo configurabile tra le risposte (3–8 secondi) per simulare un comportamento naturale.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.3. Hunter — Lead Generation Proattiva con AI</h3>
-<p>Hunter è il Dipendente AI che trova nuovi clienti per il Cliente:</p>
-<ul>
-<li>cerca su Google Maps e Google Search le aziende che corrispondono al profilo ideale del Cliente;</li>
-<li>per ogni lead trovato visita il sito, analizza la presenza online, estrae email e telefoni, identifica i membri del team;</li>
-<li>assegna un punteggio di compatibilità AI (0-100) basato sul contesto commerciale del Cliente;</li>
-<li>contatta automaticamente i lead migliori tramite outreach multicanale: telefono (Alessia AI), WhatsApp (Setter AI), email (Millie);</li>
-<li>implementa anti-duplicazione a 4 livelli (place_id, nome azienda, telefono, dominio) per evitare contatti duplicati.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.4. Alessia AI — La Voce del Business</h3>
-<p>Alessia AI è il Dipendente AI vocale della Piattaforma:</p>
-<ul>
-<li>effettua chiamate outbound ai lead con voce naturale per qualificarli e confermare appuntamenti;</li>
-<li>gestisce il centralino AI inbound rispondendo al telefono, comprendendo l'intento e smistando verso la persona giusta;</li>
-<li>riconosce automaticamente i chiamanti già noti e personalizza il saluto e il contesto;</li>
-<li>gestisce coda d'attesa con musica d'attesa e callback automatico;</li>
-<li>trascrive e riassume ogni chiamata con riepilogo disponibile nella Piattaforma;</li>
-<li>tono, velocità, lingua e stile sono personalizzabili per riflettere l'identità del Cliente.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.5. Millie — Gestione Email Intelligente</h3>
-<ul>
-<li>monitora la casella email in tempo reale, classifica per tipo (richiesta info, accettazione call, problema, fattura) e urgenza;</li>
-<li>consulta la Knowledge Base e genera risposte professionali con punteggio di confidenza (0–100%);</li>
-<li>le bozze con confidenza sopra l'80% possono partire automaticamente, le altre restano in attesa di approvazione con un click;</li>
-<li>programma follow-up automatici multi-touch (giorno 3, 7, 14) con messaggi crescenti in urgenza;</li>
-<li>supporta profili commerciali per-account; implementa anti-loop intelligente per evitare risposte a bounce/newsletter/auto-reply.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.6. Sofia (AdVisage AI) — La Fabbrica Creativa</h3>
-<ul>
-<li>analizza i testi pubblicitari estraendo gancio emotivo, target, problema e soluzione;</li>
-<li>genera concept creativi multi-piattaforma con mood e stili diversi (Call Out Benefici, Social Proof, Noi vs Competitor, Offerta USP, Risultato Desiderabile) in versione "Clean" e "Text Overlay";</li>
-<li>genera idee di contenuto personalizzate basate su brand e target del Cliente;</li>
-<li>integra calendario editoriale e pubblicazione automatica tramite Publer su Instagram, Facebook, LinkedIn, X.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.7. Knowledge Base — Il Cervello Documentale</h3>
-<ul>
-<li>caricamento di documenti in formato PDF, DOCX, TXT e URL di pagine web;</li>
-<li>organizzazione per categorie (Servizi e Prezzi, Materiale Formativo, Procedure Interne, FAQ Clienti);</li>
-<li>configurazione granulare dell'accesso: ogni documento può essere reso disponibile a specifici Dipendenti AI;</li>
-<li>tecnologia RAG: l'AI cerca nei documenti, estrae informazioni rilevanti, formula risposte con fonti verificabili;</li>
-<li>l'AI non inventa mai informazioni: se non trova la risposta nei documenti, lo comunica chiaramente.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.8. Corsi e Formazione — AI Course Builder</h3>
-<ul>
-<li>generazione automatica di corsi strutturati a partire da un URL di un video YouTube;</li>
-<li>estrazione automatica della trascrizione, analisi dei contenuti, generazione di moduli, lezioni e quiz;</li>
-<li>percorsi formativi strutturati con tracciamento dei progressi e percentuale di completamento;</li>
-<li>sistema esercizi con feedback: template riutilizzabili, consegna, revisione e valutazione;</li>
-<li>un video di 1 ora può generare un corso completo (5 moduli, 15 lezioni, 5 quiz) in circa 10 minuti.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.9. Onboarding Venditori e Dipendenti</h3>
-<ul>
-<li>creazione di account per venditori e dipendenti con invio automatico delle credenziali via email;</li>
-<li>assegnazione di corsi formativi e percorsi di onboarding strutturati;</li>
-<li>ogni dipendente dispone della propria dashboard con progressi, esercizi, calendario e accesso all'AI;</li>
-<li>monitoraggio dei progressi formativi, revisione esercizi e feedback.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.10. Content Marketing Studio</h3>
-<ul>
-<li>generatore di idee per contenuti basato sull'AI, personalizzato per settore e target del Cliente;</li>
-<li>creazione automatica di copy per social media (LinkedIn, Instagram, Facebook) con controllo su tono, lunghezza, emoji, hashtag e call-to-action;</li>
-<li>generazione di immagini AI tramite Google Gemini Imagen 3;</li>
-<li>Campaign Builder guidato in 6 step: obiettivo, target, canali, contenuti, calendario, review e lancio;</li>
-<li>libreria brand assets per logo, palette colori, bio e descrizioni.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.11. Email e Automazioni</h3>
-<ul>
-<li><strong>Email Journey:</strong> sequenze di email automatiche programmate (benvenuto, come iniziare, primo corso, check-in, feedback);</li>
-<li><strong>Email Nurturing 365:</strong> sistema automatico che genera e invia 365 email personalizzate nell'arco di un anno;</li>
-<li><strong>Email Hub:</strong> inbox unificata multi-account con sincronizzazione IMAP, risposte AI automatiche, sistema ticket;</li>
-<li><strong>Automazioni:</strong> regole trigger-condizione-azione personalizzabili (es: se lead non risponde da 3 giorni, invia follow-up WhatsApp).</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.12. Calendario, Consulenze e Task</h3>
-<ul>
-<li>calendario integrato con gestione appuntamenti e consulenze;</li>
-<li>videochiamate integrate con link generato automaticamente;</li>
-<li>preparazione consulenza assistita dall'AI con riepilogo della situazione del cliente;</li>
-<li>sistema task con scadenze, priorità e gestione quotidiana.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.13. Dashboard e Analytics</h3>
-<ul>
-<li>dashboard con KPI principali: clienti attivi, esercizi da revisionare, consulenze della settimana, lead prioritari;</li>
-<li>sezione "Items in Attesa" con consulenze da completare, bozze email, task scaduti, lead non contattati;</li>
-<li>dashboard WhatsApp con statistiche in tempo reale: messaggi oggi, conversazioni attive, tasso risposta, lead convertiti;</li>
-<li>AI Analytics con token consumati, richieste, costo stimato, tempo medio di risposta.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.14. Integrazione Instagram DM</h3>
-<ul>
-<li>collegamento dell'account Instagram Business tramite API Meta;</li>
-<li>risposta automatica ai DM con il Setter AI;</li>
-<li>gestione story replies e conversione follower in lead;</li>
-<li>rispetto della finestra 24 ore imposta da Instagram per le risposte.</li>
-</ul>
-</div>
-
-${CARD}
-${H3}3.15. Assistenza WhatsApp AI — 24/7</h3>
-<p>Il Cliente riceve accesso a un canale di assistenza gestito da un'intelligenza artificiale addestrata sulla documentazione della Piattaforma, disponibile 24 ore su 24 tramite WhatsApp. Per problematiche tecniche complesse (bug, malfunzionamenti, errori di sistema), il Cliente può aprire un ticket via email come disciplinato dall'Articolo 6.</p>
-</div>
-`;
+${H3}${pkg.title}</h3>
+${pkg.content}`,
+    )
+    .join("\n");
+}
 
 const ACCESS_LEVELS_TABLE_NO_PRICES = `
 ${H2}ARTICOLO 4 — LIVELLI DI ACCESSO E FUNZIONALITÀ</h2>
@@ -448,16 +311,16 @@ APPROVAZIONE SPECIFICA<br>
 `;
 
 const ART3_HEADER = `
-${H2}ARTICOLO 3 — DESCRIZIONE DEI SERVIZI INCLUSI</h2>
+${H2}ARTICOLO 3 — PACCHETTI DI SERVIZI INCLUSI (Capitolo 36 del Manuale)</h2>
 
-<p style="font-style: italic; color: #64748b;">La Piattaforma include i seguenti moduli e funzionalità, qui descritti in dettaglio affinché il Cliente abbia piena consapevolezza di ciò che acquisisce. La disponibilità di ciascun modulo dipende dal Livello di Accesso sottoscritto ({{livello_accesso}}).</p>
+<p style="font-style: italic; color: #64748b;">La Piattaforma è organizzata in <strong>11 Pacchetti di Servizi</strong> (Capitolo 36 del Manuale operativo: 36.1 → 36.11), descritti in dettaglio affinché il Cliente abbia piena consapevolezza di ciò che acquisisce. La disponibilità di ciascun Pacchetto dipende dal Livello di Accesso sottoscritto ({{livello_accesso}}).</p>
 `;
 
 export function getOrbitalContractFullHtml(): string {
   return `${PREMESSE_AND_DEFINITIONS}
 ${ART3_HEADER}
 ${TEAM_TABLE}
-${FULL_PACKAGES_INLINE}
+${buildInlinePackagesHtml()}
 ${ACCESS_LEVELS_TABLE_NO_PRICES}
 ${REMAINING_ARTICLES}`;
 }
@@ -479,7 +342,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
   return [
     {
       id: "pkg_setter_ai",
-      title: "Pacchetto 1 — Setter AI: Acquisizione & Primo Contatto",
+      title: "36.1 SETTER AI – Acquisizione & Primo Contatto",
       description: "Agenti WhatsApp 24/7, presa appuntamento automatica, Weekly Check-in, campagne marketing.",
       defaultEnabled: true,
       required: false,
@@ -502,7 +365,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_dipendenti_autonomi",
-      title: "Pacchetto 2 — Dipendenti AI Autonomi: Team AI 24/7",
+      title: "36.2 DIPENDENTI AI AUTONOMI – Team AI 24/7",
       description: "Team di Dipendenti AI specializzati che lavorano in autonomia su email, WhatsApp, social, briefing e knowledge.",
       defaultEnabled: true,
       required: false,
@@ -530,7 +393,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_hunter",
-      title: "Pacchetto 3 — Hunter: Lead Generation & Outreach Proattivo",
+      title: "36.3 HUNTER – Lead Generation & Outreach Proattivo",
       description: "Ricerca lead su Google Maps/Search con AI scoring e contatto automatico multicanale.",
       defaultEnabled: true,
       required: false,
@@ -553,7 +416,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_email_journey",
-      title: "Pacchetto 4 — Email Journey & Nurturing",
+      title: "36.4 EMAIL JOURNEY & NURTURING – Comunicazione Continuativa",
       description: "Email Hub con Millie, sequenze automatiche, nurturing 365 e email post-consulenza.",
       defaultEnabled: true,
       required: false,
@@ -574,7 +437,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_lavoro_quotidiano",
-      title: "Pacchetto 5 — Lavoro Quotidiano & Consulenze",
+      title: "36.5 LAVORO QUOTIDIANO & CONSULENZE – Operatività",
       description: "Dashboard, gestione clienti, calendario, consulenze AI-assisted, Echo riepiloghi.",
       defaultEnabled: true,
       required: false,
@@ -595,7 +458,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_formazione",
-      title: "Pacchetto 6 — Formazione & Corsi (Academy)",
+      title: "36.6 FORMAZIONE & CORSI – Academy",
       description: "Corsi manuali, AI Course Builder da YouTube, esercizi/template, Università per i clienti.",
       defaultEnabled: true,
       required: false,
@@ -615,7 +478,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_content_studio",
-      title: "Pacchetto 7 — Content Studio: Marketing & Contenuti",
+      title: "36.7 CONTENT STUDIO – Marketing & Contenuti",
       description: "Idee AI, calendario editoriale, brand assets, AdVisage AI (Sofia) per concept pubblicitari.",
       defaultEnabled: true,
       required: false,
@@ -636,7 +499,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_voce_ai",
-      title: "Pacchetto 8 — Voce AI: Centralino & Chiamate",
+      title: "36.8 VOCE AI – Centralino & Chiamate",
       description: "Alessia AI inbound/outbound, centralino intelligente, coda d'attesa, template vocali, Brand Voice.",
       defaultEnabled: true,
       required: false,
@@ -658,7 +521,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_pagamenti_stripe",
-      title: "Pacchetto 9 — Pagamenti & Stripe",
+      title: "36.9 PAGAMENTI & STRIPE – Monetizzazione",
       description: "Stripe Connect, payment automations, revenue sharing, gestione piani/tier.",
       defaultEnabled: true,
       required: false,
@@ -678,7 +541,7 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_team_umani",
-      title: "Pacchetto 10 — Team & Dipendenti Umani",
+      title: "36.10 TEAM & DIPENDENTI UMANI – Gestione Team",
       description: "Reparti, licenze multi-utente, AI Assistant per dipendente, multi-profilo.",
       defaultEnabled: true,
       required: false,
@@ -698,13 +561,13 @@ export function getOrbitalServicePackages(): ModularSection[] {
     },
     {
       id: "pkg_faq",
-      title: "Allegato — FAQ sui Pacchetti di Servizi",
+      title: "36.11 FAQ – Domande Frequenti sui Pacchetti",
       description: "Domande frequenti su attivazione, ordine consigliato, integrazione e gestione dei pacchetti.",
       defaultEnabled: false,
       required: false,
       order: 10,
       content: `${CARD.replace('margin: 16px 0', 'margin: 8px 0')}
-<p style="font-style: italic; color: #64748b;">Questo allegato non costituisce un pacchetto attivabile, ma fornisce chiarimenti operativi sui Pacchetti di Servizi descritti nel presente Contratto.</p>
+<p style="font-style: italic; color: #64748b;">Allegato facoltativo: chiarimenti operativi sui Pacchetti di Servizi descritti nel presente Contratto. Non costituisce un pacchetto attivabile.</p>
 <ol>
 <li><strong>Devo attivare tutti i pacchetti subito?</strong> No. È possibile iniziare con i pacchetti fondamentali (Lavoro Quotidiano e Setter AI) e aggiungere progressivamente quelli più avanzati.</li>
 <li><strong>Qual è l'ordine consigliato di attivazione?</strong> 1) Lavoro Quotidiano &amp; Consulenze; 2) Setter AI; 3) Email Journey &amp; Nurturing; 4) Dipendenti AI Autonomi; 5) gli altri in base alle esigenze.</li>

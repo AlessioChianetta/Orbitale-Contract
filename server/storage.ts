@@ -167,7 +167,7 @@ export class DatabaseStorage implements IStorage {
           name: ORBITAL_TEMPLATE_NAME,
           description: ORBITAL_TEMPLATE_DESCRIPTION,
           content: getOrbitalContractEmptyHtml(),
-          sections: getOrbitalServicePackages() as any,
+          sections: getOrbitalServicePackages(),
           createdBy: adminUser.id,
           updatedAt: new Date(),
         });

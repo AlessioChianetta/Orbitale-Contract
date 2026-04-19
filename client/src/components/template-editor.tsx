@@ -616,7 +616,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                           onClick={() => {
                             const html = getPartnershipContractHtml();
                             form.setValue("content", html);
-                            form.setValue("sections", [] as any, { shouldDirty: true });
+                            form.setValue("sections", [], { shouldDirty: true });
                             toast({
                               title: "Template importato",
                               description: "Il contratto di partnership è stato importato nel corpo del contratto.",
@@ -636,7 +636,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                           onClick={() => {
                             const html = getOrbitalContractFullHtml();
                             form.setValue("content", html);
-                            form.setValue("sections", [] as any, { shouldDirty: true });
+                            form.setValue("sections", [], { shouldDirty: true });
                             toast({
                               title: "Template importato",
                               description: "Contratto Sistema Orbitale completo (con tutti i servizi inline) importato nel corpo.",
@@ -658,7 +658,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                             const html = getOrbitalContractEmptyHtml();
                             const packages = getOrbitalServicePackages();
                             form.setValue("content", html);
-                            form.setValue("sections", packages as any, { shouldDirty: true });
+                            form.setValue("sections", packages, { shouldDirty: true });
                             toast({
                               title: "Template modulare importato",
                               description: "Corpo del contratto e 11 Pacchetti di Servizi caricati. Personalizza la selezione per ogni contratto.",
