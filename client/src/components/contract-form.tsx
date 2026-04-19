@@ -546,20 +546,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   });
 
   const createContractMutation = useMutation({
-    mutationFn: async (data: ContractForm) => {
-      // Convert totalValue from euros to cents only if not in percentage mode
-      const contractData = {
-        ...data,
-        totalValue: data.totalValue ? Math.round(data.totalValue * 100) : null,
-        isPercentagePartnership: data.isPercentagePartnership || false,
-        partnershipPercentage: data.partnershipPercentage || null,
-        selectedSectionIds: Array.isArray(data.selectedSectionIds)
-          ? data.selectedSectionIds
-          : defaultSelectedIds(
-              getTemplateSections(selectedTemplate),
-            ),
-      };
-
+    mutationFn: async (contractData: Record<string, any>) => {
+      // ATTENZIONE: il payload arriva qui GIÀ canonicalizzato da
+      // `buildCanonicalSendPayload` (totalValue in cents, clientData
+      // filtrato, ecc.). Non riapplicare conversioni: il server verifica
+      // un hash byte-identico al payload firmato da /api/contracts/preview.
       setIsSubmitting(true);
       if (isEditing) {
         return await apiRequest("PUT", `/api/contracts/${contract.id}`, contractData);
@@ -852,7 +843,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     // evitando falsi positivi di "PAYLOAD_CHANGED".
     if (send && canonicalPayload) {
       createContractMutation.mutate({
-        ...(canonicalPayload as any),
+        ...canonicalPayload,
         sendImmediately: true,
         previewToken,
       });
@@ -861,7 +852,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     // Bozza: applico la stessa normalizzazione del payload canonico.
     const canonical = buildCanonicalSendPayload(data, sendToEmail || "");
     createContractMutation.mutate({
-      ...(canonical as any),
+      ...canonical,
       sendImmediately: false,
       previewToken: null,
     });

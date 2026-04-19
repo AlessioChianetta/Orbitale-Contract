@@ -156,6 +156,12 @@ export default function SendConfirmationGate(props: SendConfirmationGateProps) {
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Codice contratto</h4>
                   <div className="text-sm font-mono text-slate-900">{emailData.contractCode}</div>
+                  {emailData.contractCode === "ANTEPRIMA" && (
+                    <div className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
+                      <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                      <span>Il codice definitivo verrà generato all'invio (formato identico, es. <code>ORB-2026-0123</code>).</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -171,6 +177,11 @@ export default function SendConfirmationGate(props: SendConfirmationGateProps) {
                   >
                     {emailData.signLink}
                   </a>
+                  {emailData.contractCode === "ANTEPRIMA" && (
+                    <div className="text-[11px] text-amber-700 mt-1">
+                      Anteprima del formato: il link reale viene firmato e attivato al momento dell'invio.
+                    </div>
+                  )}
                 </div>
 
                 {contextLabel && (
