@@ -297,6 +297,75 @@ export async function sendCoFillLinkEmail(opts: {
   }
 }
 
+export async function sendOtpLockoutAlertEmail(opts: {
+  companyId: number;
+  to: string;
+  contractCode: string;
+  clientName?: string | null;
+  failedAttempts: number;
+  windowMinutes: number;
+}): Promise<{ messageId?: string }> {
+  const { companyId, to, contractCode, clientName, failedAttempts, windowMinutes } = opts;
+  if (!to || !/.+@.+\..+/.test(to)) {
+    throw new Error("Indirizzo email destinatario non valido.");
+  }
+  const settings = await loadSettingsForCompany(companyId);
+  if (!settings) {
+    throw new Error("Impostazioni azienda non trovate per il tenant corrente.");
+  }
+  const { transporter, fromAddress, fromName } = getTransporterForCompany(settings);
+
+  const safeClient = (clientName || "").trim() || "Cliente";
+  const subject = `Promemoria firma — possibile difficoltà del cliente sul contratto ${contractCode}`;
+  const html = `
+    <!DOCTYPE html>
+    <html><head><style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background-color: #4F46E5; color: white; padding: 20px; text-align: center; }
+      .content { padding: 20px; background-color: #f9f9f9; }
+      .meta { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:12px 16px; margin:16px 0; font-size:14px; }
+      .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+    </style></head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2 style="margin:0;">${escapeHtml(fromName)}</h2>
+          <p style="margin:4px 0 0;">Promemoria firma cliente</p>
+        </div>
+        <div class="content">
+          <p>Ciao,</p>
+          <p>il cliente <strong>${escapeHtml(safeClient)}</strong> sta provando a firmare il contratto <strong>${escapeHtml(contractCode)}</strong> ma ha inserito un codice OTP errato per <strong>${failedAttempts}</strong> volte negli ultimi <strong>${windowMinutes} minuti</strong>.</p>
+          <p>Per sicurezza la pagina di firma è stata temporaneamente bloccata. Probabilmente il cliente ha bisogno di aiuto: potresti contattarlo per verificare che abbia ricevuto il codice corretto e accompagnarlo nella firma.</p>
+          <div class="meta">
+            <div><strong>Codice contratto:</strong> ${escapeHtml(contractCode)}</div>
+            <div><strong>Tentativi falliti:</strong> ${failedAttempts}</div>
+            <div><strong>Finestra:</strong> ultimi ${windowMinutes} minuti</div>
+          </div>
+          <p style="font-size:12px;color:#666;">Il blocco si rimuove automaticamente trascorsa la finestra. Il cliente potrà richiedere un nuovo codice e completare la firma.</p>
+        </div>
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} ${escapeHtml(fromName)}</p>
+        </div>
+      </div>
+    </body></html>
+  `;
+
+  try {
+    const info = await transporter.sendMail({
+      from: buildFrom(fromName, fromAddress),
+      to,
+      subject,
+      html,
+    });
+    console.log("✅ Email alert OTP lockout inviata, messageId:", info.messageId);
+    return { messageId: info.messageId };
+  } catch (error: any) {
+    console.error("❌ SMTP error (sendOtpLockoutAlertEmail):", error?.message || error);
+    throw enrichSmtpError(error, settings.smtpHost ?? "", settings.smtpPort ?? 0);
+  }
+}
+
 function renderCoFillLinkHtml(opts: { clientName: string; link: string; senderName: string }): string {
   const { clientName, link, senderName } = opts;
   return `

@@ -11,7 +11,7 @@ import {
   type ContractPreset, type InsertContractPreset
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, inArray, sql } from "drizzle-orm";
+import { eq, desc, and, gte, inArray, sql } from "drizzle-orm";
 import {
   getOrbitalContractEmptyHtml,
   getOrbitalServicePackages,
@@ -55,6 +55,7 @@ export interface IStorage {
   // Audit log methods
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   getContractAuditLogs(contractId: number): Promise<AuditLog[]>;
+  getRecentAuditLogCount(contractId: number, action: string, sinceMs: number): Promise<number>;
 
   // OTP methods
   createOtpCode(otp: InsertOtpCode): Promise<OtpCode>;
@@ -402,6 +403,21 @@ export class DatabaseStorage implements IStorage {
       .from(auditLogs)
       .where(eq(auditLogs.contractId, contractId))
       .orderBy(auditLogs.timestamp);
+  }
+
+  async getRecentAuditLogCount(contractId: number, action: string, sinceMs: number): Promise<number> {
+    const since = new Date(Date.now() - sinceMs);
+    const rows = await db
+      .select({ id: auditLogs.id })
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.contractId, contractId),
+          eq(auditLogs.action, action),
+          gte(auditLogs.timestamp, since),
+        ),
+      );
+    return rows.length;
   }
 
   // OTP methods

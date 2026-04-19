@@ -909,23 +909,24 @@ export default function ClientView() {
     },
     onSuccess: () => {
       console.log("🎉 Firma completata con successo!");
-      console.log("📧 Dati risposta:", arguments[0]);
 
+      // Redirect immediato alla pagina di conferma server-rendered:
+      // niente setTimeout, niente window.reload(), niente rerender React.
+      // Questo evita che estensioni del browser (es. Google Translate) o
+      // crash JS lascino il cliente con uno schermo bianco senza conferma
+      // della firma — incidente #75.
       try {
-        toast({
-          title: "Contratto firmato!",
-          description: "Il contratto è stato firmato con successo. Riceverai una copia via email.",
-        });
-      } catch (toastError) {
-        console.error("❌ Errore nel toast (onSuccess):", toastError);
+        window.location.replace(`/firmato/${encodeURIComponent(code || "")}`);
+      } catch (navErr) {
+        console.error("❌ Redirect alla pagina di conferma fallito:", navErr);
+        try {
+          toast({
+            title: "Contratto firmato!",
+            description: "Il contratto è stato firmato con successo. Riceverai una copia via email.",
+          });
+        } catch {}
+        queryClient.invalidateQueries({ queryKey: [`/api/client/contracts/${code}`] });
       }
-
-      // Invalidate contract data to refresh and show signed status
-      queryClient.invalidateQueries({ queryKey: [`/api/client/contracts/${code}`] });
-      setTimeout(() => {
-        console.log("🔄 Esecuzione reload pagina (fallback)...");
-        window.location.reload();
-      }, 1500);
     },
     onError: (error: any) => {
       console.error("❌ Errore durante la firma:");

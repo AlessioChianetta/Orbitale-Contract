@@ -12,7 +12,7 @@ import cookie from "cookie";
 // @ts-ignore - no shipped types
 import signature from "cookie-signature";
 import { generatePDF } from "./services/pdf-generator-new";
-import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, getBaseUrl, buildContractRequestEmail } from "./services/email-service";
+import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, sendOtpLockoutAlertEmail, getBaseUrl, buildContractRequestEmail } from "./services/email-service";
 import { hashContractPayload, hashBulkIds, signPreviewToken, verifyPreviewToken, type PreviewScope } from "./services/preview-token";
 import { generateOTP, sendOTP } from "./services/otp-service";
 import { nanoid } from "nanoid";
@@ -2278,6 +2278,82 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Pagina di conferma post-firma (server-rendered, niente React).
+  // Reso "a prova di Google Translate / crash JS": è semplice HTML statico
+  // generato dal server, così se la firma è andata a buon fine il cliente
+  // vede SEMPRE una conferma chiara, indipendentemente da estensioni del
+  // browser o errori del bundle frontend (vedi incidente #75).
+  app.get("/firmato/:code", async (req, res) => {
+    const escapeHtml = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const code = req.params.code;
+    try {
+      const contract = await storage.getContractByCode(code);
+      if (!contract) {
+        res.status(404);
+        return res.send(`<!doctype html><html lang="it" translate="no"><head><meta charset="utf-8"><meta name="google" content="notranslate"><title>Contratto non trovato</title></head><body class="notranslate" translate="no" style="font-family:system-ui,sans-serif;padding:32px;text-align:center;color:#333"><h1>Contratto non trovato</h1><p>Il codice ${escapeHtml(code)} non corrisponde ad alcun contratto.</p></body></html>`);
+      }
+
+      // Se il contratto NON risulta firmato, rimanda alla pagina di firma
+      // così il cliente non vede una "conferma" ingannevole.
+      if (contract.status !== "signed") {
+        return res.redirect(302, `/client/${encodeURIComponent(code)}`);
+      }
+
+      const seller = await storage.getUser(contract.sellerId);
+      const settings = seller?.companyId ? await storage.getCompanySettings(seller.companyId) : null;
+      const senderName = settings?.companyName || "Turbo Contract";
+      const cd = (contract.clientData as any) || {};
+      const clientEmail = contract.sentToEmail || cd.email || "";
+      const signedAt = contract.signedAt
+        ? new Date(contract.signedAt).toLocaleString("it-IT", {
+            day: "2-digit", month: "2-digit", year: "numeric",
+            hour: "2-digit", minute: "2-digit",
+          })
+        : "—";
+
+      res.set("Cache-Control", "no-store");
+      res.send(`<!doctype html>
+<html lang="it" translate="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google" content="notranslate">
+  <title>Contratto firmato — ${escapeHtml(senderName)}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#f3f4f6; margin:0; padding:24px; color:#111827; }
+    .card { max-width:560px; margin:48px auto; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:32px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+    .check { width:64px; height:64px; border-radius:50%; background:#10b981; color:#fff; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:36px; font-weight:bold; }
+    h1 { text-align:center; margin:0 0 8px; font-size:22px; }
+    p.lead { text-align:center; color:#4b5563; margin:0 0 24px; }
+    dl { margin:0; border-top:1px solid #e5e7eb; }
+    dt { font-size:12px; color:#6b7280; text-transform:uppercase; letter-spacing:.04em; margin-top:16px; }
+    dd { margin:4px 0 0; font-size:15px; color:#111827; word-break:break-word; }
+    .footer { text-align:center; margin-top:24px; font-size:12px; color:#6b7280; }
+  </style>
+</head>
+<body class="notranslate" translate="no">
+  <div class="card">
+    <div class="check" aria-hidden="true">&#10003;</div>
+    <h1>Contratto firmato con successo</h1>
+    <p class="lead">Grazie! La firma è stata registrata. Riceverai una copia del contratto via email.</p>
+    <dl>
+      <dt>Codice contratto</dt>
+      <dd>${escapeHtml(contract.contractCode)}</dd>
+      <dt>Firmato il</dt>
+      <dd>${escapeHtml(signedAt)}</dd>
+      ${clientEmail ? `<dt>Copia inviata a</dt><dd>${escapeHtml(clientEmail)}</dd>` : ""}
+    </dl>
+    <p class="footer">${escapeHtml(senderName)}</p>
+  </div>
+</body>
+</html>`);
+    } catch (err: any) {
+      console.error("[ROUTES] /firmato/:code error:", err?.message || err);
+      res.status(500).send(`<!doctype html><html lang="it" translate="no"><head><meta charset="utf-8"><meta name="google" content="notranslate"><title>Errore</title></head><body class="notranslate" translate="no" style="font-family:system-ui,sans-serif;padding:32px;text-align:center;color:#333"><h1>Si è verificato un errore</h1><p>Riprova fra qualche istante. Se il problema persiste, contatta il venditore.</p></body></html>`);
+    }
+  });
+
   // Verify OTP and sign contract
   app.post("/api/client/contracts/:code/sign", otpRateLimiter, async (req, res) => {
     try {
@@ -2290,6 +2366,26 @@ export function registerRoutes(app: Express): Server {
 
       if (contract.status === "signed") {
         return res.status(400).json({ message: "Contract already signed" });
+      }
+
+      // ---------- LOCKOUT ANTI-BRUTEFORCE PER CONTRATTO ----------
+      // Conta i tentativi OTP falliti per questo contratto. Politica:
+      //   - se ci sono >= 5 tentativi falliti negli ultimi 30 min → blocco
+      // Equivale a "5 tentativi in 10 min → blocco di ~30 min" (i 5 fallimenti
+      // restano in finestra per almeno 30 min, garantendo la durata del blocco).
+      // È additivo al rate-limit per IP già attivo (`otpRateLimiter`).
+      const OTP_LOCKOUT_WINDOW_MS = 30 * 60 * 1000;
+      const OTP_LOCKOUT_THRESHOLD = 5;
+      const OTP_LOCKOUT_WINDOW_MIN = Math.round(OTP_LOCKOUT_WINDOW_MS / 60000);
+      const previousFailures = await storage.getRecentAuditLogCount(
+        contract.id,
+        "otp_failed",
+        OTP_LOCKOUT_WINDOW_MS,
+      );
+      if (previousFailures >= OTP_LOCKOUT_THRESHOLD) {
+        return res.status(429).json({
+          message: `Troppi tentativi non riusciti. Per sicurezza la firma è bloccata per circa ${OTP_LOCKOUT_WINDOW_MIN} minuti. Riprova più tardi o contatta il venditore per ricevere un nuovo codice.`,
+        });
       }
 
       // Determine verification method based on company settings
@@ -2341,6 +2437,53 @@ export function registerRoutes(app: Express): Server {
       }
 
       if (!otpValid) {
+        // Audit del tentativo fallito: NON registriamo mai il codice in chiaro,
+        // solo prima/ultima cifra mascherata + lunghezza, IP e user agent.
+        const rawCode = typeof otpCode === "string" ? otpCode : "";
+        const maskedCode = rawCode.length > 0
+          ? `${rawCode.slice(0, 1)}${"•".repeat(Math.max(rawCode.length - 2, 0))}${rawCode.length > 1 ? rawCode.slice(-1) : ""}`
+          : "(vuoto)";
+        try {
+          await storage.createAuditLog({
+            contractId: contract.id,
+            action: "otp_failed",
+            userAgent: req.get("User-Agent") ?? undefined,
+            ipAddress: getRealClientIP(req),
+            metadata: {
+              codeMasked: maskedCode,
+              codeLength: rawCode.length,
+              method: useOtpMethod,
+            },
+          });
+        } catch (auditErr: any) {
+          console.error("[ROUTES] ⚠️ Errore scrittura audit otp_failed:", auditErr?.message || auditErr);
+        }
+
+        // Se questo tentativo fa raggiungere la soglia, avvisa il venditore
+        // (una volta sola: solo quando il contatore passa esattamente a soglia).
+        const newFailureCount = previousFailures + 1;
+        if (newFailureCount === OTP_LOCKOUT_THRESHOLD) {
+          (async () => {
+            try {
+              const seller = await storage.getUser(contract.sellerId);
+              if (seller?.email && seller.companyId) {
+                const cd = (contract.clientData as any) || {};
+                const clientName = cd.cliente_nome || cd.nome || cd.ragione_sociale || null;
+                await sendOtpLockoutAlertEmail({
+                  companyId: seller.companyId,
+                  to: seller.email,
+                  contractCode: contract.contractCode,
+                  clientName,
+                  failedAttempts: newFailureCount,
+                  windowMinutes: OTP_LOCKOUT_WINDOW_MIN,
+                });
+              }
+            } catch (alertErr: any) {
+              console.error("[ROUTES] ⚠️ Invio alert lockout al venditore fallito:", alertErr?.message || alertErr);
+            }
+          })();
+        }
+
         return res.status(400).json({ message: "Invalid or expired OTP" });
       }
 
