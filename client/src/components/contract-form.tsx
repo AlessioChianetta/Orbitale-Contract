@@ -2529,6 +2529,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         initialFrequency={paymentCalcFrequency}
                         initialIsSubscription={paymentCalcIsSubscription}
                         initialFirstMonthDiscount={paymentCalcFirstMonthDiscount}
+                        initialPlan={(form.getValues("clientData.payment_plan") || []).filter(
+                          (p: any) => p && p.rata_importo && p.rata_scadenza,
+                        )}
                         onFrequencyChange={setPaymentCalcFrequency}
                         onIsSubscriptionChange={setPaymentCalcIsSubscription}
                         onFirstMonthDiscountChange={setPaymentCalcFirstMonthDiscount}

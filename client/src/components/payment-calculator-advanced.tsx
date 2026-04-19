@@ -30,23 +30,39 @@ interface PaymentCalculatorAdvancedProps {
   initialFrequency?: Frequency;
   initialIsSubscription?: boolean;
   initialFirstMonthDiscount?: FirstMonthDiscount;
+  initialPlan?: PaymentPlan[];
   onFrequencyChange?: (value: Frequency) => void;
   onIsSubscriptionChange?: (value: boolean) => void;
   onFirstMonthDiscountChange?: (value: FirstMonthDiscount) => void;
+}
+
+function inferFrequencyFromCount(n: number): Frequency {
+  if (n >= 12) return 'monthly';
+  if (n >= 4) return 'quarterly';
+  if (n >= 2) return 'semiannual';
+  return 'annual';
 }
 
 export default function PaymentCalculatorAdvanced({
   totalAmount,
   onPaymentPlanChange,
   disabled = false,
-  initialFrequency = 'annual',
+  initialFrequency,
   initialIsSubscription = false,
   initialFirstMonthDiscount,
+  initialPlan,
   onFrequencyChange,
   onIsSubscriptionChange,
   onFirstMonthDiscountChange,
 }: PaymentCalculatorAdvancedProps) {
-  const [paymentFrequency, setPaymentFrequency] = useState<Frequency>(initialFrequency);
+  const hasInitialPlan = Array.isArray(initialPlan) && initialPlan.length > 0;
+  const [paymentFrequency, setPaymentFrequency] = useState<Frequency>(
+    initialFrequency ?? (hasInitialPlan ? inferFrequencyFromCount(initialPlan!.length) : 'annual'),
+  );
+  // Marca per saltare la prima rigenerazione automatica del piano quando
+  // riapriamo una bozza con un piano già salvato: altrimenti l'effetto
+  // sotto sovrascriverebbe le rate salvate con quelle di default.
+  const skipNextRegenRef = useRef<boolean>(hasInitialPlan);
   const [startDate] = useState(new Date());
   const [isSubscription, setIsSubscription] = useState<boolean>(initialIsSubscription);
   const [firstMonthDiscount, setFirstMonthDiscount] = useState<FirstMonthDiscount>(
@@ -67,7 +83,9 @@ export default function PaymentCalculatorAdvanced({
   useEffect(() => { onFrequencyChangeRef.current?.(paymentFrequency); }, [paymentFrequency]);
   useEffect(() => { onIsSubscriptionChangeRef.current?.(isSubscription); }, [isSubscription]);
   useEffect(() => { onFirstMonthDiscountChangeRef.current?.(firstMonthDiscount); }, [firstMonthDiscount]);
-  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan[]>([]);
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan[]>(
+    hasInitialPlan ? (initialPlan as PaymentPlan[]) : [],
+  );
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingPayment, setEditingPayment] = useState({ amount: '', date: '' });
   const [hasManualEdits, setHasManualEdits] = useState(false);
@@ -110,6 +128,12 @@ export default function PaymentCalculatorAdvanced({
     if (totalAmount <= 0) {
       setPaymentPlan([]);
       onPaymentPlanChangeRef.current([]);
+      return;
+    }
+    // Alla prima mount con un piano salvato (riapertura bozza), non
+    // rigeneriamo: useremmo i default e perderemmo le rate persistite.
+    if (skipNextRegenRef.current) {
+      skipNextRegenRef.current = false;
       return;
     }
     const newPlan = generatePlan();
