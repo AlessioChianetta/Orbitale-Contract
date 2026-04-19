@@ -7,15 +7,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, FileText, Settings2, Mail, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, FileText, Settings2, Mail, ChevronRight, ChevronLeft, AlertTriangle, CheckCircle2, Plus, Trash2, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { parseSections, defaultSelectedIds, type ModularSection } from "@shared/sections";
 
 type Template = {
   id: number;
   name: string;
   category?: string;
+  sections?: unknown;
+  predefinedBonuses?: Array<{ description?: string; value?: string | number; type?: "percentage" | "fixed" }>;
 };
+
+type BonusRow = { description: string };
 
 interface Props {
   open: boolean;
@@ -52,6 +57,14 @@ export default function BulkFromTemplateDialog({ open, onOpenChange, onCreated }
     enabled: open,
   });
   const [templateId, setTemplateId] = useState<number | null>(null);
+  const selectedTemplate = useMemo(
+    () => templates.find((t) => t.id === templateId) || null,
+    [templates, templateId],
+  );
+  const templateSections: ModularSection[] = useMemo(
+    () => (selectedTemplate ? parseSections(selectedTemplate.sections) : []),
+    [selectedTemplate],
+  );
 
   // Step 2 — condizioni
   const [batchLabel, setBatchLabel] = useState<string>("");
@@ -62,6 +75,19 @@ export default function BulkFromTemplateDialog({ open, onOpenChange, onCreated }
   const [contractEndDate, setContractEndDate] = useState<string>("");
   const [isPercentagePartnership, setIsPercentagePartnership] = useState(false);
   const [partnershipPercentage, setPartnershipPercentage] = useState<string>("");
+  const [selectedSectionIds, setSelectedSectionIds] = useState<string[] | null>(null);
+  const [bonuses, setBonuses] = useState<BonusRow[]>([]);
+
+  // Quando il template cambia, reinizializza sezioni e bonus alle scelte di default.
+  useEffect(() => {
+    if (!selectedTemplate) {
+      setSelectedSectionIds(null);
+      setBonuses([]);
+      return;
+    }
+    setSelectedSectionIds(defaultSelectedIds(templateSections));
+    setBonuses([]);
+  }, [selectedTemplate, templateSections]);
 
   // Step 3 — emails
   const [emailsRaw, setEmailsRaw] = useState<string>("");
@@ -81,6 +107,8 @@ export default function BulkFromTemplateDialog({ open, onOpenChange, onCreated }
       setContractEndDate("");
       setIsPercentagePartnership(false);
       setPartnershipPercentage("");
+      setSelectedSectionIds(null);
+      setBonuses([]);
       setEmailsRaw("");
       setSubmitting(false);
     }
@@ -95,6 +123,9 @@ export default function BulkFromTemplateDialog({ open, onOpenChange, onCreated }
     setSubmitting(true);
     try {
       const totalCents = totalValue ? Math.round(Number(totalValue.replace(",", ".")) * 100) : null;
+      const cleanedBonuses = bonuses
+        .map((b) => ({ bonus_descrizione: b.description.trim() }))
+        .filter((b) => b.bonus_descrizione.length > 0);
       const body: any = {
         templateId,
         emails: parsed.valid,
@@ -108,6 +139,8 @@ export default function BulkFromTemplateDialog({ open, onOpenChange, onCreated }
         partnershipPercentage: isPercentagePartnership && partnershipPercentage
           ? Number(partnershipPercentage.replace(",", "."))
           : null,
+        selectedSectionIds: selectedSectionIds ?? undefined,
+        bonusList: cleanedBonuses.length > 0 ? cleanedBonuses : undefined,
       };
       const res = await fetch("/api/contracts/bulk-from-template", {
         method: "POST",
@@ -220,8 +253,100 @@ export default function BulkFromTemplateDialog({ open, onOpenChange, onCreated }
                 <Input type="number" min="0" max="100" step="0.01" value={partnershipPercentage} onChange={(e) => setPartnershipPercentage(e.target.value)} placeholder="Es. 10" />
               </div>
             )}
-            <p className="text-xs text-slate-500">
-              Tutti i contratti del lotto avranno le stesse condizioni economiche. I dati anagrafici li compilerà il cliente.
+            {/* Sezioni modulari del template */}
+            {templateSections.length > 0 && (
+              <div className="border-t pt-4">
+                <Label className="mb-2 block">Sezioni del contratto</Label>
+                <p className="text-xs text-slate-500 mb-3">
+                  Scegli quali sezioni modulari del template includere in tutti i contratti del lotto. Le sezioni obbligatorie sono sempre attive.
+                </p>
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {templateSections.map((sec) => {
+                    const ids = selectedSectionIds ?? defaultSelectedIds(templateSections);
+                    const checked = sec.required || ids.includes(sec.id);
+                    return (
+                      <label
+                        key={sec.id}
+                        className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition ${
+                          checked ? "border-indigo-300 bg-indigo-50/50" : "border-slate-200 bg-white hover:bg-slate-50"
+                        }`}
+                        data-testid={`bulk-section-${sec.id}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          checked={checked}
+                          disabled={!!sec.required}
+                          onChange={(e) => {
+                            const current = selectedSectionIds ?? defaultSelectedIds(templateSections);
+                            const next = e.target.checked
+                              ? Array.from(new Set([...current, sec.id]))
+                              : current.filter((id) => id !== sec.id);
+                            setSelectedSectionIds(next);
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-slate-800">{sec.title}</span>
+                            {sec.required && (
+                              <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">Obbl.</span>
+                            )}
+                          </div>
+                          {sec.description && <p className="text-xs text-slate-500 mt-0.5">{sec.description}</p>}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Bonus aggiuntivi */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="flex items-center gap-2"><Gift className="h-4 w-4 text-indigo-600" /> Bonus aggiuntivi</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBonuses((arr) => [...arr, { description: "" }])}
+                  data-testid="bulk-add-bonus"
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Aggiungi
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500 mb-2">
+                Bonus opzionali che verranno aggiunti a tutti i contratti del lotto. I bonus predefiniti del template sono comunque inclusi.
+              </p>
+              {bonuses.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Nessun bonus aggiuntivo.</p>
+              ) : (
+                <div className="space-y-2">
+                  {bonuses.map((b, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={b.description}
+                        onChange={(e) => setBonuses((arr) => arr.map((x, i) => (i === idx ? { description: e.target.value } : x)))}
+                        placeholder="Es. 1 mese gratuito di assistenza"
+                        data-testid={`bulk-bonus-${idx}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => setBonuses((arr) => arr.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-500 border-t pt-3">
+              Tutti i contratti del lotto avranno le stesse condizioni economiche, le stesse sezioni e gli stessi bonus. I dati anagrafici li compilerà il cliente.
             </p>
           </div>
         )}

@@ -983,10 +983,25 @@ export function registerRoutes(app: Express): Server {
       const created: any[] = [];
       const failed: { email: string; error: string }[] = [];
 
+      // Sanitizza la bonus list (formato { bonus_descrizione }) — solo
+      // stringhe brevi, niente oggetti annidati.
+      const bonusListInput: Array<{ bonus_descrizione: string }> = Array.isArray(body.bonusList)
+        ? body.bonusList
+            .map((b: any) => ({
+              bonus_descrizione: String(b?.bonus_descrizione || b?.description || "").trim().slice(0, 300),
+            }))
+            .filter((b: { bonus_descrizione: string }) => b.bonus_descrizione.length > 0)
+        : [];
+
+      const selectedSectionIds = Array.isArray(body.selectedSectionIds)
+        ? (body.selectedSectionIds as unknown[]).filter((v): v is string => typeof v === "string")
+        : null;
+
       for (const email of emails) {
         try {
           const contractCode = nanoid(16);
-          const clientData = { tipo_cliente: "azienda", email };
+          const clientData: Record<string, any> = { tipo_cliente: "azienda", email };
+          if (bonusListInput.length > 0) clientData.bonus_list = bonusListInput;
           const generatedContent = await generateContractContent(
             template.content,
             clientData,
@@ -998,8 +1013,15 @@ export function registerRoutes(app: Express): Server {
             body.partnershipPercentage,
             body.contractStartDate,
             body.contractEndDate,
-            body.selectedSectionIds ?? null,
+            selectedSectionIds,
           );
+          // partnershipPercentage è `numeric` lato DB (drizzle-zod lo
+          // tipizza come stringa): convertiamo qui i valori numerici
+          // ricevuti dal wizard per non far fallire la validazione.
+          const partnershipPercentageStr =
+            body.partnershipPercentage === null || body.partnershipPercentage === undefined
+              ? null
+              : String(body.partnershipPercentage);
           const data = insertContractSchema.parse({
             templateId,
             sellerId: req.user.id,
@@ -1011,16 +1033,16 @@ export function registerRoutes(app: Express): Server {
             fillMode: "client_fill",
             batchId,
             batchLabel: label,
-            totalValue: body.totalValue,
+            totalValue: body.totalValue ?? null,
             autoRenewal: !!body.autoRenewal,
             renewalDuration: body.renewalDuration ?? 12,
             isPercentagePartnership: !!body.isPercentagePartnership,
-            partnershipPercentage: body.partnershipPercentage ?? null,
+            partnershipPercentage: partnershipPercentageStr,
             contractStartDate: body.contractStartDate ?? null,
             contractEndDate: body.contractEndDate ?? null,
-            selectedSectionIds: body.selectedSectionIds ?? null,
+            selectedSectionIds,
             sentToEmail: email,
-          } as any);
+          });
           const c = await storage.createContract(data);
           created.push({ id: c.id, contractCode: c.contractCode, email });
         } catch (e: any) {
@@ -1066,11 +1088,20 @@ export function registerRoutes(app: Express): Server {
           if (req.user.role === "seller" && c.sellerId !== req.user.id) {
             failed.push({ id, error: "non autorizzato" }); continue;
           }
+          // Guard: l'invio in blocco è pensato esclusivamente per i lotti
+          // creati con bulk-from-template (bozze in modalità client_fill).
+          // Rifiutiamo qualsiasi contratto fuori da questo perimetro per
+          // evitare transizioni di stato indesiderate sui contratti già
+          // gestiti dal seller in modo classico.
+          if (c.isArchived) { failed.push({ id, error: "contratto archiviato" }); continue; }
+          if (c.status !== "draft") { failed.push({ id, error: `stato non valido (${c.status})` }); continue; }
+          if ((c as any).fillMode !== "client_fill") {
+            failed.push({ id, error: "non è in modalità 'compila il cliente'" }); continue;
+          }
           const email = c.sentToEmail || (c.clientData as any)?.email;
           if (!email) { failed.push({ id, error: "email mancante" }); continue; }
           await sendContractEmail(c, c.contractCode, email);
-          const sentStatus = (c as any).fillMode === "client_fill" ? "awaiting_client_data" : "sent";
-          await storage.updateContract(c.id, { status: sentStatus, sentToEmail: email });
+          await storage.updateContract(c.id, { status: "awaiting_client_data", sentToEmail: email });
           await storage.createAuditLog({
             contractId: c.id,
             action: "sent",
@@ -1132,9 +1163,23 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Update status if first view
+      // Update status if first view. Per i contratti in modalità
+      // "client_fill" il cliente passa a "viewed" solo dopo aver
+      // completato i dati anagrafici: altrimenti la UI gating sull'OTP
+      // resterebbe bloccata su un documento ancora con placeholder.
+      const cFillModeForStatus = (contract as any).fillMode === "client_fill" ? "client_fill" : "seller";
+      const missingForStatus = getMissingClientFields(contract.clientData as any);
+      const dataCompleteForStatus = missingForStatus.length === 0;
       if (contract.status === "sent") {
         await storage.updateContract(contract.id, { status: "viewed" });
+        contract.status = "viewed";
+      } else if (
+        contract.status === "awaiting_client_data" &&
+        cFillModeForStatus === "client_fill" &&
+        dataCompleteForStatus
+      ) {
+        await storage.updateContract(contract.id, { status: "viewed" });
+        contract.status = "viewed";
       }
 
       // Public client endpoint: whitelist response fields to avoid leaking internal
