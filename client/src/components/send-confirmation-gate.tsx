@@ -30,6 +30,12 @@ export interface SendGateEmailData {
   clientName: string;
 }
 
+export interface UnresolvedPlaceholderInfo {
+  key: string;
+  label: string;
+  hint?: string;
+}
+
 export interface SendConfirmationGateProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -37,6 +43,15 @@ export interface SendConfirmationGateProps {
   loading?: boolean;
   /** Errore caricamento preview o invio. */
   error?: string | null;
+  /**
+   * Variabili contratto rimaste non compilate (placeholder {{...}}
+   * residui nel testo finale). Quando valorizzato, il gate mostra una
+   * schermata bloccante con la lista e un pulsante per andare a
+   * compilarle invece dell'anteprima.
+   */
+  unresolvedPlaceholders?: UnresolvedPlaceholderInfo[] | null;
+  /** Callback chiamato dal pulsante "Compila variabili mancanti". */
+  onJumpToFix?: () => void;
   /** Dati della preview documento + token HMAC. */
   previewData: SendGatePreviewData | null;
   /** Dati della preview email che il cliente riceverà. */
@@ -69,7 +84,8 @@ export interface SendConfirmationGateProps {
  * con riepilogo destinatario + checkbox di consenso esplicito.
  */
 export default function SendConfirmationGate(props: SendConfirmationGateProps) {
-  const { open, onOpenChange, loading, error, previewData, emailData, documentProps, contextLabel, onConfirm, sending } = props;
+  const { open, onOpenChange, loading, error, previewData, emailData, documentProps, contextLabel, onConfirm, sending, unresolvedPlaceholders, onJumpToFix } = props;
+  const hasUnresolved = !!(unresolvedPlaceholders && unresolvedPlaceholders.length > 0);
   const [confirmed, setConfirmed] = useState(false);
   const [view, setView] = useState<"email" | "document">("email");
 
@@ -80,7 +96,7 @@ export default function SendConfirmationGate(props: SendConfirmationGateProps) {
     }
   }, [open]);
 
-  const ready = !loading && !error && previewData && emailData;
+  const ready = !loading && !error && !hasUnresolved && previewData && emailData;
   const expiresIn = useMemo(() => {
     if (!previewData?.previewTokenExpiresAt) return null;
     const ms = previewData.previewTokenExpiresAt - Date.now();
@@ -112,11 +128,66 @@ export default function SendConfirmationGate(props: SendConfirmationGateProps) {
             </div>
           )}
 
-          {!loading && error && (
+          {!loading && error && !hasUnresolved && (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 p-12">
               <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-800 max-w-2xl">
                 <AlertCircle className="h-5 w-5 flex-shrink-0" />
                 <div className="text-sm">{error}</div>
+              </div>
+            </div>
+          )}
+
+          {!loading && hasUnresolved && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-5 p-10" data-testid="gate-unresolved-placeholders">
+              <div className="max-w-2xl w-full space-y-5">
+                <div className="flex items-start gap-3 px-5 py-4 rounded-xl bg-rose-50 border-2 border-rose-200 text-rose-900">
+                  <AlertCircle className="h-6 w-6 flex-shrink-0 mt-0.5 text-rose-600" />
+                  <div>
+                    <div className="font-semibold text-base mb-1">
+                      Impossibile inviare: variabili contratto mancanti
+                    </div>
+                    <div className="text-sm text-rose-800/90">
+                      Il documento finale contiene ancora segnaposto non
+                      compilati. Compilali prima di poter inviare al cliente.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-rose-200 bg-white overflow-hidden">
+                  <div className="px-5 py-3 bg-rose-50/60 border-b border-rose-200 text-xs font-semibold uppercase tracking-wide text-rose-700">
+                    Da compilare ({unresolvedPlaceholders!.length})
+                  </div>
+                  <ul className="divide-y divide-rose-100">
+                    {unresolvedPlaceholders!.map((p) => (
+                      <li key={p.key} className="px-5 py-3" data-testid={`unresolved-${p.key}`}>
+                        <div className="text-sm font-medium text-slate-900">{p.label}</div>
+                        {p.hint && (
+                          <div className="text-xs text-slate-500 mt-0.5">{p.hint}</div>
+                        )}
+                        <div className="text-[11px] font-mono text-rose-500 mt-1">{`{{${p.key}}}`}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
+                    data-testid="button-gate-unresolved-cancel"
+                  >
+                    Annulla
+                  </Button>
+                  {onJumpToFix && (
+                    <Button
+                      onClick={() => { onJumpToFix(); onOpenChange(false); }}
+                      className="bg-rose-600 hover:bg-rose-700 text-white"
+                      data-testid="button-gate-unresolved-fix"
+                    >
+                      Vai a compilare le variabili
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           )}

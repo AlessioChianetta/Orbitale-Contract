@@ -413,6 +413,25 @@ export function registerRoutes(app: Express): Server {
         emailTo,
         companyId: req.user.companyId,
       });
+
+      // Difesa in profondità: anche l'email (subject + html) viene
+      // controllata per placeholder {{...}} non risolti, così se in
+      // futuro il template email dovesse iniziare a contenerne, il gate
+      // non mostra mai una preview "rotta" al venditore.
+      const emailUnresolved = findUnresolvedPlaceholders(`${built.subject}\n${built.html}`);
+      if (emailUnresolved.length > 0) {
+        return res.status(400).json({
+          message: "Impossibile generare l'anteprima: l'email contiene variabili non compilate.",
+          code: "UNRESOLVED_PLACEHOLDERS",
+          missing: emailUnresolved,
+          missingLabels: emailUnresolved.map((k) => ({
+            key: k,
+            label: PLACEHOLDER_LABELS[k]?.label || k,
+            hint: PLACEHOLDER_LABELS[k]?.hint,
+          })),
+        });
+      }
+
       res.json({
         subject: built.subject,
         html: built.html,

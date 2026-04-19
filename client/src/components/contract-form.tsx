@@ -352,6 +352,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const [gateOpen, setGateOpen] = useState(false);
   const [gateLoading, setGateLoading] = useState(false);
   const [gateError, setGateError] = useState<string | null>(null);
+  // Lista variabili contratto rimaste {{...}} non risolte. Quando
+  // valorizzata, il gate mostra una schermata bloccante con la lista
+  // (gestita lato gate) invece di chiudersi silenziosamente.
+  const [gateUnresolved, setGateUnresolved] = useState<Array<{ key: string; label: string; hint?: string }> | null>(null);
   const [gatePreviewData, setGatePreviewData] = useState<SendGatePreviewData | null>(null);
   const [gateEmailData, setGateEmailData] = useState<SendGateEmailData | null>(null);
   // Riferimento per le opzioni di invio dell'ultima sottomissione (draft vs send),
@@ -999,6 +1003,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
     setGateLoading(true);
     setGateError(null);
+    setGateUnresolved(null);
     setGatePreviewData(null);
     setGateEmailData(null);
     setGateOpen(true);
@@ -1037,19 +1042,14 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         try { parsed = JSON.parse(raw.slice(colonIdx + 2)); } catch {}
       }
       if (parsed?.code === "UNRESOLVED_PLACEHOLDERS") {
-        const labels = Array.isArray(parsed.missingLabels)
-          ? parsed.missingLabels.map((m: any) => m.label || m.key).join(", ")
-          : (parsed.missing || []).join(", ");
-        setGateOpen(false);
-        toast({
-          title: "Variabili contratto mancanti",
-          description: `Compila prima di inviare: ${labels}.`,
-          variant: "destructive",
-        });
-        setCurrentStep(4);
-        // Lascio un attimo al wizard per renderizzare lo step 4 prima
-        // di scrollare al riquadro "Variabili contratto".
-        setTimeout(() => scrollToSection("section-product-vars"), 50);
+        // Tengo il gate aperto e mostro la lista bloccante con la
+        // possibilità di saltare al riquadro "Variabili contratto"
+        // tramite il pulsante "Vai a compilare le variabili".
+        const list: Array<{ key: string; label: string; hint?: string }> =
+          Array.isArray(parsed.missingLabels) && parsed.missingLabels.length > 0
+            ? parsed.missingLabels
+            : (Array.isArray(parsed.missing) ? parsed.missing : []).map((k: string) => ({ key: k, label: k }));
+        setGateUnresolved(list);
         return;
       }
       setGateError(parsed?.message || raw || "Impossibile preparare l'anteprima.");
@@ -1368,10 +1368,18 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           open={gateOpen}
           onOpenChange={(open) => {
             setGateOpen(open);
-            if (!open) setGateError(null);
+            if (!open) {
+              setGateError(null);
+              setGateUnresolved(null);
+            }
           }}
           loading={gateLoading}
           error={gateError}
+          unresolvedPlaceholders={gateUnresolved}
+          onJumpToFix={() => {
+            setCurrentStep(4);
+            setTimeout(() => scrollToSection("section-product-vars"), 50);
+          }}
           previewData={gatePreviewData}
           emailData={gateEmailData}
           documentProps={{
