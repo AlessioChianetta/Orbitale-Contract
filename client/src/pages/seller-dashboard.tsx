@@ -59,6 +59,7 @@ import ContractDocumentEditor from "@/components/contract-document-editor";
 import { Send, FileEdit } from "lucide-react";
 import EmailConfigBanner from "@/components/email-config-banner";
 import { Link } from "wouter";
+import { type Contract } from "@shared/schema";
 
 const PAGE_SIZE = 10;
 
@@ -207,7 +208,7 @@ export default function SellerDashboard() {
   const [showBulkWizard, setShowBulkWizard] = useState(false);
   const [bulkSending, setBulkSending] = useState(false);
   const [bulkSendGateOpen, setBulkSendGateOpen] = useState(false);
-  const [docEditorContract, setDocEditorContract] = useState<any>(null);
+  const [docEditorContract, setDocEditorContract] = useState<Contract | null>(null);
 
   const downloadPDF = async (contractId: number, contractCode: string) => {
     try {
@@ -783,7 +784,7 @@ export default function SellerDashboard() {
                               {contract.batchLabel}
                             </span>
                           )}
-                          {(contract as any).contentManuallyEdited && (
+                          {contract.contentManuallyEdited && (
                             <span
                               className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-violet-50 text-violet-700 border border-violet-100"
                               title="Il documento è stato modificato manualmente"

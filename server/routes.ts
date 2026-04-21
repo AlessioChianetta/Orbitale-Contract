@@ -272,6 +272,12 @@ export function registerRoutes(app: Express): Server {
   };
 
   // Template routes
+  // Run content-editor column migration eagerly at startup so the column
+  // is guaranteed to exist before any request can reference it.
+  ensureContentEditorSchema().catch((e) =>
+    console.error("[CONTENT_EDITOR] Startup schema migration failed:", e)
+  );
+
   app.get("/api/templates", requireAuth, async (req, res) => {
     try {
       console.log("Fetching templates...");
@@ -1022,6 +1028,15 @@ export function registerRoutes(app: Express): Server {
       const contract = await storage.getContract(contractId, req.user.companyId);
       if (!contract) return res.status(404).json({ message: "Contract not found" });
 
+      // Block auto-regeneration when the document has been manually edited,
+      // unless the caller explicitly passes force=true to override.
+      if (contract.contentManuallyEdited && !req.body?.force) {
+        return res.status(409).json({
+          message: "Il documento è stato modificato manualmente. Usa force=true per sovrascrivere le modifiche manuali.",
+          code: "CONTENT_MANUALLY_EDITED",
+        });
+      }
+
       const template = await storage.getTemplate(contract.templateId, req.user.companyId);
       if (!template) return res.status(400).json({ message: "Template not found" });
 
@@ -1162,11 +1177,12 @@ export function registerRoutes(app: Express): Server {
       if (typeof content !== "string" || content.trim().length === 0) {
         return res.status(400).json({ message: "Contenuto non valido" });
       }
-      // Save via raw SQL to also set content_manually_edited flag
+      // Save via raw SQL: update content, set flag, clear stale PDF path
       await pool.query(
         `UPDATE contracts
            SET generated_content = $1,
                content_manually_edited = true,
+               pdf_path = NULL,
                updated_at = NOW()
          WHERE id = $2`,
         [content, contractId]
@@ -1204,30 +1220,33 @@ export function registerRoutes(app: Express): Server {
       // Allow editing of contracts in any status for real-time updates
       // (Previously restricted to draft only, now allows modifications at any stage)
 
-      // Generate contract content from template
+      // Generate contract content from template — unless the document was manually edited,
+      // in which case we preserve the existing content so the edits are not overwritten.
       const template = await storage.getTemplate(req.body.templateId, req.user.companyId);
       if (!template) {
         return res.status(400).json({ message: "Template not found" });
       }
 
-      const generatedContent = await generateContractContent(
-        template.content, 
-        req.body.clientData, 
-        template, 
-        req.body.autoRenewal, 
-        req.body.renewalDuration,
-        req.body.totalValue,
-        req.body.isPercentagePartnership,
-        req.body.partnershipPercentage,
-        req.body.contractStartDate,
-        req.body.contractEndDate,
-        req.body.selectedSectionIds ?? existingContract.selectedSectionIds ?? null,
-        {
-          accessLevel: req.body.accessLevel ?? existingContract.accessLevel ?? null,
-          monthlyFee: req.body.monthlyFee ?? existingContract.monthlyFee ?? null,
-          activationFee: req.body.activationFee ?? existingContract.activationFee ?? null,
-        },
-      );
+      const generatedContent = existingContract.contentManuallyEdited
+        ? existingContract.generatedContent
+        : await generateContractContent(
+            template.content,
+            req.body.clientData,
+            template,
+            req.body.autoRenewal,
+            req.body.renewalDuration,
+            req.body.totalValue,
+            req.body.isPercentagePartnership,
+            req.body.partnershipPercentage,
+            req.body.contractStartDate,
+            req.body.contractEndDate,
+            req.body.selectedSectionIds ?? existingContract.selectedSectionIds ?? null,
+            {
+              accessLevel: req.body.accessLevel ?? existingContract.accessLevel ?? null,
+              monthlyFee: req.body.monthlyFee ?? existingContract.monthlyFee ?? null,
+              activationFee: req.body.activationFee ?? existingContract.activationFee ?? null,
+            },
+          );
 
       // Validate the updated contract data
       const contractData = insertContractSchema.partial().parse({
