@@ -2140,31 +2140,66 @@ export function registerRoutes(app: Express): Server {
       const missing = getMissingClientFields(merged);
       const dataComplete = missing.length === 0;
 
-      // Aggiorna i dati cliente. Quando completi, rigeneriamo il contenuto del
-      // contratto con i dati corretti e portiamo lo status a "viewed".
+      // Aggiorna i dati cliente. Quando completi, "rifondiamo" il contenuto
+      // con i nuovi dati cliente e portiamo lo status a "viewed".
+      //
+      // IMPORTANTE: se il venditore ha già modificato manualmente il documento
+      // (`contentManuallyEdited = true`), NON ripartiamo dal template — quello
+      // cancellerebbe le modifiche manuali. Sostituiamo invece i placeholder
+      // ancora presenti DENTRO il contenuto manuale corrente, così le modifiche
+      // restano e i placeholder anagrafici vengono comunque compilati.
       let nextContent = contract.generatedContent;
       if (dataComplete) {
         try {
           const tpl = await storage.getTemplate(contract.templateId, contract.companyId);
           if (tpl) {
-            nextContent = await generateContractContent(
-              tpl.content,
-              merged,
-              tpl,
-              contract.autoRenewal,
-              contract.renewalDuration ?? 12,
-              contract.totalValue,
-              contract.isPercentagePartnership,
-              contract.partnershipPercentage,
-              contract.contractStartDate,
-              contract.contractEndDate,
-              contract.selectedSectionIds ?? null,
-              {
-                accessLevel: contract.accessLevel ?? null,
-                monthlyFee: contract.monthlyFee ?? null,
-                activationFee: contract.activationFee ?? null,
-              },
-            );
+            const productVars = {
+              accessLevel: contract.accessLevel ?? null,
+              monthlyFee: contract.monthlyFee ?? null,
+              activationFee: contract.activationFee ?? null,
+            };
+            if ((contract as any).contentManuallyEdited) {
+              const enhanced = buildEnhancedClientData(
+                merged,
+                tpl,
+                contract.autoRenewal ?? false,
+                contract.renewalDuration ?? 12,
+                contract.totalValue,
+                contract.isPercentagePartnership ?? false,
+                contract.partnershipPercentage,
+                contract.contractStartDate
+                  ? (contract.contractStartDate instanceof Date
+                      ? contract.contractStartDate.toISOString()
+                      : String(contract.contractStartDate))
+                  : undefined,
+                contract.contractEndDate
+                  ? (contract.contractEndDate instanceof Date
+                      ? contract.contractEndDate.toISOString()
+                      : String(contract.contractEndDate))
+                  : undefined,
+                productVars,
+              );
+              nextContent = substitutePlaceholdersAndBlocks(
+                contract.generatedContent || "",
+                enhanced,
+                { isPercentagePartnership: !!contract.isPercentagePartnership },
+              );
+            } else {
+              nextContent = await generateContractContent(
+                tpl.content,
+                merged,
+                tpl,
+                contract.autoRenewal,
+                contract.renewalDuration ?? 12,
+                contract.totalValue,
+                contract.isPercentagePartnership,
+                contract.partnershipPercentage,
+                contract.contractStartDate,
+                contract.contractEndDate,
+                contract.selectedSectionIds ?? null,
+                productVars,
+              );
+            }
           }
         } catch (regenErr: any) {
           console.error("[client-data] errore rigenerazione contenuto:", regenErr?.message || regenErr);
@@ -3915,41 +3950,134 @@ Il presente accordo prevede un modello di partnership basato su una percentuale 
     }
   }
 
-  // Replace placeholders with actual data. Using `replaceAll` with a literal string
-  // avoids the RegExp pitfalls of special characters like `{}` (which act as
-  // quantifiers in regex mode) and removes the need for manual escaping.
-  Object.keys(enhancedClientData).forEach(key => {
+  content = substitutePlaceholdersAndBlocks(content, enhancedClientData, {
+    isPercentagePartnership: !!isPercentagePartnership,
+  });
+
+  return content;
+}
+
+// Esegue SOLO la sostituzione di placeholder `{{chiave}}` e l'espansione dei
+// blocchi ripetibili `<!-- BLOCK:NOME -->...<!-- END_BLOCK:NOME -->` su un HTML
+// arbitrario, senza ricostruire nulla dal template. Usata sia dal generatore
+// completo (`generateContractContent`) sia per riapplicare i nuovi dati cliente
+// su un contratto modificato manualmente, così le modifiche del venditore non
+// vengono cancellate quando il cliente compila i propri dati.
+function substitutePlaceholdersAndBlocks(
+  html: string,
+  enhancedClientData: Record<string, any>,
+  opts?: { isPercentagePartnership?: boolean },
+): string {
+  let content = html;
+
+  Object.keys(enhancedClientData).forEach((key) => {
     const placeholder = `{{${key}}}`;
     content = content.replaceAll(placeholder, String(enhancedClientData[key] ?? ''));
   });
 
-  // Remove any remaining payment plan placeholders if in partnership mode
-  if (isPercentagePartnership) {
+  if (opts?.isPercentagePartnership) {
     content = content.replace(/{{payment_plan}}.*?{{\/payment_plan}}/gs, '');
     content = content.replace(/{{prezzo_totale}}/g, '');
   }
 
-  // Process repeatable blocks
   const blockRegex = /<!-- BLOCK:(\w+) -->(.*?)<!-- END_BLOCK:\1 -->/gs;
-  content = content.replace(blockRegex, (match, blockName, blockContent) => {
-    const dataKey = blockName.toLowerCase();
+  content = content.replace(blockRegex, (_match, blockName, blockContent) => {
+    const dataKey = String(blockName).toLowerCase();
     const data = enhancedClientData[dataKey];
-
     if (Array.isArray(data)) {
-      return data.map((item, index) => {
-        let blockHtml = blockContent;
-        // Use literal-string replaceAll to avoid regex-meta pitfalls in placeholder keys.
-        Object.keys(item).forEach(key => {
-          blockHtml = blockHtml.replaceAll(`{{${key}}}`, String(item[key] ?? ''));
-        });
-        // Add index-based replacements
-        blockHtml = blockHtml.replaceAll('{{rata_numero}}', String(index + 1));
-        return blockHtml;
-      }).join('');
+      return data
+        .map((item, index) => {
+          let blockHtml = blockContent;
+          Object.keys(item).forEach((key) => {
+            blockHtml = blockHtml.replaceAll(`{{${key}}}`, String(item[key] ?? ''));
+          });
+          blockHtml = blockHtml.replaceAll('{{rata_numero}}', String(index + 1));
+          return blockHtml;
+        })
+        .join('');
     }
-
     return '';
   });
 
   return content;
+}
+
+// Costruisce l'oggetto `enhancedClientData` (date formattate, piano rate,
+// rinnovo, partnership, totali, ecc.) usato dalla sostituzione placeholder,
+// senza ricostruire il documento dal template. Tenuta separata da
+// `generateContractContent` così può essere riusata per riapplicare i dati
+// cliente su un HTML già modificato manualmente.
+function buildEnhancedClientData(
+  clientData: any,
+  template: any | undefined,
+  autoRenewal?: boolean,
+  renewalDuration?: number,
+  totalValue?: number | null,
+  isPercentagePartnership?: boolean,
+  partnershipPercentage?: number | string | null,
+  contractStartDate?: string,
+  contractEndDate?: string,
+  productVars?: ProductPlaceholderVars,
+): Record<string, any> {
+  const data = productVars ? withProductPlaceholders(clientData, productVars) : clientData;
+
+  let combinedBonusList: any[] = [];
+  if (template?.predefinedBonuses && Array.isArray(template.predefinedBonuses)) {
+    combinedBonusList = template.predefinedBonuses.map((bonus: any) => ({
+      bonus_descrizione:
+        bonus.description + (bonus.value ? ` (${bonus.value}${bonus.type === 'percentage' ? '%' : '€'})` : ''),
+    }));
+  }
+  if (data.bonus_list && Array.isArray(data.bonus_list)) {
+    combinedBonusList = [...combinedBonusList, ...data.bonus_list];
+  }
+
+  const formatDate = (dateString?: string | Date | null) => {
+    if (!dateString) return '';
+    const s = dateString instanceof Date ? dateString.toISOString() : String(dateString);
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (dateOnly) {
+      const [, y, m, d] = dateOnly;
+      const months = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+      return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
+    }
+    try {
+      const date = new Date(s);
+      if (isNaN(date.getTime())) return s;
+      return new Intl.DateTimeFormat('it-IT', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Europe/Rome' }).format(date);
+    } catch {
+      return s;
+    }
+  };
+
+  const usingCustomInstallments = data.rata_list && Array.isArray(data.rata_list) && data.rata_list.length > 0;
+  const paymentPlanData = usingCustomInstallments ? data.rata_list : data.payment_plan || [];
+  const formattedPaymentPlan = paymentPlanData.map((payment: any, index: number) => ({
+    rata_numero: index + 1,
+    rata_importo: payment.rata_importo || payment.amount || '0.00',
+    rata_scadenza: formatDate(payment.rata_scadenza || payment.date || ''),
+  }));
+
+  return {
+    ...data,
+    bonus_list: combinedBonusList,
+    payment_plan: formattedPaymentPlan,
+    auto_renewal: autoRenewal || false,
+    renewal_duration: renewalDuration || 12,
+    renewal_text: autoRenewal
+      ? `Il presente contratto si rinnoverà automaticamente per ulteriori ${renewalDuration || 12} mesi alle stesse condizioni economiche, salvo disdetta comunicata con preavviso di 30 giorni dalla scadenza.`
+      : 'Il presente contratto non prevede autorinnovo automatico.',
+    contract_start_date: contractStartDate ? formatDate(contractStartDate) : '',
+    contract_end_date: contractEndDate ? formatDate(contractEndDate) : '',
+    contract_duration_text: contractStartDate && contractEndDate
+      ? `Il presente contratto è valido dal ${formatDate(contractStartDate)} al ${formatDate(contractEndDate)}`
+      : '',
+    is_percentage_partnership: isPercentagePartnership || false,
+    partnership_percentage: partnershipPercentage || null,
+    prezzo_totale: totalValue ? (totalValue / 100).toFixed(2) : null,
+    valore_text: isPercentagePartnership && partnershipPercentage
+      ? `Partnership al ${partnershipPercentage}% sul fatturato TOTALE`
+      : totalValue ? `EUR ${(totalValue / 100).toFixed(2)}` : '',
+    payment_method_text: usingCustomInstallments ? 'Rate Personalizzate' : 'Calcolo Automatico delle Rate',
+  };
 }
