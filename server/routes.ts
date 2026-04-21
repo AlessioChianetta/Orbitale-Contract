@@ -2158,7 +2158,7 @@ export function registerRoutes(app: Express): Server {
               monthlyFee: contract.monthlyFee ?? null,
               activationFee: contract.activationFee ?? null,
             };
-            if ((contract as any).contentManuallyEdited) {
+            if (contract.contentManuallyEdited) {
               const enhanced = buildEnhancedClientData(
                 merged,
                 tpl,

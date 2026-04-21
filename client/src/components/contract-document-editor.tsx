@@ -352,7 +352,7 @@ export default function ContractDocumentEditor({
           )}
 
           {/* Client_fill incomplete warning */}
-          {!isPreview && (contract as any).fillMode === "client_fill" &&
+          {!isPreview && contract.fillMode === "client_fill" &&
             contract.status !== "viewed" && contract.status !== "signed" && (
               <div className="flex items-start gap-2 px-4 py-2 border-b bg-sky-50 text-sky-800 shrink-0 text-xs">
                 <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
@@ -405,7 +405,7 @@ export default function ContractDocumentEditor({
                 La nuova versione sarà visibile al cliente al prossimo accesso al link
                 {contract.status === "signed" ? " e il PDF firmato verrà rigenerato" : ""}.
               </li>
-              {(contract as any).fillMode === "client_fill" &&
+              {contract.fillMode === "client_fill" &&
                 contract.status !== "viewed" &&
                 contract.status !== "signed" && (
                   <li>
