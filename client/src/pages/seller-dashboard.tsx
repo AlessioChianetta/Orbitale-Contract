@@ -791,7 +791,7 @@ export default function SellerDashboard() {
                               data-testid={`badge-manual-edit-${contract.id}`}
                             >
                               <FileEdit className="h-3 w-3" />
-                              Modificato
+                              Modificato manualmente
                             </span>
                           )}
                         </div>

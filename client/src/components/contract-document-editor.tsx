@@ -45,6 +45,8 @@ export default function ContractDocumentEditor({
   const { toast } = useToast();
   const [confirmClose, setConfirmClose] = useState(false);
 
+  const [isDirty, setIsDirty] = useState(false);
+
   const editor = useEditor(
     {
       extensions: [
@@ -53,6 +55,9 @@ export default function ContractDocumentEditor({
         TextAlign.configure({ types: ["heading", "paragraph"] }),
       ],
       content: contract.generatedContent || "",
+      onUpdate: () => {
+        setIsDirty(true);
+      },
       editorProps: {
         attributes: {
           class:
@@ -63,8 +68,6 @@ export default function ContractDocumentEditor({
     [contract.id]
   );
 
-  const isDirty = editor ? !editor.isEmpty && editor.isEditable : false;
-
   const saveMutation = useMutation({
     mutationFn: async (content: string) => {
       const res = await apiRequest("PATCH", `/api/contracts/${contract.id}/content`, {
@@ -74,6 +77,7 @@ export default function ContractDocumentEditor({
     },
     onSuccess: (data: { message?: string; pdfRegenerated?: boolean; pdfError?: string | null }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+      setIsDirty(false);
       if (data.pdfError) {
         toast({
           title: "Documento salvato",
@@ -104,9 +108,12 @@ export default function ContractDocumentEditor({
   }, [editor, saveMutation]);
 
   const handleClose = useCallback(() => {
-    if (editor?.isEditable && !saveMutation.isIdle) return;
-    setConfirmClose(true);
-  }, [editor, saveMutation.isIdle]);
+    if (isDirty) {
+      setConfirmClose(true);
+    } else {
+      onClose();
+    }
+  }, [isDirty, onClose]);
 
   const handleForceClose = useCallback(() => {
     setConfirmClose(false);
