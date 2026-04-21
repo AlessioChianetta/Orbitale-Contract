@@ -10,11 +10,15 @@
  * hanno sempre stili inline sui titoli, quindi assenza completa = stripato).
  *
  * Uso:
- *   npx tsx scripts/recover-stripped-contracts.ts            # dry-run
- *   npx tsx scripts/recover-stripped-contracts.ts --apply    # applica
- *   npx tsx scripts/recover-stripped-contracts.ts --code XYZ # solo uno
+ *   npx tsx scripts/recover-stripped-contracts.ts                       # dry-run
+ *   npx tsx scripts/recover-stripped-contracts.ts --apply               # applica
+ *   npx tsx scripts/recover-stripped-contracts.ts --code XYZ            # singolo (richiede stripped)
+ *   npx tsx scripts/recover-stripped-contracts.ts --code XYZ --force    # bypassa l'euristica
  *
  * Idempotente: contratti già recuperati (flag false) vengono ignorati.
+ * In modalità `--code` l'euristica `style=` resta attiva per evitare di
+ * azzerare modifiche manuali ancora valide; usare `--force` solo se si
+ * sa di doverlo davvero fare (es. recovery manuale di un caso eccezionale).
  * NB: l'utente venditore dovrà rifare manualmente le modifiche aggiunte
  * in precedenza — il vecchio testo modificato è perso (non c'è cronologia
  * versioni nel sistema attuale).
@@ -25,14 +29,25 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  const force = process.argv.includes("--force");
   const codeIdx = process.argv.indexOf("--code");
   const onlyCode = codeIdx >= 0 ? process.argv[codeIdx + 1] : null;
 
+  const strippedClause = `AND generated_content !~ 'style='`;
   const where = onlyCode
-    ? `WHERE contract_code = $1 AND content_manually_edited = true`
+    ? `WHERE contract_code = $1
+         AND content_manually_edited = true
+         ${force ? "" : strippedClause}`
     : `WHERE content_manually_edited = true
-         AND generated_content !~ 'style='`;
+         ${strippedClause}`;
   const params = onlyCode ? [onlyCode] : [];
+
+  if (onlyCode && force) {
+    console.warn(
+      "[!] --force attivo: il filtro 'stripped' è disabilitato. Verrà " +
+        "azzerato il documento anche se contiene ancora stili inline.",
+    );
+  }
 
   const sel = await pool.query(
     `SELECT id, contract_code, status, fill_mode,
