@@ -55,7 +55,8 @@ import {
 } from "lucide-react";
 import ContractForm from "@/components/contract-form";
 import BulkFromTemplateDialog from "@/components/bulk-from-template-dialog";
-import { Send } from "lucide-react";
+import ContractDocumentEditor from "@/components/contract-document-editor";
+import { Send, FileEdit } from "lucide-react";
 import EmailConfigBanner from "@/components/email-config-banner";
 import { Link } from "wouter";
 
@@ -206,6 +207,7 @@ export default function SellerDashboard() {
   const [showBulkWizard, setShowBulkWizard] = useState(false);
   const [bulkSending, setBulkSending] = useState(false);
   const [bulkSendGateOpen, setBulkSendGateOpen] = useState(false);
+  const [docEditorContract, setDocEditorContract] = useState<any>(null);
 
   const downloadPDF = async (contractId: number, contractCode: string) => {
     try {
@@ -781,6 +783,16 @@ export default function SellerDashboard() {
                               {contract.batchLabel}
                             </span>
                           )}
+                          {(contract as any).contentManuallyEdited && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-violet-50 text-violet-700 border border-violet-100"
+                              title="Il documento è stato modificato manualmente"
+                              data-testid={`badge-manual-edit-${contract.id}`}
+                            >
+                              <FileEdit className="h-3 w-3" />
+                              Modificato
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -857,6 +869,9 @@ export default function SellerDashboard() {
                                 <Edit className="h-4 w-4 mr-2" /> Modifica
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem onClick={() => setDocEditorContract(contract)}>
+                              <FileEdit className="h-4 w-4 mr-2" /> Modifica documento
+                            </DropdownMenuItem>
                             {(contract.status === "sent" || contract.status === "viewed") && (
                               <DropdownMenuItem onClick={() => copyContractLink(contract.contractCode)}>
                                 <Copy className="h-4 w-4 mr-2" /> Copia link
@@ -990,6 +1005,14 @@ export default function SellerDashboard() {
         onConfirm={(token, eligibleIds) => bulkSendSelected(token, eligibleIds)}
         sending={bulkSending}
       />
+
+      {docEditorContract && (
+        <ContractDocumentEditor
+          contract={docEditorContract}
+          open={!!docEditorContract}
+          onClose={() => setDocEditorContract(null)}
+        />
+      )}
     </div>
   );
 }

@@ -44,6 +44,27 @@ const PRESENCE_HEARTBEAT_MS = 15_000;
 const PRESENCE_TIMEOUT_MS = 30_000;
 const PRESENCE_DB_FLUSH_MS = 30_000;
 
+// ============================================================================
+// Content editor schema — adds content_manually_edited column on first use
+// ============================================================================
+let contentEditorSchemaReady: Promise<void> | null = null;
+async function ensureContentEditorSchema(): Promise<void> {
+  if (!contentEditorSchemaReady) {
+    contentEditorSchemaReady = (async () => {
+      await pool.query(
+        `ALTER TABLE contracts
+           ADD COLUMN IF NOT EXISTS content_manually_edited BOOLEAN DEFAULT false`
+      );
+      console.log("[CONTENT_EDITOR] Schema ready (content_manually_edited).");
+    })().catch((e) => {
+      console.error("[CONTENT_EDITOR] Failed to ensure schema, will retry:", e);
+      contentEditorSchemaReady = null;
+      throw e;
+    });
+  }
+  return contentEditorSchemaReady;
+}
+
 let presenceSchemaReady: Promise<void> | null = null;
 async function ensurePresenceSchema(): Promise<void> {
   if (!presenceSchemaReady) {
@@ -1120,6 +1141,48 @@ export function registerRoutes(app: Express): Server {
       res.json(contract);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch contract" });
+    }
+  });
+
+  // ============================================================================
+  // PATCH /api/contracts/:id/content — Save manually edited contract document
+  // ============================================================================
+  app.patch("/api/contracts/:id/content", requireAuth, async (req, res) => {
+    try {
+      await ensureContentEditorSchema();
+      const contractId = parseInt(req.params.id);
+      const contract = await storage.getContract(contractId, req.user.companyId);
+      if (!contract) {
+        return res.status(404).json({ message: "Contract not found" });
+      }
+      if (req.user.role === "seller" && contract.sellerId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const { content } = req.body;
+      if (typeof content !== "string" || content.trim().length === 0) {
+        return res.status(400).json({ message: "Contenuto non valido" });
+      }
+      // Save via raw SQL to also set content_manually_edited flag
+      await pool.query(
+        `UPDATE contracts
+           SET generated_content = $1,
+               content_manually_edited = true,
+               updated_at = NOW()
+         WHERE id = $2`,
+        [content, contractId]
+      );
+      await storage.createAuditLog({
+        contractId,
+        action: "content_manually_edited",
+        userAgent: req.get("User-Agent"),
+        ipAddress: getRealClientIP(req),
+        metadata: { editedBy: req.user.id },
+      });
+      const updated = await storage.getContract(contractId, req.user.companyId);
+      res.json({ message: "Documento salvato con successo", contract: updated });
+    } catch (error) {
+      console.error("Manual content edit error:", error);
+      res.status(500).json({ message: "Errore nel salvataggio del documento" });
     }
   });
 

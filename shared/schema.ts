@@ -77,6 +77,7 @@ export const contracts = pgTable("contracts", {
   batchId: text("batch_id"),
   batchLabel: text("batch_label"),
   isArchived: boolean("is_archived").notNull().default(false),
+  contentManuallyEdited: boolean("content_manually_edited").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
