@@ -2009,6 +2009,13 @@ export function registerRoutes(app: Express): Server {
       // placeholder per i campi mancanti restano vuoti). Così il cliente
       // può comunque scorrere e leggere il corpo del template scelto dal
       // venditore mentre compila il modulo in alto.
+      //
+      // IMPORTANTE: se il venditore ha già modificato manualmente il
+      // documento, NON ripartiamo dal template — quello cancellerebbe le
+      // modifiche manuali nella vista cliente. Usiamo invece il
+      // `generatedContent` salvato (che contiene già le modifiche del
+      // venditore) e applichiamo solo la sostituzione dei placeholder con
+      // i dati cliente attualmente disponibili.
       let exposedGeneratedContent: string | null = contract.generatedContent;
       let publicTemplate: any = null;
       if (cFillMode === "client_fill" && !dataComplete) {
@@ -2018,24 +2025,53 @@ export function registerRoutes(app: Express): Server {
             (contract as any).companyId
           );
           if (tplForPreview) {
-            exposedGeneratedContent = await generateContractContent(
-              tplForPreview.content,
-              contract.clientData,
-              tplForPreview,
-              contract.autoRenewal ?? undefined,
-              contract.renewalDuration ?? undefined,
-              contract.totalValue ?? undefined,
-              contract.isPercentagePartnership ?? undefined,
-              contract.partnershipPercentage as any,
-              contract.contractStartDate ?? undefined,
-              contract.contractEndDate ?? undefined,
-              contract.selectedSectionIds ?? undefined,
-              {
-                accessLevel: contract.accessLevel ?? null,
-                monthlyFee: contract.monthlyFee ?? null,
-                activationFee: contract.activationFee ?? null,
-              },
-            );
+            const productVarsForPreview = {
+              accessLevel: contract.accessLevel ?? null,
+              monthlyFee: contract.monthlyFee ?? null,
+              activationFee: contract.activationFee ?? null,
+            };
+            if (contract.contentManuallyEdited && contract.generatedContent) {
+              const enhancedForPreview = buildEnhancedClientData(
+                contract.clientData,
+                tplForPreview,
+                contract.autoRenewal ?? false,
+                contract.renewalDuration ?? 12,
+                contract.totalValue,
+                contract.isPercentagePartnership ?? false,
+                contract.partnershipPercentage,
+                contract.contractStartDate
+                  ? (contract.contractStartDate instanceof Date
+                      ? contract.contractStartDate.toISOString()
+                      : String(contract.contractStartDate))
+                  : undefined,
+                contract.contractEndDate
+                  ? (contract.contractEndDate instanceof Date
+                      ? contract.contractEndDate.toISOString()
+                      : String(contract.contractEndDate))
+                  : undefined,
+                productVarsForPreview,
+              );
+              exposedGeneratedContent = substitutePlaceholdersAndBlocks(
+                contract.generatedContent,
+                enhancedForPreview,
+                { isPercentagePartnership: !!contract.isPercentagePartnership },
+              );
+            } else {
+              exposedGeneratedContent = await generateContractContent(
+                tplForPreview.content,
+                contract.clientData,
+                tplForPreview,
+                contract.autoRenewal ?? undefined,
+                contract.renewalDuration ?? undefined,
+                contract.totalValue ?? undefined,
+                contract.isPercentagePartnership ?? undefined,
+                contract.partnershipPercentage as any,
+                contract.contractStartDate ?? undefined,
+                contract.contractEndDate ?? undefined,
+                contract.selectedSectionIds ?? undefined,
+                productVarsForPreview,
+              );
+            }
             publicTemplate = {
               id: tplForPreview.id,
               name: tplForPreview.name,
