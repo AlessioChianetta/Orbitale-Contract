@@ -39,12 +39,8 @@ interface ContractDocumentEditorProps {
   onClose: () => void;
 }
 
-// Estensione globale: preserva gli attributi `style` e `class` su tutti i
-// nodi rilevanti del documento contratto (heading, paragrafi, liste, ecc.).
-// Senza questa estensione TipTap, in fase di parse dell'HTML del template,
-// scarta gli stili inline (es. `style="font-size:18px;color:#1e293b;
-// border-left:4px solid #6366f1"` sui titoli) — col risultato che, al primo
-// salvataggio, il `generatedContent` perde tutta la formattazione visiva.
+// Preserva `style` e `class` sui nodi del documento: senza, TipTap
+// scarta gli stili inline del template e il salvataggio "spoglia" l'HTML.
 const PreserveInlineFormatting = Extension.create({
   name: "preserveInlineFormatting",
   addGlobalAttributes() {
