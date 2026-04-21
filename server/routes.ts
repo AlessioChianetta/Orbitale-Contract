@@ -1164,7 +1164,6 @@ export function registerRoutes(app: Express): Server {
   // ============================================================================
   app.patch("/api/contracts/:id/content", requireAuth, async (req, res) => {
     try {
-      await ensureContentEditorSchema();
       const contractId = parseInt(req.params.id);
       const contract = await storage.getContract(contractId, req.user.companyId);
       if (!contract) {
@@ -1177,7 +1176,8 @@ export function registerRoutes(app: Express): Server {
       if (typeof content !== "string" || content.trim().length === 0) {
         return res.status(400).json({ message: "Contenuto non valido" });
       }
-      // Save via raw SQL: update content, set flag, clear stale PDF path
+
+      // 1. Persist edited content and mark as manually edited (clear stale PDF first)
       await pool.query(
         `UPDATE contracts
            SET generated_content = $1,
@@ -1187,6 +1187,7 @@ export function registerRoutes(app: Express): Server {
          WHERE id = $2`,
         [content, contractId]
       );
+
       await storage.createAuditLog({
         contractId,
         action: "content_manually_edited",
@@ -1194,8 +1195,58 @@ export function registerRoutes(app: Express): Server {
         ipAddress: getRealClientIP(req),
         metadata: { editedBy: req.user.id },
       });
+
+      // 2. Regenerate PDF from the new content (for all contracts that had one,
+      //    and for signed contracts which always need a fresh sealed PDF).
+      let pdfRegenerated = false;
+      let pdfError: string | null = null;
+      if (contract.pdfPath || contract.status === "signed") {
+        try {
+          const auditLogsForPdf = await storage.getContractAuditLogs(contractId);
+          const template = await storage.getTemplate(contract.templateId, req.user.companyId);
+          const pdfCompanySettings = await storage.getCompanySettings(req.user.companyId);
+          const contractForPdf = {
+            id: contract.id,
+            templateName: template?.name || "Contratto",
+            generatedContent: content,
+            clientData: contract.clientData,
+            totalValue: contract.totalValue,
+            template: template ? { ...template, content } : template,
+            status: contract.status as "signed",
+            signatures: contract.signatures || {},
+            signedAt: contract.signedAt,
+            createdAt: contract.createdAt,
+            contractStartDate: contract.contractStartDate,
+            contractEndDate: contract.contractEndDate,
+            autoRenewal: contract.autoRenewal,
+            renewalDuration: contract.renewalDuration,
+            isPercentagePartnership: contract.isPercentagePartnership,
+            partnershipPercentage: contract.partnershipPercentage,
+            selectedSectionIds: contract.selectedSectionIds,
+          };
+          const newPdfPath = await generatePDF(contractId, content, auditLogsForPdf, contractForPdf, pdfCompanySettings);
+          await pool.query(
+            `UPDATE contracts SET pdf_path = $1 WHERE id = $2`,
+            [newPdfPath, contractId]
+          );
+          pdfRegenerated = true;
+        } catch (pdfErr: any) {
+          console.error("[CONTENT_EDITOR] PDF regeneration failed after manual edit:", pdfErr);
+          pdfError = pdfErr?.message || "PDF non rigenerato";
+        }
+      }
+
       const updated = await storage.getContract(contractId, req.user.companyId);
-      res.json({ message: "Documento salvato con successo", contract: updated });
+      res.json({
+        message: pdfError
+          ? `Documento salvato. Rigenerazione PDF fallita: ${pdfError}`
+          : pdfRegenerated
+          ? "Documento e PDF rigenerati con successo."
+          : "Documento salvato con successo.",
+        contract: updated,
+        pdfRegenerated,
+        pdfError,
+      });
     } catch (error) {
       console.error("Manual content edit error:", error);
       res.status(500).json({ message: "Errore nel salvataggio del documento" });

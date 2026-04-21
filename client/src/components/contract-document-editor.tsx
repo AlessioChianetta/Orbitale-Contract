@@ -72,12 +72,22 @@ export default function ContractDocumentEditor({
       });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: { message?: string; pdfRegenerated?: boolean; pdfError?: string | null }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
-      toast({
-        title: "Documento salvato",
-        description: "Le modifiche sono state salvate. Il PDF è stato azzerato e potrà essere rigenerato.",
-      });
+      if (data.pdfError) {
+        toast({
+          title: "Documento salvato",
+          description: `Le modifiche sono state salvate. Rigenerazione PDF non riuscita: ${data.pdfError}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Documento salvato",
+          description: data.pdfRegenerated
+            ? "Il documento e il PDF sono stati aggiornati con successo."
+            : "Le modifiche sono state salvate con successo.",
+        });
+      }
     },
     onError: () => {
       toast({
