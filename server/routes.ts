@@ -35,6 +35,9 @@ type PresenceSession = {
   openedAt: number;
   lastPingAt: number;
   lastDbFlushAt: number;
+  // Punto nel tempo da cui deve ancora essere "contabilizzato" il tempo
+  // in linea nel totale cumulativo. Si sposta in avanti ad ogni flush.
+  lastAccumFlushAt: number;
 };
 const presenceSessions = new Map<string, PresenceSession>(); // sessionId -> session
 const presenceByContract = new Map<number, Set<string>>(); // contractId -> sessionIds
@@ -72,13 +75,14 @@ async function ensurePresenceSchema(): Promise<void> {
       await pool.query(
         `ALTER TABLE contracts
            ADD COLUMN IF NOT EXISTS first_opened_at TIMESTAMP NULL,
-           ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP NULL`
+           ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP NULL,
+           ADD COLUMN IF NOT EXISTS total_presence_ms BIGINT NOT NULL DEFAULT 0`
       );
       await pool.query(
         `CREATE INDEX IF NOT EXISTS idx_contracts_last_activity_at
            ON contracts(last_activity_at)`
       );
-      console.log("[PRESENCE] Schema ready (first_opened_at, last_activity_at).");
+      console.log("[PRESENCE] Schema ready (first_opened_at, last_activity_at, total_presence_ms).");
     })().catch((e) => {
       // Reset so a later call can retry instead of being permanently degraded
       console.error("[PRESENCE] Failed to ensure schema, will retry on next call:", e);
@@ -114,6 +118,23 @@ async function presenceFlushActivity(contractId: number): Promise<void> {
     );
   } catch (e) {
     console.error("[PRESENCE] flushActivity DB error", e);
+  }
+}
+
+// Sposta il tempo maturato dalla sessione nel totale cumulativo del contratto.
+// Si usa sia durante i ping periodici, sia alla chiusura/timeout della sessione.
+async function presenceAccumulate(s: PresenceSession, upTo: number): Promise<void> {
+  const delta = Math.max(0, Math.min(upTo, s.lastPingAt) - s.lastAccumFlushAt);
+  if (delta <= 0) return;
+  s.lastAccumFlushAt = upTo;
+  try {
+    await ensurePresenceSchema();
+    await pool.query(
+      `UPDATE contracts SET total_presence_ms = COALESCE(total_presence_ms, 0) + $2 WHERE id = $1`,
+      [s.contractId, delta]
+    );
+  } catch (e) {
+    console.error("[PRESENCE] accumulate DB error", e);
   }
 }
 
@@ -156,15 +177,19 @@ function presenceRemoveSession(sessionId: string): void {
 
 function presenceCleanupOnce(): void {
   const now = Date.now();
-  const expired: string[] = [];
+  const expired: PresenceSession[] = [];
   const contractsToFlush = new Set<number>();
-  for (const [sid, s] of presenceSessions) {
+  for (const [, s] of presenceSessions) {
     if (now - s.lastPingAt > PRESENCE_TIMEOUT_MS) {
-      expired.push(sid);
+      expired.push(s);
       contractsToFlush.add(s.contractId);
     }
   }
-  for (const sid of expired) presenceRemoveSession(sid);
+  // Accumula il tempo maturato dalle sessioni in scadenza PRIMA di rimuoverle.
+  for (const s of expired) {
+    presenceAccumulate(s, s.lastPingAt).catch(() => {});
+    presenceRemoveSession(s.sessionId);
+  }
   // Flush last_activity_at una volta sola per contratto, così il "Visto N min fa"
   // resta accurato anche dopo disconnessioni brusche (timeout, no close event).
   for (const cid of contractsToFlush) {
@@ -793,7 +818,7 @@ export function registerRoutes(app: Express): Server {
         where += ` AND c.seller_id = $${params.length}`;
       }
       const result = await pool.query(
-        `SELECT c.id, c.first_opened_at, c.last_activity_at
+        `SELECT c.id, c.first_opened_at, c.last_activity_at, c.total_presence_ms
            FROM contracts c
            INNER JOIN users u ON u.id = c.seller_id
            WHERE ${where}`,
@@ -801,8 +826,19 @@ export function registerRoutes(app: Express): Server {
       );
       const data = result.rows.map((r: any) => {
         const id = r.id as number;
-        const liveCount = presenceByContract.get(id)?.size || 0;
+        const sessionIds = presenceByContract.get(id);
+        const liveCount = sessionIds?.size || 0;
         const liveSince = presenceFirstSessionAt.get(id) || null;
+        const totalStored = Number(r.total_presence_ms || 0);
+        // Aggiungi il tempo della sessione live corrente non ancora flushato nel DB.
+        let liveUnflushed = 0;
+        if (sessionIds) {
+          for (const sid of sessionIds) {
+            const s = presenceSessions.get(sid);
+            if (!s) continue;
+            liveUnflushed += Math.max(0, Math.min(now, s.lastPingAt) - s.lastAccumFlushAt);
+          }
+        }
         return {
           contractId: id,
           live: liveCount > 0,
@@ -810,6 +846,7 @@ export function registerRoutes(app: Express): Server {
           liveSinceMs: liveSince,
           firstOpenedAt: r.first_opened_at ? new Date(r.first_opened_at).toISOString() : null,
           lastActivityAt: r.last_activity_at ? new Date(r.last_activity_at).toISOString() : null,
+          totalPresenceMs: totalStored + liveUnflushed,
         };
       });
       presenceCache = { at: now, companyId, sellerId, data };
@@ -1156,6 +1193,75 @@ export function registerRoutes(app: Express): Server {
       res.json(contract);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch contract" });
+    }
+  });
+
+  // ============================================================================
+  // GET /api/contracts/:id/timeline — Timeline cronologica degli eventi del
+  // contratto: apertura, compilazione dati, OTP, firma, ecc. Include anche il
+  // tempo totale in linea accumulato dal cliente.
+  // ============================================================================
+  app.get("/api/contracts/:id/timeline", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const contract = await storage.getContract(id, req.user.companyId);
+      if (!contract) return res.status(404).json({ message: "Contract not found" });
+      if (req.user.role === "seller" && contract.sellerId !== req.user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      await ensurePresenceSchema();
+      const [logsRes, presRes] = await Promise.all([
+        pool.query(
+          `SELECT id, action, metadata, timestamp
+             FROM audit_logs
+             WHERE contract_id = $1
+             ORDER BY timestamp ASC`,
+          [id]
+        ),
+        pool.query(
+          `SELECT first_opened_at, last_activity_at, total_presence_ms FROM contracts WHERE id = $1`,
+          [id]
+        ),
+      ]);
+
+      // Tempo in linea cumulativo: DB + tempo della sessione live corrente non flushato.
+      const now = Date.now();
+      const sessionIds = presenceByContract.get(id);
+      let liveUnflushed = 0;
+      if (sessionIds) {
+        for (const sid of sessionIds) {
+          const s = presenceSessions.get(sid);
+          if (!s) continue;
+          liveUnflushed += Math.max(0, Math.min(now, s.lastPingAt) - s.lastAccumFlushAt);
+        }
+      }
+      const presRow = presRes.rows[0] || {};
+      const totalStored = Number(presRow.total_presence_ms || 0);
+
+      res.json({
+        contractId: id,
+        status: contract.status,
+        createdAt: contract.createdAt,
+        signedAt: contract.signedAt,
+        firstOpenedAt: presRow.first_opened_at
+          ? new Date(presRow.first_opened_at).toISOString()
+          : null,
+        lastActivityAt: presRow.last_activity_at
+          ? new Date(presRow.last_activity_at).toISOString()
+          : null,
+        live: (sessionIds?.size || 0) > 0,
+        totalPresenceMs: totalStored + liveUnflushed,
+        events: logsRes.rows.map((r: any) => ({
+          id: r.id,
+          action: r.action,
+          metadata: r.metadata || null,
+          timestamp: new Date(r.timestamp).toISOString(),
+        })),
+      });
+    } catch (error) {
+      console.error("Timeline endpoint error:", error);
+      res.status(500).json({ message: "Failed to fetch timeline" });
     }
   });
 
@@ -3539,6 +3645,7 @@ export function registerRoutes(app: Express): Server {
             openedAt: now,
             lastPingAt: now,
             lastDbFlushAt: now,
+            lastAccumFlushAt: now,
           };
           presenceAddSession(sess);
           // First open of this session → upsert first_opened_at + last_activity_at
@@ -3556,15 +3663,21 @@ export function registerRoutes(app: Express): Server {
               if (t - s.lastDbFlushAt > PRESENCE_DB_FLUSH_MS) {
                 s.lastDbFlushAt = t;
                 presenceFlushActivity(s.contractId).catch(() => {});
+                presenceAccumulate(s, t).catch(() => {});
               }
             }
           });
           ws.on("close", () => {
             const s = presenceSessions.get(sessionId);
-            if (s) presenceFlushActivity(s.contractId).catch(() => {});
+            if (s) {
+              presenceAccumulate(s, Date.now()).catch(() => {});
+              presenceFlushActivity(s.contractId).catch(() => {});
+            }
             presenceRemoveSession(sessionId);
           });
           ws.on("error", () => {
+            const s = presenceSessions.get(sessionId);
+            if (s) presenceAccumulate(s, Date.now()).catch(() => {});
             try { ws.close(); } catch {}
             presenceRemoveSession(sessionId);
           });
@@ -3641,6 +3754,7 @@ export function registerRoutes(app: Express): Server {
             openedAt: nowB,
             lastPingAt: nowB,
             lastDbFlushAt: nowB,
+            lastAccumFlushAt: nowB,
           };
           presenceAddSession(pSess);
           presenceMarkOpen(sess.contractId).catch(() => {});
@@ -3703,6 +3817,7 @@ export function registerRoutes(app: Express): Server {
               if (t - bs.lastDbFlushAt > PRESENCE_DB_FLUSH_MS) {
                 bs.lastDbFlushAt = t;
                 presenceFlushActivity(bs.contractId).catch(() => {});
+                presenceAccumulate(bs, t).catch(() => {});
               }
             }
           }
@@ -3714,7 +3829,10 @@ export function registerRoutes(app: Express): Server {
           coFillBroadcast(token, coFillPresence(token));
           if (presenceBridgeId) {
             const s = presenceSessions.get(presenceBridgeId);
-            if (s) presenceFlushActivity(s.contractId).catch(() => {});
+            if (s) {
+              presenceAccumulate(s, Date.now()).catch(() => {});
+              presenceFlushActivity(s.contractId).catch(() => {});
+            }
             presenceRemoveSession(presenceBridgeId);
           }
           coFillAudit("peer_disconnected", { token, clientId, role: peer.role, userId: peer.userId });

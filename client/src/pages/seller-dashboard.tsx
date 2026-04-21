@@ -24,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   FileText,
   TrendingUp,
@@ -76,7 +77,10 @@ function fmtRelativeIt(fromMs: number): string {
   return `${d}g fa`;
 }
 function fmtLiveDuration(fromMs: number): string {
-  const diff = Math.max(0, Date.now() - fromMs);
+  return fmtDurationMs(Math.max(0, Date.now() - fromMs));
+}
+function fmtDurationMs(diffMs: number): string {
+  const diff = Math.max(0, diffMs);
   const s = Math.floor(diff / 1000);
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
@@ -101,6 +105,25 @@ type PresenceRow = {
   liveSinceMs: number | null;
   firstOpenedAt: string | null;
   lastActivityAt: string | null;
+  totalPresenceMs: number;
+};
+
+type TimelineEvent = {
+  id: number;
+  action: string;
+  metadata: any;
+  timestamp: string;
+};
+type TimelineResponse = {
+  contractId: number;
+  status: string;
+  createdAt: string;
+  signedAt: string | null;
+  firstOpenedAt: string | null;
+  lastActivityAt: string | null;
+  live: boolean;
+  totalPresenceMs: number;
+  events: TimelineEvent[];
 };
 
 const ABANDONED_THRESHOLD_MS = 30 * 60 * 1000;
@@ -128,22 +151,123 @@ function usePresence(intervalMs: number = 10000) {
   return map;
 }
 
-function PresenceBadge({ p, contractStatus }: { p: PresenceRow | undefined; contractStatus: string }) {
-  // Forza re-render ogni 30s per aggiornare i tempi relativi
+// Etichette italiane per i vari tipi di evento nell'audit log.
+const EVENT_LABEL: Record<string, { label: string; emoji: string }> = {
+  created: { label: "Contratto creato", emoji: "📝" },
+  updated: { label: "Contratto aggiornato", emoji: "✏️" },
+  sent: { label: "Email inviata al cliente", emoji: "📧" },
+  updated_and_sent: { label: "Aggiornato e inviato", emoji: "📧" },
+  viewed: { label: "Cliente ha aperto il link", emoji: "👀" },
+  client_data_updated: { label: "Cliente sta compilando i dati", emoji: "⌨️" },
+  client_data_completed: { label: "Dati cliente completati", emoji: "✅" },
+  otp_sent: { label: "Codice OTP inviato", emoji: "📱" },
+  otp_failed: { label: "Tentativo OTP fallito", emoji: "⚠️" },
+  signed: { label: "Contratto firmato", emoji: "✍️" },
+  archived: { label: "Archiviato", emoji: "📦" },
+  unarchived: { label: "Ripristinato dall'archivio", emoji: "♻️" },
+  duplicated: { label: "Duplicato", emoji: "📄" },
+  content_regenerated: { label: "Contenuto rigenerato", emoji: "🔄" },
+  content_manually_edited: { label: "Documento modificato a mano", emoji: "🖊️" },
+  co_fill_draft_created: { label: "Link compilazione generato", emoji: "🔗" },
+  co_fill_link_emailed: { label: "Link compilazione inviato via email", emoji: "📧" },
+  co_fill_link_email_failed: { label: "Invio link fallito", emoji: "⚠️" },
+};
+
+function labelForEvent(action: string): { label: string; emoji: string } {
+  return EVENT_LABEL[action] || { label: action, emoji: "•" };
+}
+
+function PresenceTimeline({ contractId, open }: { contractId: number; open: boolean }) {
+  const { data, isLoading } = useQuery<TimelineResponse>({
+    queryKey: [`/api/contracts/${contractId}/timeline`],
+    enabled: open,
+    refetchInterval: open ? 10000 : false,
+  });
+  // Tick per tenere "fresco" il tempo cumulativo
   const [, setTick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTick((x) => x + 1), 30000);
+    if (!open) return;
+    const id = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [open]);
+
+  if (isLoading || !data) {
+    return <div className="text-xs text-slate-500 p-2">Caricamento…</div>;
+  }
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-slate-500">Tempo totale in linea</div>
+          <div className="text-lg font-bold text-slate-900" data-testid="timeline-total-presence">
+            {fmtLiveDuration(Date.now() - data.totalPresenceMs)}
+          </div>
+        </div>
+        {data.live && (
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-emerald-50 text-emerald-700 border border-emerald-100">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            In linea ora
+          </span>
+        )}
+      </div>
+      {data.firstOpenedAt && (
+        <div className="text-[11px] text-slate-500">
+          Primo accesso: {fmtAbsoluteIt(data.firstOpenedAt)}
+        </div>
+      )}
+      <div className="border-t border-slate-100 pt-3">
+        <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Cronologia</div>
+        {data.events.length === 0 ? (
+          <div className="text-xs text-slate-400">Nessun evento ancora</div>
+        ) : (
+          <ol className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            {data.events.map((ev) => {
+              const lbl = labelForEvent(ev.action);
+              return (
+                <li key={ev.id} className="flex items-start gap-2 text-xs">
+                  <span className="text-sm leading-none pt-0.5">{lbl.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-slate-800 truncate">{lbl.label}</div>
+                    <div className="text-[10px] text-slate-500">{fmtAbsoluteIt(ev.timestamp)}</div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PresenceBadge({ p, contractId, contractStatus }: { p: PresenceRow | undefined; contractId: number; contractStatus: string }) {
+  // Forza re-render ogni secondo mentre è in linea per avere il contatore "vivo".
+  const [, setTick] = useState(0);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const intervalMs = p?.live ? 1000 : 30000;
+    const id = setInterval(() => setTick((x) => x + 1), intervalMs);
+    return () => clearInterval(id);
+  }, [p?.live]);
   if (!p) return null;
   const tooltip = p.firstOpenedAt
-    ? `Aperto la prima volta: ${fmtAbsoluteIt(p.firstOpenedAt)}`
-    : "Mai aperto dal cliente";
-  if (p.live && p.liveSinceMs) {
+    ? `Aperto la prima volta: ${fmtAbsoluteIt(p.firstOpenedAt)} — clicca per la cronologia`
+    : "Clicca per la cronologia";
+
+  let badge: React.ReactNode = null;
+  if (p.live) {
     const sessions = p.liveSessions || 1;
-    return (
+    // Tempo cumulativo: totale storico + tempo della sessione live corrente.
+    // Il server aggiorna totalPresenceMs ogni 30s, nel frattempo interpoliamo
+    // localmente usando liveSinceMs per non mostrare un contatore "fermo".
+    const nowElapsed =
+      p.liveSinceMs ? Math.max(0, Date.now() - p.liveSinceMs) : 0;
+    // Usiamo il massimo tra (valore server) e (sessione corrente calcolata
+    // client-side) così il numero non scende mai tra un polling e l'altro.
+    const cumulativeMs = Math.max(p.totalPresenceMs || 0, nowElapsed);
+    badge = (
       <span
-        className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-100"
+        className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-100 cursor-pointer hover:bg-emerald-100 transition-colors"
         title={tooltip}
         data-testid={`presence-live-${p.contractId}`}
       >
@@ -151,40 +275,59 @@ function PresenceBadge({ p, contractStatus }: { p: PresenceRow | undefined; cont
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         </span>
-        In linea{sessions > 1 ? ` · ${sessions} dispositivi` : ""} · {fmtLiveDuration(p.liveSinceMs)}
+        In linea{sessions > 1 ? ` · ${sessions} dispositivi` : ""} · {fmtDurationMs(cumulativeMs)}
       </span>
     );
-  }
-  if (isAbandoned(p, contractStatus)) {
-    return (
+  } else if (isAbandoned(p, contractStatus)) {
+    badge = (
       <span
-        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-100"
+        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-100 cursor-pointer hover:bg-amber-100 transition-colors"
         title={tooltip}
         data-testid={`presence-abandoned-${p.contractId}`}
       >
         Abbandonato
       </span>
     );
-  }
-  if (p.lastActivityAt) {
-    return (
+  } else if (p.lastActivityAt) {
+    const totalLabel = (p.totalPresenceMs || 0) > 5000
+      ? ` · ${fmtLiveDuration(Date.now() - p.totalPresenceMs)} totali`
+      : "";
+    badge = (
       <span
-        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-100"
+        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors"
         title={tooltip}
         data-testid={`presence-lastseen-${p.contractId}`}
       >
-        Visto {fmtRelativeIt(new Date(p.lastActivityAt).getTime())}
+        Visto {fmtRelativeIt(new Date(p.lastActivityAt).getTime())}{totalLabel}
+      </span>
+    );
+  } else {
+    badge = (
+      <span
+        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors"
+        title="Mai aperto dal cliente — clicca per la cronologia"
+        data-testid={`presence-never-${p.contractId}`}
+      >
+        Mai aperto
       </span>
     );
   }
+
   return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-50 border border-slate-100"
-      title="Mai aperto dal cliente"
-      data-testid={`presence-never-${p.contractId}`}
-    >
-      Mai aperto
-    </span>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 rounded-full"
+          data-testid={`presence-timeline-trigger-${p.contractId}`}
+        >
+          {badge}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80">
+        <PresenceTimeline contractId={contractId} open={open} />
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -812,7 +955,7 @@ export default function SellerDashboard() {
                             // attiva (es. cliente in co-fill) — niente "Mai aperto"
                             // sui draft appena creati.
                             if (contract.status === "draft" && (!pres || !pres.live)) return null;
-                            return <PresenceBadge p={pres} contractStatus={contract.status} />;
+                            return <PresenceBadge p={pres} contractId={contract.id} contractStatus={contract.status} />;
                           })()}
                           {contract.coFillToken && contract.status === "draft" && !contract.isArchived && (() => {
                             const cd = (contract.clientData || {}) as Record<string, unknown>;
