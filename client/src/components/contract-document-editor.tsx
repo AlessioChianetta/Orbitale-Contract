@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useEditor, EditorContent } from "@tiptap/react";
+import { Extension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -38,6 +39,44 @@ interface ContractDocumentEditorProps {
   onClose: () => void;
 }
 
+// Estensione globale: preserva gli attributi `style` e `class` su tutti i
+// nodi rilevanti del documento contratto (heading, paragrafi, liste, ecc.).
+// Senza questa estensione TipTap, in fase di parse dell'HTML del template,
+// scarta gli stili inline (es. `style="font-size:18px;color:#1e293b;
+// border-left:4px solid #6366f1"` sui titoli) — col risultato che, al primo
+// salvataggio, il `generatedContent` perde tutta la formattazione visiva.
+const PreserveInlineFormatting = Extension.create({
+  name: "preserveInlineFormatting",
+  addGlobalAttributes() {
+    return [
+      {
+        types: [
+          "heading",
+          "paragraph",
+          "bulletList",
+          "orderedList",
+          "listItem",
+          "blockquote",
+        ],
+        attributes: {
+          style: {
+            default: null,
+            parseHTML: (element) => element.getAttribute("style"),
+            renderHTML: (attributes) =>
+              attributes.style ? { style: attributes.style as string } : {},
+          },
+          class: {
+            default: null,
+            parseHTML: (element) => element.getAttribute("class"),
+            renderHTML: (attributes) =>
+              attributes.class ? { class: attributes.class as string } : {},
+          },
+        },
+      },
+    ];
+  },
+});
+
 const PREVIEW_BODY_CLASS =
   "text-sm text-slate-700 leading-relaxed custom-content-section " +
   "[&_p]:mb-4 [&_p]:leading-relaxed " +
@@ -69,6 +108,7 @@ export default function ContractDocumentEditor({
       extensions: [
         StarterKit.configure({ history: { depth: 100 } }),
         TextAlign.configure({ types: ["heading", "paragraph"] }),
+        PreserveInlineFormatting,
       ],
       content: contract.generatedContent || "",
       onUpdate: () => {
