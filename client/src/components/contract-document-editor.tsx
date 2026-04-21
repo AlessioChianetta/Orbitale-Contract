@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +27,8 @@ import {
   Redo,
   FileEdit,
   AlertTriangle,
+  Eye,
+  Pencil,
 } from "lucide-react";
 import { type Contract } from "@shared/schema";
 
@@ -37,6 +38,19 @@ interface ContractDocumentEditorProps {
   onClose: () => void;
 }
 
+const PREVIEW_BODY_CLASS =
+  "text-sm text-slate-700 leading-relaxed custom-content-section " +
+  "[&_p]:mb-4 [&_p]:leading-relaxed " +
+  "[&_ul]:my-4 [&_ul]:pl-6 [&_ul]:list-disc " +
+  "[&_ol]:my-4 [&_ol]:pl-6 [&_ol]:list-decimal " +
+  "[&_li]:mb-2 " +
+  "[&_strong]:font-semibold [&_strong]:text-slate-900 " +
+  "[&_em]:italic " +
+  "[&_u]:underline " +
+  "[&_h1]:text-xl [&_h1]:font-bold [&_h1]:my-5 [&_h1]:text-slate-900 " +
+  "[&_h2]:text-lg [&_h2]:font-bold [&_h2]:my-4 [&_h2]:text-slate-900 " +
+  "[&_h3]:text-base [&_h3]:font-bold [&_h3]:my-3 [&_h3]:text-slate-900";
+
 export default function ContractDocumentEditor({
   contract,
   open,
@@ -44,14 +58,14 @@ export default function ContractDocumentEditor({
 }: ContractDocumentEditorProps) {
   const { toast } = useToast();
   const [confirmClose, setConfirmClose] = useState(false);
-
   const [isDirty, setIsDirty] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string>("");
 
   const editor = useEditor(
     {
       extensions: [
         StarterKit.configure({ history: { depth: 100 } }),
-        Underline,
         TextAlign.configure({ types: ["heading", "paragraph"] }),
       ],
       content: contract.generatedContent || "",
@@ -117,24 +131,39 @@ export default function ContractDocumentEditor({
 
   const handleForceClose = useCallback(() => {
     setConfirmClose(false);
+    setIsPreview(false);
     onClose();
   }, [onClose]);
+
+  const togglePreview = useCallback(() => {
+    if (!editor) return;
+    if (!isPreview) {
+      setPreviewHtml(editor.getHTML());
+      setIsPreview(true);
+    } else {
+      setIsPreview(false);
+    }
+  }, [editor, isPreview]);
 
   const toolbarBtn = (
     icon: React.ReactNode,
     onClick: () => void,
     title: string,
-    isActive?: boolean
+    isActive?: boolean,
+    disabled?: boolean
   ) => (
     <button
       type="button"
       title={title}
+      disabled={disabled}
       onMouseDown={(e) => {
         e.preventDefault();
-        onClick();
+        if (!disabled) onClick();
       }}
       className={`p-1.5 rounded transition-colors ${
-        isActive
+        disabled
+          ? "text-slate-300 cursor-not-allowed"
+          : isActive
           ? "bg-indigo-100 text-indigo-700"
           : "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
       }`}
@@ -148,7 +177,7 @@ export default function ContractDocumentEditor({
       <Dialog
         open={open}
         onOpenChange={(o) => {
-          if (!o) setConfirmClose(true);
+          if (!o) handleClose();
         }}
       >
         <DialogContent className="max-w-[95vw] w-[1100px] max-h-[95vh] h-[95vh] p-0 gap-0 flex flex-col rounded-2xl overflow-hidden">
@@ -158,12 +187,14 @@ export default function ContractDocumentEditor({
                 <FileEdit className="h-5 w-5 text-indigo-600" />
                 <div>
                   <DialogTitle className="text-base font-semibold text-slate-900">
-                    Modifica documento
+                    {isPreview ? "Anteprima documento" : "Modifica documento"}
                   </DialogTitle>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {(contract.clientData as Record<string, unknown>)?.societa as string ||
                       "Contratto"}{" "}
-                    — le modifiche si applicano solo a questo contratto
+                    — {isPreview
+                      ? "stai vedendo come apparirà il documento finale"
+                      : "le modifiche si applicano solo a questo contratto"}
                   </p>
                 </div>
               </div>
@@ -171,7 +202,26 @@ export default function ContractDocumentEditor({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setConfirmClose(true)}
+                  onClick={togglePreview}
+                  className="rounded-xl"
+                  data-testid="button-toggle-preview"
+                >
+                  {isPreview ? (
+                    <>
+                      <Pencil className="h-4 w-4 mr-1.5" />
+                      Torna a modifica
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-4 w-4 mr-1.5" />
+                      Anteprima
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClose}
                   className="rounded-xl"
                 >
                   <X className="h-4 w-4 mr-1.5" />
@@ -180,8 +230,9 @@ export default function ContractDocumentEditor({
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={saveMutation.isPending}
+                  disabled={saveMutation.isPending || isPreview}
                   className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white"
+                  title={isPreview ? "Torna in modalità modifica per salvare" : undefined}
                 >
                   <Save className="h-4 w-4 mr-1.5" />
                   {saveMutation.isPending ? "Salvataggio…" : "Salva"}
@@ -190,82 +241,102 @@ export default function ContractDocumentEditor({
             </div>
           </DialogHeader>
 
-          {/* Toolbar */}
-          <div className="flex items-center gap-0.5 px-4 py-2 border-b bg-slate-50 shrink-0 flex-wrap">
-            {toolbarBtn(
-              <Undo className="h-4 w-4" />,
-              () => editor?.chain().focus().undo().run(),
-              "Annulla"
-            )}
-            {toolbarBtn(
-              <Redo className="h-4 w-4" />,
-              () => editor?.chain().focus().redo().run(),
-              "Ripristina"
-            )}
-            <div className="w-px h-5 bg-slate-200 mx-1" />
-            {toolbarBtn(
-              <Bold className="h-4 w-4" />,
-              () => editor?.chain().focus().toggleBold().run(),
-              "Grassetto",
-              editor?.isActive("bold")
-            )}
-            {toolbarBtn(
-              <Italic className="h-4 w-4" />,
-              () => editor?.chain().focus().toggleItalic().run(),
-              "Corsivo",
-              editor?.isActive("italic")
-            )}
-            {toolbarBtn(
-              <UnderlineIcon className="h-4 w-4" />,
-              () => editor?.chain().focus().toggleUnderline().run(),
-              "Sottolineato",
-              editor?.isActive("underline")
-            )}
-            <div className="w-px h-5 bg-slate-200 mx-1" />
-            {toolbarBtn(
-              <AlignLeft className="h-4 w-4" />,
-              () => editor?.chain().focus().setTextAlign("left").run(),
-              "Allinea a sinistra",
-              editor?.isActive({ textAlign: "left" })
-            )}
-            {toolbarBtn(
-              <AlignCenter className="h-4 w-4" />,
-              () => editor?.chain().focus().setTextAlign("center").run(),
-              "Centra",
-              editor?.isActive({ textAlign: "center" })
-            )}
-            {toolbarBtn(
-              <AlignRight className="h-4 w-4" />,
-              () => editor?.chain().focus().setTextAlign("right").run(),
-              "Allinea a destra",
-              editor?.isActive({ textAlign: "right" })
-            )}
-            <div className="w-px h-5 bg-slate-200 mx-1" />
-            {toolbarBtn(
-              <List className="h-4 w-4" />,
-              () => editor?.chain().focus().toggleBulletList().run(),
-              "Elenco puntato",
-              editor?.isActive("bulletList")
-            )}
-            {toolbarBtn(
-              <ListOrdered className="h-4 w-4" />,
-              () => editor?.chain().focus().toggleOrderedList().run(),
-              "Elenco numerato",
-              editor?.isActive("orderedList")
-            )}
-            <div className="flex-1" />
-            {contract.contentManuallyEdited && (
-              <span className="text-[11px] text-violet-600 font-medium flex items-center gap-1 pr-1">
-                <FileEdit className="h-3 w-3" />
-                Documento modificato manualmente
-              </span>
-            )}
-          </div>
+          {/* Toolbar (only in edit mode) */}
+          {!isPreview && (
+            <div className="flex items-center gap-0.5 px-4 py-2 border-b bg-slate-50 shrink-0 flex-wrap">
+              {toolbarBtn(
+                <Undo className="h-4 w-4" />,
+                () => editor?.chain().focus().undo().run(),
+                "Annulla"
+              )}
+              {toolbarBtn(
+                <Redo className="h-4 w-4" />,
+                () => editor?.chain().focus().redo().run(),
+                "Ripristina"
+              )}
+              <div className="w-px h-5 bg-slate-200 mx-1" />
+              {toolbarBtn(
+                <Bold className="h-4 w-4" />,
+                () => editor?.chain().focus().toggleBold().run(),
+                "Grassetto",
+                editor?.isActive("bold")
+              )}
+              {toolbarBtn(
+                <Italic className="h-4 w-4" />,
+                () => editor?.chain().focus().toggleItalic().run(),
+                "Corsivo",
+                editor?.isActive("italic")
+              )}
+              {toolbarBtn(
+                <UnderlineIcon className="h-4 w-4" />,
+                () => editor?.chain().focus().toggleUnderline().run(),
+                "Sottolineato",
+                editor?.isActive("underline")
+              )}
+              <div className="w-px h-5 bg-slate-200 mx-1" />
+              {toolbarBtn(
+                <AlignLeft className="h-4 w-4" />,
+                () => editor?.chain().focus().setTextAlign("left").run(),
+                "Allinea a sinistra",
+                editor?.isActive({ textAlign: "left" })
+              )}
+              {toolbarBtn(
+                <AlignCenter className="h-4 w-4" />,
+                () => editor?.chain().focus().setTextAlign("center").run(),
+                "Centra",
+                editor?.isActive({ textAlign: "center" })
+              )}
+              {toolbarBtn(
+                <AlignRight className="h-4 w-4" />,
+                () => editor?.chain().focus().setTextAlign("right").run(),
+                "Allinea a destra",
+                editor?.isActive({ textAlign: "right" })
+              )}
+              <div className="w-px h-5 bg-slate-200 mx-1" />
+              {toolbarBtn(
+                <List className="h-4 w-4" />,
+                () => editor?.chain().focus().toggleBulletList().run(),
+                "Elenco puntato",
+                editor?.isActive("bulletList")
+              )}
+              {toolbarBtn(
+                <ListOrdered className="h-4 w-4" />,
+                () => editor?.chain().focus().toggleOrderedList().run(),
+                "Elenco numerato",
+                editor?.isActive("orderedList")
+              )}
+              <div className="flex-1" />
+              {contract.contentManuallyEdited && (
+                <span className="text-[11px] text-violet-600 font-medium flex items-center gap-1 pr-1">
+                  <FileEdit className="h-3 w-3" />
+                  Documento modificato manualmente
+                </span>
+              )}
+            </div>
+          )}
 
-          {/* Editor area */}
+          {/* Preview info bar */}
+          {isPreview && (
+            <div className="flex items-center gap-2 px-4 py-2 border-b bg-amber-50 text-amber-800 shrink-0 text-xs">
+              <Eye className="h-3.5 w-3.5" />
+              Anteprima del documento finale. Le modifiche non sono ancora state salvate — torna in modifica per continuare o usa "Salva".
+            </div>
+          )}
+
+          {/* Content area */}
           <div className="flex-1 overflow-auto bg-slate-100 py-6 px-4">
             <div className="max-w-[860px] mx-auto bg-white shadow-md rounded-lg overflow-hidden">
-              <EditorContent editor={editor} />
+              {isPreview ? (
+                <div className="contract-content px-4 sm:px-8 lg:px-14 py-6 sm:py-10 lg:py-14">
+                  <div
+                    className={PREVIEW_BODY_CLASS}
+                    dangerouslySetInnerHTML={{ __html: previewHtml }}
+                    data-testid="preview-content"
+                  />
+                </div>
+              ) : (
+                <EditorContent editor={editor} />
+              )}
             </div>
           </div>
         </DialogContent>
@@ -281,7 +352,7 @@ export default function ContractDocumentEditor({
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-slate-600 mt-2">
-            Eventuali modifiche non salvate andranno perse. Vuoi continuare?
+            Hai modifiche non salvate. Se chiudi adesso andranno perse. Vuoi continuare?
           </p>
           <div className="flex justify-end gap-2 mt-4">
             <Button
