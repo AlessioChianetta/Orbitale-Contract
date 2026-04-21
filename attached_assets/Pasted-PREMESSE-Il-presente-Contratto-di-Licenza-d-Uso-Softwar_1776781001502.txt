@@ -1,0 +1,692 @@
+PREMESSE
+
+Il presente Contratto di Licenza d'Uso Software (di seguito "Contratto") disciplina i termini e le condizioni per la concessione in licenza d'uso della piattaforma proprietaria di intelligenza artificiale denominata Sistema Orbitale (di seguito "Piattaforma"), sviluppata e di proprietà esclusiva del Fornitore.
+
+La Piattaforma costituisce un sistema integrato di automazione aziendale basato su intelligenza artificiale, progettato per automatizzare la gestione dei lead, le comunicazioni con i clienti, la formazione del personale e le attività commerciali tramite un team di Dipendenti AI specializzati.
+
+Il presente Contratto è strutturato su due livelli complementari:
+
+
+
+
+
+LIVELLO 1 — COMMERCIALE: disciplina l'oggetto, i servizi inclusi, il modello economico, la durata e le condizioni operative della licenza d'uso;
+
+
+
+LIVELLO 2 — PROTEZIONE LEGALE: disciplina la proprietà intellettuale, la responsabilità, le clausole restrittive, la risoluzione e il foro competente.
+
+ LIVELLO 1 — PARTE COMMERCIALE
+
+ARTICOLO 1 — DEFINIZIONI
+
+Ai fini del presente Contratto, i seguenti termini assumono il significato di seguito indicato:
+
+"Piattaforma": il sistema software proprietario di intelligenza artificiale denominato Sistema Orbitale, comprensivo di tutti i moduli, le funzionalità, le interfacce, le API, i database e i servizi accessori descritti nel presente Contratto, accessibile via web e ospitato su infrastruttura cloud gestita dal Fornitore.
+
+"Licenza d'Uso": il diritto non esclusivo, non trasferibile e revocabile concesso al Cliente di utilizzare la Piattaforma nei limiti e secondo le modalità stabilite dal presente Contratto.
+
+"Sistema Orbitale" (o "Orbitale"): il nome commerciale della Piattaforma.
+
+"Dipendente AI": ciascuno degli agenti di intelligenza artificiale specializzati integrati nella Piattaforma, addestrabili sulla base dei documenti e delle istruzioni fornite dal Cliente, operanti su diversi canali (WhatsApp, Instagram, Email, Telefono).
+
+"Livello di Accesso": il pacchetto di funzionalità e servizi della Piattaforma scelto dal Cliente tra quelli disponibili (Livello 1 Free, Livello 2 Starter, Livello 3 Professional, Livello 4 Setter AI + Hunter, Livello 5 Enterprise, Livello 6 Enterprise + Consulenza). Il Livello sottoscritto è specificato nelle condizioni particolari del presente Contratto: Livello 4 — Setter AI + Hunter.
+
+"Setter AI" (Stella): il Dipendente AI che risponde automaticamente ai lead su WhatsApp e Instagram, li qualifica con framework BANT e prenota appuntamenti nel calendario del Cliente.
+
+"Hunter": il Dipendente AI che effettua lead generation proattiva cercando potenziali clienti su Google Maps e Google Search, analizzando la loro presenza online e assegnando un punteggio di compatibilità AI.
+
+"Alessia AI": il Dipendente AI vocale che effettua e riceve chiamate telefoniche con voce naturale, gestisce il centralino AI e qualifica i lead via telefono.
+
+"Millie": il Dipendente AI che gestisce la inbox email del Cliente, classifica le email per tipo e urgenza, genera risposte professionali e programma follow-up automatici.
+
+"Sofia" (AdVisage AI): il Dipendente AI creativo che analizza i testi pubblicitari, genera concept visivi per campagne ads e produce contenuti social professionali.
+
+"Nova": il Dipendente AI dedicato al content marketing, alla gestione del calendario editoriale e alla pubblicazione sui social media.
+
+"Marco": il Dipendente AI Executive Coach per l'imprenditore, fornisce briefing giornalieri, agenda e supporto strategico.
+
+"Echo": il Dipendente AI che produce riepiloghi automatici delle consulenze, trascrizioni, dashboard insights e documentazione.
+
+"Knowledge Base": l'archivio documentale digitale alimentabile dal Cliente (PDF, DOCX, TXT, URL) dal quale l'intelligenza artificiale attinge per formulare risposte accurate basate su fonti verificabili (tecnologia RAG — Retrieval Augmented Generation).
+
+"Lead": un potenziale cliente del Cliente che ha manifestato interesse o che viene contattato proattivamente tramite i Dipendenti AI della Piattaforma.
+
+"Canone Mensile": il corrispettivo fisso ricorrente dovuto dal Cliente al Fornitore per l'utilizzo della Piattaforma, variabile in base al Livello di Accesso sottoscritto.
+
+"Costo di Attivazione" o "Setup": il corrispettivo una tantum dovuto dal Cliente per la configurazione iniziale della Piattaforma, ove previsto dal Livello di Accesso scelto.
+
+ARTICOLO 2 — OGGETTO DEL CONTRATTO
+
+2.1. Il Fornitore concede al Cliente una Licenza d'Uso della Piattaforma Sistema Orbitale, non esclusiva, non trasferibile e non sublicenziabile, per la durata e alle condizioni stabilite dal presente Contratto, con il Livello di Accesso indicato nelle condizioni particolari (Livello 4 — Setter AI + Hunter).
+
+2.2. La Licenza d'Uso comprende l'accesso ai moduli e alle funzionalità della Piattaforma previsti dal Livello di Accesso sottoscritto, come dettagliati nell'Articolo 3, inclusi gli aggiornamenti e le evoluzioni rilasciate dal Fornitore durante il periodo di validità del Contratto.
+
+2.3. Il Cliente acquisisce il diritto di utilizzare la Piattaforma esclusivamente per la propria attività aziendale. La Licenza d'Uso non comprende il diritto di rivendita, sublicenza o distribuzione della Piattaforma a terzi.
+
+2.4. La Piattaforma è fornita in modalità SaaS (Software as a Service), accessibile via browser web. Il Fornitore si occupa dell'hosting, della manutenzione dell'infrastruttura e degli aggiornamenti tecnici.
+
+ARTICOLO 3 — PACCHETTI DI SERVIZI INCLUSI (Capitolo 36 del Manuale)
+
+La Piattaforma è organizzata in 11 Pacchetti di Servizi (Capitolo 36 del Manuale operativo: 36.1 → 36.11), descritti in dettaglio affinché il Cliente abbia piena consapevolezza di ciò che acquisisce. La disponibilità di ciascun Pacchetto dipende dal Livello di Accesso sottoscritto (Livello 4 — Setter AI + Hunter).
+
+Il Team di Dipendenti AI (riferimento trasversale)
+
+La Piattaforma mette a disposizione del Cliente un team completo di Dipendenti AI specializzati, ciascuno dedicato a una funzione aziendale specifica. La disponibilità di ciascun Dipendente dipende dal Livello di Accesso sottoscritto.
+
+Dipendente AIRuoloLivello MinimoSetter AI (Stella)Risponde ai lead su WhatsApp/Instagram, qualifica e prenota appuntamentiLivello 4HunterTrova nuovi lead su Google, qualifica con AI scoring, contatta automaticamenteLivello 4Alessia AIChiamate vocali con voce naturale, centralino AI inbound/outboundLivello 4MillieGestione email intelligente, classificazione, risposte e follow-up automaticiLivello 4MarcoCoach AI per l'imprenditore, briefing giornalieri, agenda, supporto strategicoLivello 3EchoRiepiloghi consulenze, trascrizioni, documentazione automaticaLivello 3NovaSocial media, content studio, calendario editoriale, pubblicazioneLivello 3Sofia (AdVisage AI)Campagne ads, concept pubblicitari, fabbrica creativa AILivello 4PersonalizzaAssistente AI configurabile liberamente per qualsiasi repartoLivello 2
+
+Di seguito sono descritti in dettaglio i Pacchetti di Servizi sottoscritti dal Cliente nelle condizioni particolari del presente Contratto. Solo i pacchetti effettivamente attivati formano parte integrante della Licenza d'Uso.
+
+36.1 SETTER AI – Acquisizione & Primo Contatto
+
+Descrizione. Il pacchetto fondamentale per acquisire nuovi clienti e gestire il primo contatto in modo automatizzato. Trasforma lead freddi in appuntamenti qualificati grazie al Setter AI (Stella) su WhatsApp e Instagram, all'email di outreach e alla presa appuntamento automatica. Include la possibilità di configurare agenti WhatsApp dedicati all'assistenza clienti post-vendita.
+
+Per chi è pensato. Qualsiasi professionista che vuole automatizzare l'acquisizione clienti, non perdere mai un lead, e delegare l'assistenza clienti a un AI addestrato che lavora al posto suo.
+
+Moduli inclusi:
+
+
+
+
+
+Setter AI (Stella) — WhatsApp e Instagram: risposta automatica 24/7, qualifica BANT, prenotazione appuntamenti nel calendario del Cliente con escalation umana intelligente.
+
+
+
+Template WhatsApp: template pre-approvati da Meta per iniziare conversazioni con i lead.
+
+
+
+Email Hub Outreach: invio email di primo contatto e follow-up automatico ai lead.
+
+
+
+Presa Appuntamento: booking automatico integrato con il calendario del Cliente.
+
+
+
+Weekly Check-in: sistema automatico di contatto settimanale via WhatsApp per mantenere il rapporto.
+
+
+
+Campagne Marketing WhatsApp: invio massivo di template a liste di contatti segmentate, con statistiche di consegna, lettura e conversione.
+
+
+
+Venditori Autonomi AI: agenti AI per conversazioni di vendita su landing page pubblica.
+
+Prerequisiti operativi. Configurazione iniziale di API Key AI, SMTP e WhatsApp Business (Twilio).
+
+36.2 DIPENDENTI AI AUTONOMI – Team AI 24/7
+
+Descrizione. Un team completo di Dipendenti AI che lavorano autonomamente 24 ore su 24. Ogni Dipendente ha un ruolo specifico: dalla gestione email alla ricerca lead, dall'analisi executive al supporto clienti. Configurali una volta e lascia che lavorino per il Cliente. I clienti finali con licenza Premium possono accedere a un proprio AI Assistant personale in piattaforma con memoria persistente.
+
+Per chi è pensato. Consulenti e professionisti che vogliono delegare attività operative all'AI senza supervisione costante e offrire ai propri clienti un'esperienza premium.
+
+Moduli inclusi:
+
+
+
+
+
+Sistema AI Autonomy: piattaforma centrale per gestire i Dipendenti AI con task, scheduling e monitoraggio.
+
+
+
+Alessia AI — receptionist virtuale e assistente principale.
+
+
+
+Millie — gestione email automatizzata con risposte AI (richiede SMTP configurato; per il pacchetto Email Journey vedi Pacchetto 4).
+
+
+
+Stella (Setter AI) — assistente WhatsApp per follow-up e nurturing (vedi anche Pacchetto 1).
+
+
+
+Echo — riepilogatore e analista, genera sommari e dashboard insights automatici.
+
+
+
+Nova — social media manager AI per contenuti e pubblicazione (vedi anche Pacchetto 7).
+
+
+
+Marco — Executive Coach AI per analisi strategica, briefing giornalieri e suggerimenti operativi.
+
+
+
+Hunter — vedi Pacchetto 3 per il dettaglio delle 4 modalità.
+
+
+
+Sofia (AdVisage AI) — vedi Pacchetto 7 per la fabbrica creativa.
+
+
+
+Personalizza: Dipendenti AI personalizzabili con ruolo e istruzioni custom per qualsiasi reparto.
+
+
+
+Telegram Bot: integrazione Telegram per ricevere notifiche e interagire con i Dipendenti AI.
+
+
+
+AI Assistant Cliente Finale: assistente AI con memoria persistente per i clienti del Cliente, addestrabile via System Prompt e Knowledge Base.
+
+Prerequisiti operativi. API Key AI configurata. Per Stella: WhatsApp Business; per Millie: SMTP; per Hunter: Lead Scraper attivo.
+
+36.3 HUNTER – Lead Generation & Outreach Proattivo
+
+Descrizione. Il sistema completo per trovare nuovi lead, arricchirli con informazioni e contattarli in modo proattivo tramite chiamate, email e WhatsApp. Hunter lavora in 4 modalità (Ricerca, Strutturato, Outreach, People) per coprire ogni fase del prospecting.
+
+Per chi è pensato. Consulenti, agenzie e venditori che fanno cold outreach e vogliono automatizzare la ricerca e il contatto di nuovi clienti.
+
+Moduli inclusi:
+
+
+
+
+
+Lead Scraper: ricerca lead su Google Maps e Google Search con arricchimento AI (sito, email, telefono, team).
+
+
+
+Sales Agent Config: configurazione dello script di vendita e del comportamento dell'agente AI durante le chiamate.
+
+
+
+CRM Lead: gestione completa dei lead trovati con stati, note e storico interazioni.
+
+
+
+Hunter (4 modalità): Ricerca autonoma, contatto strutturato, outreach multicanale, ricerca persone.
+
+
+
+Auto-Call: sistema di chiamate automatiche ai lead con coda intelligente e retry.
+
+
+
+Outreach Pipeline: pipeline completa dal lead trovato al contatto effettuato con tracking di ogni step.
+
+
+
+Anti-duplicazione a 4 livelli (place_id, nome azienda, telefono, dominio).
+
+Prerequisiti operativi. API Key AI, Lead Scraper configurato; per Auto-Call: VoIP/Telnyx configurato.
+
+36.4 EMAIL JOURNEY & NURTURING – Comunicazione Continuativa
+
+Descrizione. Gestisci tutta la comunicazione email in modo intelligente: dall'Email Journey automatico che accompagna i clienti nel percorso, alle email post-consulenza, fino al nurturing continuativo dei lead. Millie gestisce le risposte automaticamente.
+
+Per chi è pensato. Professionisti che vogliono mantenere un contatto costante con clienti e lead senza scrivere ogni email manualmente.
+
+Moduli inclusi:
+
+
+
+
+
+Email Hub (Millie): centro di gestione email con risposte AI automatiche, inbox unificata multi-account, sistema ticket.
+
+
+
+Email Journey: sequenze email automatiche personalizzate per ogni fase del percorso cliente.
+
+
+
+Email Nurturing 365: generazione e invio di 365 email personalizzate nell'arco di un anno per scaldare i lead.
+
+
+
+Email post-consulenza: follow-up automatici dopo ogni consulenza con riepilogo e azioni.
+
+
+
+Profilo Commerciale: configurazione del tono di voce, firma e stile comunicativo per tutte le email AI.
+
+Prerequisiti operativi. SMTP configurato, API Key AI. Per Email Hub completo: account IMAP configurato.
+
+36.5 LAVORO QUOTIDIANO & CONSULENZE – Operatività
+
+Descrizione. Gli strumenti per la gestione operativa quotidiana: dashboard con KPI, gestione clienti, calendario appuntamenti, consulenze AI-assisted e analisi dati. Tutto ciò che serve per lavorare ogni giorno in modo efficiente.
+
+Per chi è pensato. Tutti i consulenti e professionisti — è il pacchetto base operativo.
+
+Moduli inclusi:
+
+
+
+
+
+Dashboard: panoramica KPI, attività recenti, accesso rapido a tutte le funzioni.
+
+
+
+Gestione Clienti: profili clienti completi con progressi, storico, note e analisi AI.
+
+
+
+Consulenze AI: consulenze video con preparazione AI, brief automatici e trascrizioni.
+
+
+
+Echo Riepiloghi: dashboard con insights automatici generati da Echo su clienti e attività.
+
+
+
+Calendario / Booking: gestione appuntamenti, disponibilità, prenotazione automatica.
+
+Prerequisiti operativi. Account attivo con almeno un cliente; API Key AI per le funzionalità AI.
+
+36.6 FORMAZIONE & CORSI – Academy
+
+Descrizione. Crea un'accademia professionale per i clienti del Cliente. Dai corsi manuali ai corsi generati automaticamente dall'AI partendo da video YouTube, con esercizi, template e percorsi strutturati. I clienti imparano al loro ritmo con supporto AI 24/7.
+
+Per chi è pensato. Formatori, coach, consulenti che offrono percorsi formativi strutturati ai propri clienti.
+
+Moduli inclusi:
+
+
+
+
+
+Corsi manuali: creazione corsi con moduli, lezioni, contenuti multimediali.
+
+
+
+AI Course Builder: generazione automatica di corsi completi partendo da URL di video YouTube.
+
+
+
+Esercizi e Template: creazione e gestione di esercizi pratici con template riutilizzabili e sistema di consegna/revisione.
+
+
+
+Università: portale formativo completo per i clienti con progressi tracciati e certificati.
+
+Prerequisiti operativi. Almeno un cliente attivo; API Key AI per AI Course Builder.
+
+36.7 CONTENT STUDIO – Marketing & Contenuti
+
+Descrizione. La suite creativa completa per generare contenuti marketing. Dalla generazione di idee AI al calendario editoriale, dalla gestione brand assets alla creazione di concept pubblicitari con AdVisage AI (Sofia).
+
+Per chi è pensato. Consulenti e agenzie che producono contenuti marketing, gestiscono social media o creano campagne pubblicitarie.
+
+Moduli inclusi:
+
+
+
+
+
+Dashboard Content: centro di controllo per tutti i contenuti creati e programmati.
+
+
+
+Idee AI: generatore di idee per contenuti basato su AI, settore e trend.
+
+
+
+Calendario editoriale: programmazione e organizzazione della pubblicazione.
+
+
+
+Brand Assets: gestione centralizzata di loghi, colori, font e linee guida del brand.
+
+
+
+AdVisage AI (Sofia): Creative Factory per concept pubblicitari multi-piattaforma con mood e stili diversi.
+
+Prerequisiti operativi. API Key AI configurata; per AdVisage AI: piano avanzato attivo.
+
+36.9 PAGAMENTI & STRIPE – Monetizzazione
+
+Descrizione. Gestisci i pagamenti dei clienti direttamente dalla Piattaforma tramite Stripe Connect. Crea piani di abbonamento, genera link di pagamento, attiva automaticamente gli account clienti dopo il pagamento e gestisci il revenue sharing.
+
+Per chi è pensato. Consulenti che vendono servizi ricorrenti, abbonamenti o percorsi formativi a pagamento.
+
+Moduli inclusi:
+
+
+
+
+
+Stripe Connect: connessione account Stripe Express per ricevere pagamenti.
+
+
+
+Payment Automations: automazioni post-pagamento (attivazione account, welcome journey, assegnazione livello).
+
+
+
+Revenue Sharing: ripartizione automatica dei ricavi tra Cliente e Piattaforma, ove previsto.
+
+
+
+Piani / Tier: creazione e gestione di piani con prezzi e funzionalità differenziate.
+
+Prerequisiti operativi. Account Stripe; Stripe Connect configurato nella Piattaforma.
+
+36.10 TEAM & DIPENDENTI UMANI – Gestione Team
+
+Descrizione. Per chi non lavora da solo. Gestisci il tuo team con reparti, licenze multi-utente, AI Assistant dedicato per ogni dipendente e supporto multi-profilo. Ogni membro del team ha il proprio accesso con permessi configurabili.
+
+Per chi è pensato. Studi professionali, agenzie e team con più di una persona che utilizza la Piattaforma.
+
+Moduli inclusi:
+
+
+
+
+
+Reparti: organizzazione del team in reparti con responsabili e permessi specifici.
+
+
+
+Licenze: gestione delle licenze utente con attivazione/disattivazione e monitoraggio utilizzo.
+
+
+
+AI Assistant per dipendente: ogni membro del team ha il proprio AI Assistant con contesto e memoria dedicati.
+
+
+
+Multi-profilo: supporto per più profili sotto lo stesso account con switching rapido.
+
+Prerequisiti operativi. Livello di Accesso che supporta multi-utente; almeno 2 licenze attive.
+
+ARTICOLO 4 — LIVELLI DI ACCESSO E FUNZIONALITÀ
+
+La Piattaforma è disponibile in 6 Livelli di Accesso. Il Cliente sottoscrive il Livello indicato nelle condizioni particolari del presente Contratto: Livello 4 — Setter AI + Hunter.
+
+LivelloNomeFunzionalità PrincipaliLivello 1FreeProva della Piattaforma, accesso limitato, senza carta di creditoLivello 2StarterMessaggi illimitati, Dipendente AI personalizzabileLivello 3ProfessionalCorsi, voce, memoria AI persistente, Marco, Echo, NovaLivello 4Setter AI + HunterIl prodotto di punta: Setter AI che prende appuntamenti + Hunter che trova lead + Alessia AI + Millie + Sofia. Team completo di Dipendenti AILivello 5EnterpriseInfrastruttura completa, configurazioni avanzate, priorità assistenzaLivello 6Enterprise + ConsulenzaTutto + consulenza strategica sui processi aziendali
+
+Livello sottoscritto: Livello 4 — Setter AI + Hunter  |  Canone Mensile: EUR 400,00  |  Costo di Attivazione: EUR 0,00
+
+Il passaggio a un Livello superiore è sempre possibile durante la vigenza del Contratto, previo aggiornamento delle condizioni economiche. Il passaggio a un Livello inferiore è possibile alla scadenza del periodo contrattuale in corso.
+
+BONUS INCLUSI
+
+Eventuali bonus aggiuntivi specifici dell'offerta sottoscritta dal Cliente.
+
+
+
+
+
+
+
+ARTICOLO 5 — AGGIORNAMENTI E MANUTENZIONE
+
+5.1. Aggiornamenti Base. Il Fornitore rilascia periodicamente aggiornamenti della Piattaforma che includono: correzioni di bug, miglioramenti delle prestazioni, aggiornamenti di sicurezza ed evoluzioni delle funzionalità esistenti. Tali aggiornamenti sono sempre inclusi nel Canone Mensile senza costi aggiuntivi.
+
+5.2. Manutenzione Programmata. Il Fornitore può eseguire interventi di manutenzione programmata che comportino temporanea indisponibilità della Piattaforma, previo avviso al Cliente con almeno 24 ore di anticipo.
+
+ARTICOLO 6 — SUPPORTO TECNICO
+
+6.1. Livello 1 — Supporto Operativo. Il supporto di primo livello è a disposizione del Cliente tramite: assistenza WhatsApp AI 24/7, documentazione della Piattaforma e materiali formativi inclusi.
+
+6.2. Livello 2 — Supporto Tecnico. Per problematiche tecniche (bug, malfunzionamenti, errori), il Cliente può aprire un ticket via email. Il Fornitore si impegna a fornire una prima risposta entro quarantotto (48) ore lavorative.
+
+6.3. Esclusioni. Il supporto non copre: problemi derivanti da uso improprio della Piattaforma, interruzioni di servizi di terze parti (WhatsApp, Meta, Google, Twilio), personalizzazioni extra non previste dal Livello di Accesso, formazione individuale oltre ai materiali forniti.
+
+ARTICOLO 7 — MODELLO ECONOMICO — CORRISPETTIVI
+
+7.1. Costo di Attivazione (Setup)
+
+All'atto della sottoscrizione, ove previsto dal Livello di Accesso scelto, il Cliente corrisponde un costo di attivazione una tantum pari a EUR 0,00, comprensivo di: configurazione iniziale della Piattaforma, creazione dell'ambiente dedicato, setup dei Dipendenti AI, caricamento iniziale della Knowledge Base, formazione iniziale (onboarding guidato).
+
+Il costo di attivazione può essere ridotto o azzerato a insindacabile discrezione del Fornitore nell'ambito di promozioni o offerte commerciali.
+
+7.2. Canone Mensile Fisso
+
+Il Cliente corrisponde un canone mensile fisso pari a EUR 400,00, corrispondente al Livello di Accesso sottoscritto (Livello 4 — Setter AI + Hunter), dovuto anticipatamente entro il giorno 5 di ogni mese solare, a partire dal mese successivo alla data di attivazione.
+
+Il Canone include: accesso ai moduli previsti dal Livello, aggiornamenti base, assistenza WhatsApp AI 24/7, supporto tecnico via ticket.
+
+7.3. Costi di Servizi Terzi. Restano a carico del Cliente i costi di servizi di terze parti necessari al funzionamento di alcuni moduli: messaggistica WhatsApp (Twilio, ~€0,05/msg), API AI (Google Vertex AI / Gemini), invio email (SMTP), configurazione WhatsApp Business (Meta). Il Fornitore non è responsabile per variazioni di prezzo dei fornitori terzi.
+
+7.4. Modalità di Pagamento. Pagamenti tramite Stripe o bonifico bancario. Le condizioni specifiche del piano di pagamento sono indicate in [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object].
+
+ARTICOLO 8 — DURATA E RINNOVO
+
+8.1. Il presente Contratto ha durata minima di 12 mesi dalla data di sottoscrizione.
+
+8.2. Rinnovo automatico per ulteriori periodi di 12 mesi ciascuno, salvo disdetta nei termini dell'Articolo 9.
+
+8.3. Il Canone resta invariato per il periodo contrattuale in corso. Eventuali adeguamenti sono comunicati con almeno 60 giorni di preavviso prima della scadenza, con facoltà di recesso entro 30 giorni dalla comunicazione senza penali.
+
+ARTICOLO 9 — RECESSO
+
+9.1. Recesso del Cliente
+
+Preavviso minimo di 30 giorni via PEC o raccomandata A/R. Il recesso ha effetto alla scadenza del periodo contrattuale in corso (12 mesi). Il Cliente resta obbligato al pagamento dei canoni residui fino alla naturale scadenza.
+
+9.2. Recesso del Fornitore
+
+Preavviso minimo di 30 giorni via PEC o raccomandata A/R. Il Cliente non è tenuto al pagamento di canoni successivi alla data di efficacia del recesso. Il Fornitore garantisce 30 giorni per l'esportazione dei dati.
+
+9.3. Effetti del Recesso
+
+Alla cessazione del Contratto:
+
+
+
+
+
+l'accesso alla Piattaforma viene disattivato;
+
+
+
+il Cliente perde il diritto di utilizzo di tutti i materiali, software, prompt, architettura e configurazioni della Piattaforma;
+
+
+
+i dati anagrafici dei clienti del Cliente sono disponibili per l'esportazione entro 30 giorni dalla cessazione;
+
+
+
+le configurazioni dei Dipendenti AI, i corsi generati e i contenuti creati tramite la Piattaforma non sono esportabili.
+
+ LIVELLO 2 — PROTEZIONE LEGALE
+
+ARTICOLO 10 — PROPRIETÀ INTELLETTUALE
+
+10.1. La Piattaforma, in ogni sua componente, è di proprietà esclusiva del Fornitore: codice sorgente e compilato, architettura, design, prompt AI, istruzioni di addestramento, quiz, template, materiali formativi, nomi, marchi, loghi, documentazione tecnica, algoritmi, logiche operative, know-how.
+
+10.2. Qualsiasi sviluppo custom realizzato dal Fornitore su richiesta del Cliente, anche se pagato, è di proprietà esclusiva del Fornitore, che può riutilizzarlo liberamente.
+
+10.3. Il Cliente si impegna a non decompilare, disassemblare, effettuare reverse engineering, copiare, riprodurre, modificare, adattare, tradurre, creare opere derivate o tentare di risalire al codice sorgente, ai prompt, all'architettura o alla logica della Piattaforma.
+
+ARTICOLO 11 — TITOLARITÀ E TRATTAMENTO DEI DATI
+
+11.1. Il Cliente è titolare dei propri dati anagrafici e di contatto e di quelli dei propri clienti inseriti nella Piattaforma. In caso di cessazione, tali dati saranno disponibili per l'esportazione entro 30 giorni.
+
+11.2. Il Fornitore è titolare dei dati generati dall'utilizzo della Piattaforma: log conversazioni AI, dati di utilizzo e analytics, contenuti generati dall'AI, metriche, dati di addestramento.
+
+11.3. Segregazione e Riservatezza dei Dati
+
+
+
+
+
+Ciascun Cliente vede esclusivamente i propri dati all'interno della Piattaforma. Non ha accesso ai dati di altri Clienti;
+
+
+
+la Knowledge Base è segregata tra i diversi Clienti: ciascun Cliente ha una Knowledge Base indipendente e inaccessibile agli altri;
+
+
+
+i Dipendenti AI del Cliente operano in un contesto isolato, elaborando esclusivamente i dati del Cliente e utilizzando la sua Knowledge Base.
+
+11.4. Sicurezza dei Dati
+
+
+
+
+
+Misure tecniche e organizzative adeguate a garantire riservatezza, integrità e disponibilità dei dati;
+
+
+
+backup automatici e ridondanza dell'infrastruttura per assicurare continuità operativa;
+
+
+
+crittografia dei dati in transito (TLS/HTTPS) e a riposo nei database;
+
+
+
+monitoraggio continuo della sicurezza e aggiornamenti tempestivi.
+
+11.5. Trattamento dei Dati Personali. Ciascuna Parte tratta i dati personali nel rispetto del GDPR (Reg. UE 2016/679) e della normativa nazionale vigente. Le Parti si impegnano a sottoscrivere, ove necessario, un Data Processing Agreement.
+
+ARTICOLO 12 — MANLEVA E LIMITAZIONE DI RESPONSABILITÀ
+
+12.1. Manleva sull'AI. Il Cliente riconosce che l'AI opera su modelli probabilistici e può generare risposte inesatte ("allucinazioni"). Il Cliente manleva e tiene indenne il Fornitore da qualsiasi responsabilità, danno, costo, pretesa o azione legale derivante da: risposte errate dell'AI, decisioni prese sulla base di informazioni generate dall'AI, danni di qualsiasi natura derivanti dall'utilizzo delle risposte AI, violazioni normative derivanti da uso improprio della Piattaforma.
+
+12.2. La responsabilità complessiva del Fornitore non potrà in nessun caso eccedere l'importo dei Canoni Mensili corrisposti dal Cliente nei 12 mesi precedenti l'evento che ha dato origine alla pretesa.
+
+12.3. La Piattaforma è fornita "così com'è" e "come disponibile". Nessuna garanzia espressa o implicita circa l'idoneità a scopi particolari, l'assenza di errori, la disponibilità ininterrotta o l'accuratezza dell'AI.
+
+ARTICOLO 13 — SOSPENSIONE DEL SERVIZIO
+
+13.1. Il Fornitore può sospendere l'accesso alla Piattaforma, con preavviso di 24 ore, nei seguenti casi: mancato pagamento oltre 15 giorni dalla scadenza, violazione contrattuale, uso illegale o contrario alle policy della Piattaforma, rischio per la sicurezza, richiesta dell'autorità giudiziaria o amministrativa.
+
+13.2. Nessun indennizzo, riduzione o compensazione è dovuto al Cliente durante il periodo di sospensione. Il Canone Mensile resta dovuto.
+
+13.3. Riattivazione entro 24 ore dalla rimozione della causa che ha determinato la sospensione.
+
+ARTICOLO 14 — CESSIONE DEL CONTRATTO
+
+14.1. Il Fornitore può cedere il presente Contratto a terzi con 30 giorni di preavviso, senza necessità di consenso del Cliente.
+
+14.2. Il Cliente non può cedere il presente Contratto senza previo consenso scritto del Fornitore.
+
+ARTICOLO 15 — BRANDING E ATTRIBUZIONE
+
+15.1. La Piattaforma riporta la dicitura "Powered by Sistema Orbitale" (o equivalente) in ogni manifestazione visibile ai clienti finali. Il Cliente si impegna a non rimuovere, oscurare o modificare tale attribuzione.
+
+15.2. Il Fornitore può utilizzare nome e logo del Cliente come referenza commerciale, salvo diverso accordo scritto.
+
+ARTICOLO 16 — RISERVATEZZA
+
+16.1. Ciascuna Parte mantiene riservate tutte le informazioni confidenziali ricevute dall'altra Parte nell'ambito del presente Contratto.
+
+16.2. L'obbligo di riservatezza permane per 5 anni dalla cessazione del Contratto.
+
+16.3. Sono escluse dall'obbligo di riservatezza: le informazioni di dominio pubblico, quelle già in legittimo possesso della Parte ricevente, quelle che devono essere divulgate per obbligo di legge.
+
+ARTICOLO 17 — CLAUSOLA RISOLUTIVA ESPRESSA
+
+Ai sensi dell'art. 1456 c.c., il Fornitore può dichiarare risolto il Contratto, mediante comunicazione via PEC, nei seguenti casi:
+
+
+
+
+
+mancato pagamento di 2 o più canoni consecutivi;
+
+
+
+violazione delle clausole di proprietà intellettuale (Art. 10);
+
+
+
+cessione non autorizzata del Contratto;
+
+
+
+violazione dell'obbligo di riservatezza;
+
+
+
+rimozione del branding e attribuzione;
+
+
+
+uso illecito o contrario alle policy della Piattaforma;
+
+
+
+fallimento, insolvenza o apertura di procedura concorsuale a carico del Cliente.
+
+In caso di risoluzione per inadempimento del Cliente, il Fornitore ha diritto ai canoni residui fino alla scadenza del periodo contrattuale in corso, oltre al risarcimento del maggior danno.
+
+ARTICOLO 18 — FORZA MAGGIORE
+
+Nessuna Parte è responsabile per inadempimenti causati da eventi di forza maggiore: calamità naturali, guerre, atti di terrorismo, pandemie, provvedimenti dell'autorità, interruzioni prolungate di servizi essenziali di terze parti.
+
+ARTICOLO 19 — NON ESCLUSIVITÀ
+
+Il presente Contratto non conferisce al Cliente alcun diritto di esclusiva. Il Fornitore è libero di concedere licenze ad altri soggetti, anche nello stesso settore o area geografica del Cliente.
+
+ARTICOLO 20 — COMUNICAZIONI
+
+Tutte le comunicazioni formali devono essere effettuate in forma scritta via PEC o raccomandata A/R agli indirizzi indicati in intestazione del Contratto. Le comunicazioni si intendono ricevute alla data di ricezione della PEC o della raccomandata.
+
+ARTICOLO 21 — LEGGE APPLICABILE E FORO COMPETENTE
+
+21.1. Il presente Contratto è regolato dalla legge italiana.
+
+21.2. Per qualsiasi controversia derivante dal presente Contratto o ad esso connessa, le Parti riconoscono la competenza esclusiva del Foro di Messina, con espressa rinuncia a qualsiasi altro foro concorrente.
+
+ARTICOLO 22 — DISPOSIZIONI FINALI
+
+22.1. Intero Accordo. Il presente Contratto costituisce l'intero accordo tra le Parti in relazione al suo oggetto e sostituisce qualsiasi precedente accordo, intesa o comunicazione, scritta o orale.
+
+22.2. Modifiche. Qualsiasi modifica al presente Contratto deve essere concordata per iscritto e sottoscritta da entrambe le Parti.
+
+22.3. Nullità Parziale. Se una clausola del presente Contratto è dichiarata nulla o inefficace, le restanti clausole rimangono pienamente valide ed efficaci. Le Parti si impegnano a sostituire la clausola nulla con una clausola valida di effetto economico e giuridico il più possibile simile.
+
+22.4. Tolleranza. La mancata applicazione di una clausola da parte del Fornitore non costituisce rinuncia al diritto di applicarla successivamente.
+
+22.5. Copie. Il presente Contratto è redatto in due copie originali, una per ciascuna Parte.
+
+ APPROVAZIONE SPECIFICA
+ai sensi degli articoli 1341 e 1342 del Codice Civile
+
+Il Cliente per (P.IVA , con sede in ), con la sottoscrizione del presente Contratto, dichiara di aver letto, compreso e di approvare specificamente le seguenti clausole:
+
+
+
+
+
+Art. 8 — Durata minima e rinnovo automatico
+
+
+
+Art. 9 — Recesso e obbligo pagamento canoni residui
+
+
+
+Art. 10 — Proprietà intellettuale esclusiva del Fornitore
+
+
+
+Art. 12 — Manleva AI e limitazione di responsabilità
+
+
+
+Art. 13 — Sospensione del servizio senza indennizzo
+
+
+
+Art. 14 — Cessione del contratto
+
+
+
+Art. 17 — Clausola risolutiva espressa
+
+
+
+Art. 19 — Non esclusività
+
+
+
+Art. 21 — Foro esclusivo di Messina
+
+La firma digitale apposta tramite OTP al presente Contratto costituisce accettazione espressa di tutte le clausole sopra elencate ai sensi e per gli effetti degli artt. 1341 e 1342 del Codice Civile.
