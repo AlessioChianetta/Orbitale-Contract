@@ -182,6 +182,12 @@ ${CARD}
 </ul>
 </div>
 
+${CARD}
+<h3 style="font-weight: bold; color: #1e293b;">9.4. Cessazione dell'attività del Fornitore</h3>
+<p>Il presente Contratto si intende automaticamente risolto, senza necessità di ulteriori formalità, qualora il Fornitore cessi la propria attività e non trasferisca a un soggetto terzo il ramo d'azienda, la Piattaforma, i dati e le configurazioni necessari a garantire la continuità del servizio al Cliente. La risoluzione decorre dalla data della comunicazione formale dell'evento al Cliente.</p>
+<p>In tal caso il Cliente non è tenuto al pagamento di canoni successivi a tale data e ha diritto al rimborso pro-quota del canone eventualmente già corrisposto e non goduto. Il Fornitore garantisce in ogni caso la disponibilità all'esportazione dei dati anagrafici dei clienti del Cliente per 30 giorni dalla comunicazione di cessazione.</p>
+</div>
+
 <div style="text-align: center; padding: 20px; border-radius: 12px; background: linear-gradient(90deg, #4f46e5, #2563eb); color: white; margin: 32px 0; font-weight: bold; font-size: 20px;">
 LIVELLO 2 — PROTEZIONE LEGALE
 </div>
