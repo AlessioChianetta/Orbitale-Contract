@@ -48,6 +48,19 @@ export function getRequiredClientFields(tipo: ClientType): RequiredClientField[]
 
 export const REQUIRED_CLIENT_FIELDS: RequiredClientField[] = getRequiredClientFields("azienda");
 
+/**
+ * Nome da mostrare per la controparte di un contratto, qualunque sia il
+ * tipo di destinatario: cliente azienda (società), cliente privato
+ * (cliente_nome/nome) o procacciatore (procacciatore_nome).
+ * Unica fonte di verità per liste, email, WhatsApp e riepiloghi.
+ */
+export function getContractPartyDisplayName(
+  clientData: Record<string, any> | undefined | null,
+): string | null {
+  const cd = clientData || {};
+  return cd.societa || cd.cliente_nome || cd.nome || cd.procacciatore_nome || null;
+}
+
 export function getMissingClientFields(clientData: Record<string, any> | undefined | null): RequiredClientField[] {
   const cd = clientData || {};
   const tipo = getClientType(cd);

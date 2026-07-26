@@ -1,0 +1,301 @@
+// Corpo HTML del "Contratto Procacciatore d'Affari" (Sistema Orbitale).
+// Generato dal documento fornito dal cliente: 20 articoli su due livelli
+// (rapporto/compenso + protezione legale). I placeholder {{...}} vengono
+// risolti al momento della generazione del contratto:
+//  - azienda_*            -> iniettati dal server dalle Impostazioni Azienda
+//  - procacciatore_*      -> anagrafica del procacciatore (form o co-fill)
+//  - parametri economici  -> compilati dal venditore/admin nel wizard
+// NON modificare a mano: il template seminato nel DB resta modificabile
+// dall'admin via UI; questo file serve solo per il seed iniziale.
+
+export const PROCACCIATORE_CONTRACT_BODY = `<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">PREMESSE</h2>
+
+<p>Il presente Contratto di Procacciamento d'Affari (di seguito "Contratto") disciplina i termini e le condizioni del rapporto tra:</p>
+
+<div style="padding: 14px; border-radius: 10px; background: #eef2ff; border: 1px solid #c7d2fe; margin: 12px 0; font-size: 14px;">
+<p style="margin: 0 0 8px 0;"><strong>{{azienda_ragione_sociale}}</strong>, P.IVA {{azienda_piva}}, con sede in {{azienda_sede}} (di seguito "Azienda");</p>
+<p style="margin: 0;"><strong>{{procacciatore_nome}}</strong>, P.IVA {{procacciatore_piva}}, con sede/domicilio fiscale in {{procacciatore_sede}} (di seguito "Procacciatore"); congiuntamente le "Parti".</p>
+</div>
+
+<p><strong>Premesso che:</strong></p>
+<ul>
+<li>l'Azienda è titolare dei diritti di sfruttamento economico della piattaforma software di intelligenza artificiale denominata <strong>Sistema Orbitale</strong> (di seguito "Piattaforma"), che commercializza in licenza d'uso mediante pacchetti di funzionalità cumulativi;</li>
+<li>l'Azienda intende avvalersi, senza alcun vincolo di stabilità, di procacciatori d'affari autonomi per la segnalazione di potenziali clienti interessati alla sottoscrizione di contratti di licenza della Piattaforma;</li>
+<li>il Procacciatore è un operatore economico autonomo, titolare di propria partita IVA e di propria organizzazione, che dichiara di possedere le competenze necessarie e si dichiara interessato a svolgere, in piena autonomia e senza vincoli di subordinazione, attività occasionale di segnalazione di affari in favore dell'Azienda;</li>
+<li>le Parti intendono espressamente qualificare il rapporto come procacciamento d'affari, con esclusione di qualsiasi rapporto di agenzia, di lavoro subordinato o di collaborazione coordinata e continuativa;</li>
+<li>i documenti interni dell'Azienda denominati "Piano Provvigioni e Compensi" e "Regole di Ingaggio e Autonomia Commerciale" (di seguito, congiuntamente ai relativi manuali operativi, i "Documenti Operativi") descrivono il modello di compenso e le regole operative del team commerciale, e sono recepiti nel presente Contratto nei limiti e secondo le modalità di cui all'Articolo 4.</li>
+</ul>
+
+<p>Tanto premesso, le premesse e i riquadri costituiscono parte integrante e sostanziale del presente Contratto, che è strutturato su due livelli complementari:</p>
+<ul>
+<li><strong>LIVELLO 1 — RAPPORTO E COMPENSO</strong>: disciplina l'oggetto, la qualificazione del rapporto, la provvigione, la maturazione, la liquidazione, gli storni, la durata e la coda provvigionale;</li>
+<li><strong>LIVELLO 2 — PROTEZIONE LEGALE</strong>: disciplina gli obblighi di condotta, la titolarità dei dati, la riservatezza, la non concorrenza, gli aspetti fiscali, la risoluzione e il foro competente.</li>
+</ul>
+
+<div style="text-align: center; padding: 20px; border-radius: 12px; background: linear-gradient(90deg, #4f46e5, #2563eb); color: white; margin: 32px 0; font-weight: bold; font-size: 20px;">
+LIVELLO 1 — RAPPORTO E COMPENSO
+</div>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 1 — DEFINIZIONI</h2>
+
+<p style="font-style: italic; color: #64748b;">Ai fini del presente Contratto, i seguenti termini assumono il significato di seguito indicato:</p>
+
+<p><strong>"Piattaforma"</strong> (o <strong>"Sistema Orbitale"</strong>): il sistema software proprietario di intelligenza artificiale commercializzato dall'Azienda in licenza d'uso, organizzato in pacchetti cumulativi (BASE, SOCIAL, SETTER, GROWTH, FULL, oltre all'ingresso gratuito dimostrativo denominato Luca), secondo il listino ufficiale dell'Azienda pro tempore vigente.</p>
+<p><strong>"Contratto Cliente"</strong>: il contratto di licenza d'uso della Piattaforma stipulato tra l'Azienda e un cliente finale.</p>
+<p><strong>"Affare"</strong>: la conclusione di un Contratto Cliente tra l'Azienda e un Cliente Segnalato.</p>
+<p><strong>"Cliente Segnalato"</strong>: il potenziale cliente messo in relazione con l'Azienda per effetto dell'attività di segnalazione del Procacciatore, come risultante dal CRM secondo le regole di attribuzione di cui agli Articoli 4 e 5.</p>
+<p><strong>"CRM"</strong>: il sistema gestionale dell'Azienda (comprensivo del modulo Lead Hub) nel quale sono registrati i contatti, le assegnazioni, le attività e gli stati delle trattative.</p>
+<p><strong>"Hub Vendita"</strong>: il modulo della Piattaforma dal quale risultano le vendite e gli incassi rilevanti ai fini del presente Contratto.</p>
+<p><strong>"Incassato"</strong>: le somme effettivamente ricevute dall'Azienda da un Cliente Segnalato in relazione a un Affare, confermate nei sistemi dell'Azienda, al netto dell'IVA e al netto di storni e rimborsi. Non costituiscono Incassato gli importi firmati, fatturati o promessi ma non ancora ricevuti.</p>
+<p><strong>"Provvigione"</strong>: il compenso del Procacciatore, pari alla percentuale dell'Incassato stabilita all'Articolo 5.</p>
+<p><strong>"Maturazione"</strong>: il momento in cui la Provvigione diventa dovuta, ai sensi dell'Articolo 6.</p>
+<p><strong>"Liquidazione"</strong>: il pagamento delle Provvigioni maturate, secondo il ciclo e i termini di cui all'Articolo 7.</p>
+<p><strong>"Storno"</strong> (o <strong>"clawback"</strong>): l'annullamento, totale o parziale, di una Provvigione maturata o già liquidata, nei soli casi tassativi previsti dall'Articolo 8.</p>
+<p><strong>"Rendiconto"</strong>: il prospetto periodico dell'Incassato e degli Storni riferiti ai Clienti Segnalati del Procacciatore, generato dai sistemi dell'Azienda (Hub Vendita / report vendite) e messo a disposizione del Procacciatore ai sensi dell'Articolo 7.</p>
+<p><strong>"Documenti Operativi"</strong>: i documenti interni dell'Azienda richiamati nelle premesse, che descrivono le regole organizzative e operative del team commerciale, come di tempo in tempo aggiornati ai sensi dell'Articolo 4.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 2 — OGGETTO DEL CONTRATTO</h2>
+
+<p><strong>2.1.</strong> Il Procacciatore assume l'incarico, senza alcun vincolo di stabilità né obbligo di risultato, di promuovere occasionalmente presso terzi la conclusione di Contratti Cliente, segnalando all'Azienda potenziali clienti interessati e mettendoli in relazione con l'Azienda.</p>
+<p><strong>2.2.</strong> L'attività del Procacciatore si esaurisce nella segnalazione e nella messa in relazione. La negoziazione finale, la conclusione, la sottoscrizione e l'esecuzione dei Contratti Cliente sono riservate in via esclusiva all'Azienda.</p>
+<p><strong>2.3.</strong> L'Azienda ha l'insindacabile facoltà di accettare o rifiutare qualsiasi affare segnalato dal Procacciatore, senza che ciò faccia sorgere alcun diritto a compenso, indennizzo o rimborso. Nessuna Provvigione è dovuta su affari non conclusi o su Contratti Cliente che non generino Incassato.</p>
+<p><strong>2.4.</strong> Il Procacciatore non ha alcun potere di rappresentanza dell'Azienda: non può concludere contratti in suo nome, assumere obbligazioni per suo conto, concedere sconti o condizioni non autorizzati, né incassare somme dai clienti. Ogni pagamento dei clienti è effettuato esclusivamente in favore dell'Azienda, attraverso i canali di pagamento da questa indicati.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 3 — QUALIFICAZIONE DEL RAPPORTO E AUTONOMIA</h2>
+
+<p><strong>3.1. Contratto atipico di procacciamento d'affari.</strong> Il rapporto tra le Parti è un contratto atipico di procacciamento d'affari, concluso ai sensi dell'art. 1322 del Codice Civile, a carattere occasionale e non stabile.</p>
+
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-weight: bold; color: #1e293b;">3.2. Esclusione di altri rapporti</h3>
+<ul>
+<li><strong>Non è agenzia</strong>: il rapporto non costituisce contratto di agenzia ai sensi degli artt. 1742 e ss. del Codice Civile. Il Procacciatore non assume alcun incarico stabile di promozione, non è assegnatario di alcuna zona, non è soggetto ad alcun obbligo di esclusiva e non trovano applicazione gli istituti propri dell'agenzia, ivi incluse le indennità di cessazione del rapporto di cui agli artt. 1750 e 1751 del Codice Civile;</li>
+<li><strong>Non è lavoro subordinato</strong>: il rapporto non costituisce rapporto di lavoro subordinato ai sensi dell'art. 2094 del Codice Civile, difettando ogni vincolo di subordinazione, orario, presenza o eterodirezione;</li>
+<li><strong>Non è collaborazione coordinata e continuativa</strong>: difettano la continuità della prestazione e l'inserimento nell'organizzazione aziendale.</li>
+</ul>
+</div>
+
+<p><strong>3.3. Autonomia organizzativa.</strong> Il Procacciatore svolge l'attività in piena autonomia organizzativa: sceglie liberamente tempi, modalità, mezzi e luoghi della propria attività, senza obblighi di orario, di presenza, di riporto gerarchico o di utilizzo di sedi o strumenti dell'Azienda, e sopporta i costi della propria organizzazione. Nessun rimborso spese è dovuto, salvo diverso accordo scritto tra le Parti.</p>
+<p><strong>3.4. Nessun obbligo di attività o di risultato minimo.</strong> Il Procacciatore non è tenuto ad alcun volume minimo di segnalazioni, contatti o vendite, né l'Azienda garantisce alcun compenso minimo. L'unico compenso è la Provvigione di cui all'Articolo 5.</p>
+<p><strong>3.5. Nessuna esclusiva.</strong> Nessuna delle Parti è vincolata da esclusiva: il Procacciatore è libero di svolgere qualsiasi altra attività professionale o commerciale, nei soli limiti del divieto di concorrenza di cui all'Articolo 13; l'Azienda è libera di avvalersi di altri procacciatori, agenti, commerciali o canali di vendita, anche negli stessi mercati.</p>
+<p><strong>3.6. Regole operative e autonomia.</strong> Le regole di attribuzione, tracciamento e condotta di cui agli Articoli 4 e 10 costituiscono condizioni oggettive di maturazione della Provvigione e presidi di correttezza verso i clienti, e non attribuiscono all'Azienda alcun potere direttivo o disciplinare sul Procacciatore.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 4 — REGOLE OPERATIVE E DOCUMENTI RICHIAMATI</h2>
+
+<p><strong>4.1. Registrazione nel CRM.</strong> La segnalazione di un potenziale cliente è rilevante ai fini del presente Contratto solo se registrata nel CRM secondo le modalità indicate dall'Azienda. Il CRM e l'Hub Vendita costituiscono la fonte di riferimento per l'attribuzione dei Clienti Segnalati, per gli stati delle trattative e per l'Incassato, salva la prova di errori o malfunzionamenti dei sistemi.</p>
+<p><strong>4.2. Attribuzione dei contatti.</strong> Ciascun contatto è attribuito a un solo soggetto secondo le regole di assegnazione dei Documenti Operativi (assegnazione diretta, distribuzione automatica a rotazione, contatti auto-procurati, account nominali). Il Procacciatore si impegna a non svolgere attività su contatti attribuiti ad altri e a segnalare all'Azienda eventuali duplicati o conflitti di attribuzione, che sono risolti dall'Azienda sulla base delle risultanze del CRM.</p>
+<p><strong>4.3. Riassegnazione per inattività.</strong> I contatti attribuiti al Procacciatore che restino privi di attività utile registrata nel CRM per il periodo indicato nei Documenti Operativi possono essere riassegnati dall'Azienda. La riassegnazione di un contatto prima della conclusione dell'Affare esclude la maturazione di Provvigioni sugli affari conclusi successivamente da altri con quel contatto.</p>
+<p><strong>4.4. Soglie di trattativa.</strong> Il Procacciatore può prospettare ai potenziali clienti esclusivamente i prezzi, gli sconti, i piani di pagamento e i bonus previsti dal listino ufficiale e dalle soglie di autonomia comunicate dall'Azienda. Ogni condizione ulteriore richiede la previa approvazione scritta dell'Azienda e, in difetto, non è opponibile all'Azienda.</p>
+<p><strong>4.5. Materiali e strumenti.</strong> L'Azienda mette a disposizione del Procacciatore il listino ufficiale, i materiali di presentazione e gli accessi agli strumenti necessari alla registrazione delle segnalazioni e alla consultazione del Rendiconto.</p>
+<p><strong>4.6. Natura e aggiornamento dei Documenti Operativi.</strong> I Documenti Operativi sono policy organizzative interne dell'Azienda, richiamate a fini descrittivi e operativi: non costituiscono allegati contrattuali e, in caso di contrasto, prevale il presente Contratto. L'Azienda può aggiornarli con comunicazione scritta al Procacciatore; gli aggiornamenti non possono modificare l'aliquota, i criteri di maturazione, i termini di liquidazione o gli altri termini economici del presente Contratto, che possono essere modificati solo ai sensi degli Articoli 5.4 e 20.2.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 5 — PROVVIGIONE E BASE DI CALCOLO</h2>
+
+<div style="padding: 16px; border-radius: 12px; background: #eef2ff; border: 1px solid #c7d2fe; margin: 16px 0;">
+<h3 style="font-weight: bold; color: #1e293b;">5.1. Aliquota</h3>
+<p style="margin: 0;">Per ogni Affare attribuito al Procacciatore, l'Azienda riconosce una Provvigione pari al <strong>20% (venti per cento) dell'Incassato</strong>. L'aliquota è unica per tutti i pacchetti e si applica esclusivamente all'Incassato, mai al valore nominale della vendita.</p>
+</div>
+
+<p><strong>5.2. Base di calcolo.</strong> Concorrono a formare l'Incassato commissionabile, con la medesima aliquota del 20%:</p>
+<ul>
+<li>il corrispettivo di attivazione una tantum (setup) del pacchetto, se previsto ed effettivamente incassato;</li>
+<li>ciascun canone mensile effettivamente incassato dal Cliente Segnalato;</li>
+<li>i rinnovi e i passaggi a pacchetti superiori (upsell) effettivamente incassati.</li>
+</ul>
+<p>I crediti di utilizzo inclusi nei canoni non costituiscono una voce di incassato separata. Non concorrono a formare la base di calcolo l'IVA, i costi di servizi di terze parti riaddebitati ai clienti e ogni somma successivamente rimborsata o stornata.</p>
+<p><strong>5.3. Attribuzione dell'Affare.</strong> La Provvigione spetta al Procacciatore per gli Affari conclusi con Clienti Segnalati a lui attribuiti nel CRM al momento della conclusione del Contratto Cliente, secondo le regole di cui all'Articolo 4. Eventuali ripartizioni della Provvigione per attività svolte da più soggetti sulla medesima trattativa sono valide solo se concordate per iscritto prima della conclusione dell'Affare.</p>
+<p><strong>5.4. Variazioni dell'aliquota.</strong> Eventuali variazioni dell'aliquota devono essere comunicate per iscritto dall'Azienda con almeno 30 giorni di preavviso e si applicano ai soli Affari conclusi successivamente alla loro efficacia; gli Affari già conclusi restano regolati dall'aliquota vigente alla loro conclusione. In caso di variazione in diminuzione, il Procacciatore può recedere dal Contratto con effetto immediato, fermi i diritti maturati e la coda provvigionale di cui all'Articolo 9.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 6 — MATURAZIONE DELLA PROVVIGIONE</h2>
+
+<p><strong>6.1. Principio.</strong> La Provvigione matura esclusivamente al momento della conferma dell'incasso nei sistemi dell'Azienda, in proporzione all'importo effettivamente incassato. La firma del Contratto Cliente, l'emissione di fatture e le promesse di pagamento non fanno maturare alcuna Provvigione.</p>
+
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-size: 16px; font-weight: bold; color: #1e293b;">Eventi rilevanti ai fini della Maturazione</h3>
+<table style="width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px;">
+<thead>
+<tr style="background: #eef2ff; border-bottom: 2px solid #c7d2fe;">
+<th style="padding: 10px 12px; text-align: left; font-weight: bold; color: #1e293b;">Evento</th>
+<th style="padding: 10px 12px; text-align: left; font-weight: bold; color: #1e293b;">Effetto</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 10px 12px;">Incasso confermato del setup una tantum</td><td style="padding: 10px 12px;">Matura il 20% dell'importo incassato</td></tr>
+<tr style="border-bottom: 1px solid #e2e8f0; background: #fafafa;"><td style="padding: 10px 12px;">Incasso confermato di un canone mensile, rinnovo o upsell</td><td style="padding: 10px 12px;">Matura il 20% dell'importo incassato</td></tr>
+<tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 10px 12px;">Incasso confermato di una rata di un piano di pagamento</td><td style="padding: 10px 12px;">Matura il 20% della sola rata incassata (pro-quota)</td></tr>
+<tr style="border-bottom: 1px solid #e2e8f0; background: #fafafa;"><td style="padding: 10px 12px;">Contratto Cliente firmato ma non pagato; fattura emessa ma non incassata; acconto promesso ma non ricevuto; trattativa in corso</td><td style="padding: 10px 12px;">Nessuna Maturazione</td></tr>
+<tr><td style="padding: 10px 12px;">Rata o canone scaduti e non pagati</td><td style="padding: 10px 12px;">Nessuna Maturazione sull'importo non incassato (v. Articolo 8)</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>6.2. Pagamenti rateali.</strong> In caso di pagamento rateale da parte del Cliente Segnalato, la Provvigione matura pro-quota su ciascuna rata effettivamente incassata. Nessuna Provvigione matura anticipatamente sul valore complessivo del piano di pagamento.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 7 — RENDICONTO, LIQUIDAZIONE E FATTURAZIONE</h2>
+
+<div style="padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; margin: 16px 0;">
+<h3 style="font-weight: bold; color: #1e293b;">7.1. Ciclo di liquidazione</h3>
+<table style="width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px;">
+<thead>
+<tr style="background: #eef2ff; border-bottom: 2px solid #c7d2fe;">
+<th style="padding: 10px 12px; text-align: left; font-weight: bold; color: #1e293b;">Voce</th>
+<th style="padding: 10px 12px; text-align: left; font-weight: bold; color: #1e293b;">Regola</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 10px 12px;">Periodicità di liquidazione</td><td style="padding: 10px 12px;"><strong>{{ciclo_liquidazione}}</strong></td></tr>
+<tr style="border-bottom: 1px solid #e2e8f0; background: #fafafa;"><td style="padding: 10px 12px;">Cutoff del periodo</td><td style="padding: 10px 12px;">Incassi confermati a sistema entro il giorno <strong>{{giorno_cutoff}}</strong> del periodo</td></tr>
+<tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 10px 12px;">Rendiconto di riferimento</td><td style="padding: 10px 12px;">Incassato e Storni risultanti dall'Hub Vendita / report vendite</td></tr>
+<tr><td style="padding: 10px 12px;">Termine di pagamento</td><td style="padding: 10px 12px;">Entro <strong>{{giorni_pagamento}}</strong> giorni dalla chiusura del periodo, previa ricezione di regolare fattura</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>7.2. Rendiconto.</strong> Alla chiusura di ciascun periodo l'Azienda mette a disposizione del Procacciatore il Rendiconto, con evidenza degli incassi confermati, degli Storni applicati e della Provvigione maturata nel periodo. Il Procacciatore ha diritto di verificare il Rendiconto prima di emettere fattura e può richiedere all'Azienda i riscontri relativi alle proprie segnalazioni.</p>
+<p><strong>7.3. Contestazioni.</strong> Eventuali contestazioni sul Rendiconto devono essere comunicate per iscritto entro 15 giorni dalla sua messa a disposizione; le Parti si impegnano a riconciliare le divergenze prima della fatturazione. In assenza di contestazioni nel termine, il Rendiconto si intende accettato, salvi errori materiali e Storni successivi.</p>
+<p><strong>7.4. Fatturazione e pagamento.</strong> Il Procacciatore emette fattura per l'importo della Provvigione maturata risultante dal Rendiconto, secondo il proprio regime fiscale. Il pagamento è effettuato mediante bonifico bancario sul conto intestato al Procacciatore da questi comunicato per iscritto, nel termine di cui all'Articolo 7.1.</p>
+<p><strong>7.5. Nessun altro compenso.</strong> La Provvigione costituisce l'unico compenso dovuto al Procacciatore ed è comprensiva di ogni onere e spesa dallo stesso sostenuti per l'attività di segnalazione.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 8 — STORNI (CLAWBACK)</h2>
+
+<p><strong>8.1. Principio.</strong> La Provvigione è ancorata all'Incassato: se un incasso viene meno, in tutto o in parte, dopo la Maturazione o la Liquidazione, la Provvigione corrispondente è stornata. Gli Storni sono ammessi esclusivamente nei casi tassativi che seguono e risultano tracciati nel Rendiconto.</p>
+
+<div style="padding: 16px; border-radius: 12px; background: #fff7ed; border: 1px solid #fed7aa; margin: 16px 0;">
+<h3 style="font-weight: bold; color: #1e293b;">8.2. Casi di Storno</h3>
+<ul>
+<li>rimborso, totale o parziale, riconosciuto al Cliente Segnalato: Storno della Provvigione sulla sola quota rimborsata;</li>
+<li>esercizio da parte del Cliente Segnalato del diritto di recesso o ripensamento nei termini previsti dal relativo Contratto Cliente: la Provvigione non matura e, se già liquidata, è stornata;</li>
+<li>insoluto: rate o canoni scaduti e non pagati: la Provvigione sull'importo non incassato non matura;</li>
+<li>chargeback o storno del pagamento da parte del circuito: Storno della Provvigione sull'importo oggetto di chargeback;</li>
+<li>annullamento o risoluzione della vendita per mancato pagamento: Storno delle Provvigioni relative agli importi non incassati o restituiti.</li>
+</ul>
+</div>
+
+<p><strong>8.3. Modalità di applicazione.</strong> Lo Storno è applicato in via prioritaria mediante compensazione sulle Provvigioni maturate nei periodi successivi, con evidenza nel Rendiconto. Se le Provvigioni successive risultano incapienti nei due cicli di liquidazione seguenti, l'Azienda può richiedere per iscritto la restituzione dell'eccedenza, che il Procacciatore corrisponde entro 30 giorni dalla richiesta, salvo diverso accordo scritto tra le Parti.</p>
+<p><strong>8.4. Limite.</strong> Lo Storno non può in alcun caso eccedere la Provvigione maturata o liquidata in relazione agli importi venuti meno.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 9 — DURATA, RECESSO E CODA PROVVIGIONALE</h2>
+
+<p><strong>9.1. Decorrenza e durata.</strong> Il presente Contratto decorre dal {{data_decorrenza}} ed è a tempo indeterminato.</p>
+<p><strong>9.2. Recesso.</strong> Ciascuna Parte può recedere liberamente in qualsiasi momento, senza obbligo di motivazione, con preavviso scritto di <strong>{{giorni_preavviso}}</strong> giorni, comunicato via PEC o raccomandata A/R. Il preavviso è identico per entrambe le Parti. Resta fermo il recesso immediato del Procacciatore di cui all'Articolo 5.4 e la risoluzione di cui all'Articolo 16.</p>
+<p><strong>9.3. Nessuna indennità di cessazione.</strong> Trattandosi di procacciamento d'affari e non di agenzia, alla cessazione del rapporto non è dovuta alcuna indennità di cessazione, di clientela o di mancato preavviso ex artt. 1750 e 1751 del Codice Civile, né alcun compenso ulteriore rispetto alle Provvigioni maturate e alla coda provvigionale di cui al presente Articolo.</p>
+
+<div style="padding: 16px; border-radius: 12px; background: #eef2ff; border: 1px solid #c7d2fe; margin: 16px 0;">
+<h3 style="font-weight: bold; color: #1e293b;">9.4. Coda provvigionale</h3>
+<p>Gli incassi confermati successivamente alla cessazione del Contratto, relativi a Contratti Cliente sottoscritti da Clienti Segnalati prima della data di cessazione, continuano a far maturare la Provvigione in favore del Procacciatore per un periodo di <strong>{{mesi_coda_provvigionale}}</strong> mesi dalla data di cessazione (la "coda provvigionale"), alle medesime regole di maturazione, liquidazione e Storno di cui agli Articoli 6, 7 e 8.</p>
+<p style="margin: 0;">Decorso tale periodo, nulla è più dovuto sugli incassi successivi. Nessuna Provvigione è dovuta su trattative non concluse alla data di cessazione, né su affari conclusi dopo la cessazione, ancorché con contatti in precedenza attribuiti al Procacciatore. Durante la coda provvigionale l'Azienda continua a mettere a disposizione il Rendiconto relativo ai Clienti Segnalati del Procacciatore.</p>
+</div>
+
+<div style="text-align: center; padding: 20px; border-radius: 12px; background: linear-gradient(90deg, #4f46e5, #2563eb); color: white; margin: 32px 0; font-weight: bold; font-size: 20px;">
+LIVELLO 2 — PROTEZIONE LEGALE
+</div>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 10 — OBBLIGHI E CONDOTTA DEL PROCACCIATORE</h2>
+
+<p><strong>10.1.</strong> Il Procacciatore svolge l'attività con correttezza, buona fede e diligenza professionale, presentando la Piattaforma in modo veritiero e conforme ai materiali ufficiali e al listino dell'Azienda.</p>
+<p><strong>10.2.</strong> In particolare, al Procacciatore è fatto divieto di:</p>
+<ul>
+<li>promettere o lasciar intendere risultati economici garantiti, guadagni certi o esiti determinati derivanti dall'uso della Piattaforma;</li>
+<li>prospettare funzionalità non incluse nel pacchetto proposto, non presenti a listino o non ancora disponibili;</li>
+<li>concedere o promettere sconti, omaggi, piani di pagamento o condizioni diversi da quelli previsti dal listino e dalle soglie comunicate dall'Azienda, senza previa approvazione scritta;</li>
+<li>promettere rimborsi, eccezioni o deroghe contrattuali in favore dei clienti;</li>
+<li>ricevere dai clienti denaro, titoli o altri mezzi di pagamento, per qualsiasi causale;</li>
+<li>spendere il nome, il marchio o la qualità dell'Azienda oltre i limiti del presente Contratto, ovvero presentarsi come agente, dipendente o rappresentante dell'Azienda;</li>
+<li>porre in essere pratiche commerciali scorrette, aggressive o ingannevoli, ovvero contatti promozionali in violazione della normativa applicabile.</li>
+</ul>
+<p><strong>10.3.</strong> Il Procacciatore registra nel CRM le informazioni rilevanti delle proprie segnalazioni (contatto, interlocutori, stato, condizioni prospettate) in modo veritiero e aggiornato. Le condizioni prospettate ai clienti in violazione del presente Articolo non vincolano l'Azienda e i danni che ne derivino restano a carico del Procacciatore.</p>
+<p><strong>10.4.</strong> L'utilizzo del nome, del marchio e dei materiali dell'Azienda è consentito al Procacciatore nei soli limiti dei materiali ufficiali messi a disposizione, senza modifiche, per la sola durata del Contratto.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 11 — TITOLARITÀ DEI LEAD, DEI DATI E PROPRIETÀ INTELLETTUALE</h2>
+
+<p><strong>11.1. Titolarità dei contatti.</strong> I lead, i contatti, le anagrafiche, gli storici e ogni altro dato registrato nel CRM — inclusi i contatti auto-procurati dal Procacciatore e da questi inseriti nel CRM — costituiscono patrimonio aziendale esclusivo dell'Azienda, anche successivamente alla cessazione del Contratto. Alla cessazione, il Procacciatore non vanta alcun diritto sui contatti né sul relativo storico.</p>
+<p><strong>11.2. Divieto di estrazione.</strong> È fatto divieto al Procacciatore di esportare, copiare, duplicare o trasferire i dati del CRM su supporti, dispositivi o archivi personali o di terzi, ovvero di utilizzarli per finalità diverse dall'esecuzione del presente Contratto, durante il rapporto e dopo la sua cessazione.</p>
+<p><strong>11.3. Accessi.</strong> Gli accessi del Procacciatore agli strumenti dell'Azienda sono personali, non cedibili e sono revocati alla cessazione del Contratto, fermo quanto previsto dall'Articolo 9.4 in ordine alla messa a disposizione del Rendiconto durante la coda provvigionale.</p>
+<p><strong>11.4. Proprietà intellettuale.</strong> La Piattaforma, i marchi, i loghi, i materiali commerciali e formativi, i documenti, i prompt e il know-how dell'Azienda restano di titolarità esclusiva dell'Azienda. Nessuna disposizione del presente Contratto trasferisce al Procacciatore diritti di proprietà intellettuale.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 12 — RISERVATEZZA</h2>
+
+<p><strong>12.1.</strong> Ciascuna Parte mantiene riservate le informazioni confidenziali ricevute dall'altra Parte in esecuzione del presente Contratto, ivi incluse, per il Procacciatore, le informazioni su listini riservati, condizioni commerciali, funzionalità non pubbliche, dati dei clienti e contenuto dei Documenti Operativi.</p>
+<p><strong>12.2.</strong> L'obbligo di riservatezza permane per 5 anni dalla cessazione del Contratto.</p>
+<p><strong>12.3.</strong> Sono escluse dall'obbligo di riservatezza le informazioni di dominio pubblico, quelle già in legittimo possesso della Parte ricevente e quelle la cui divulgazione sia imposta dalla legge o dall'autorità.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 13 — NON CONCORRENZA E NON SOLLECITAZIONE</h2>
+
+<p><strong>13.1. Non concorrenza in costanza di rapporto.</strong> Per la durata del Contratto, il Procacciatore si impegna a non promuovere, segnalare o commercializzare, direttamente o indirettamente, piattaforme o servizi in concorrenza diretta con la Piattaforma. Resta ferma la libertà del Procacciatore di svolgere ogni altra attività non concorrente, ai sensi dell'Articolo 3.5.</p>
+<p><strong>13.2. Nessun patto di non concorrenza post-contrattuale.</strong> Alla cessazione del rapporto il Procacciatore non è soggetto ad alcun vincolo di non concorrenza.</p>
+<p><strong>13.3. Non sollecitazione.</strong> Per 12 mesi dalla cessazione del Contratto, il Procacciatore si impegna a non sollecitare attivamente: (a) i clienti dell'Azienda a recedere dai propri contratti o a trasferirsi presso servizi concorrenti; (b) i collaboratori, i procacciatori e i dipendenti dell'Azienda ad interrompere il proprio rapporto con la stessa.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 14 — TRATTAMENTO DEI DATI PERSONALI</h2>
+
+<p><strong>14.1.</strong> I dati personali dei potenziali clienti e dei Clienti Segnalati sono trattati sotto la titolarità dell'Azienda. Il Procacciatore li tratta esclusivamente tramite il CRM, per le sole finalità del presente Contratto e nel rispetto delle istruzioni scritte dell'Azienda; ove necessario, le Parti sottoscrivono l'atto di designazione o l'accordo previsto dall'art. 28 del Reg. UE 2016/679 (GDPR).</p>
+<p><strong>14.2.</strong> Il Procacciatore raccoglie e registra i soli dati necessari alla segnalazione, li acquisisce in modo lecito, rispetta le richieste degli interessati di non essere contattati — registrandole nel CRM — e si astiene da ogni comunicazione promozionale in violazione della normativa in materia di protezione dei dati e comunicazioni indesiderate.</p>
+<p><strong>14.3.</strong> I dati personali del Procacciatore sono trattati dall'Azienda per la gestione del rapporto contrattuale e per i connessi obblighi di legge, nel rispetto del GDPR e della normativa nazionale vigente.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 15 — REGIME FISCALE, PREVIDENZIALE E ASSICURATIVO</h2>
+
+<p><strong>15.1.</strong> Il Procacciatore opera quale soggetto autonomo titolare di propria partita IVA ({{procacciatore_piva}}). Sono a suo esclusivo carico tutti gli adempimenti e gli oneri fiscali, previdenziali e assicurativi connessi alla propria attività e al proprio regime, senza alcun obbligo dell'Azienda a titolo di contributi, trattenute previdenziali, coperture assicurative o altri istituti propri dei rapporti di lavoro subordinato o parasubordinato.</p>
+<p><strong>15.2.</strong> Sui compensi corrisposti l'Azienda opera, ove applicabile in base al regime fiscale del Procacciatore, la ritenuta d'acconto prevista dall'art. 25-bis del D.P.R. 600/1973 per le provvigioni inerenti a rapporti di procacciamento di affari. Il Procacciatore comunica per iscritto il proprio regime fiscale e le eventuali condizioni di esonero o riduzione, assumendosi la responsabilità delle dichiarazioni rese.</p>
+<p><strong>15.3.</strong> Trattandosi di procacciamento d'affari occasionale e non di agenzia, le Parti si danno atto che non trova applicazione la disciplina previdenziale propria degli agenti di commercio; resta a carico del Procacciatore ogni valutazione e adempimento previdenziale connesso al proprio inquadramento.</p>
+<p><strong>15.4.</strong> Il Procacciatore manleva e tiene indenne l'Azienda da pretese di terzi o di enti derivanti dall'inadempimento dei propri obblighi fiscali, previdenziali o assicurativi, ovvero da dichiarazioni non veritiere rese ai sensi del presente Articolo.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 16 — CLAUSOLA RISOLUTIVA ESPRESSA</h2>
+
+<p>Ai sensi dell'art. 1456 del Codice Civile, l'Azienda può dichiarare risolto il Contratto, mediante comunicazione via PEC, in caso di:</p>
+<ul>
+<li>violazione del divieto di incasso o di rappresentanza (Articolo 2.4);</li>
+<li>violazione grave o reiterata dei divieti di condotta di cui all'Articolo 10.2, ivi incluse promesse non autorizzate ai clienti;</li>
+<li>violazione dell'obbligo di riservatezza (Articolo 12);</li>
+<li>esportazione o appropriazione di dati del CRM in violazione dell'Articolo 11;</li>
+<li>violazione degli obblighi di non concorrenza o non sollecitazione (Articolo 13);</li>
+<li>violazione degli obblighi in materia di dati personali (Articolo 14);</li>
+<li>condotte gravemente lesive della reputazione dell'Azienda o del marchio Sistema Orbitale.</li>
+</ul>
+<p>La risoluzione non pregiudica il diritto del Procacciatore alle Provvigioni già maturate su incassi confermati alla data di risoluzione, che restano dovute secondo l'Articolo 7, salvo il diritto dell'Azienda al risarcimento del danno e fermi gli Storni di cui all'Articolo 8. In caso di risoluzione ai sensi del presente Articolo non trova applicazione la coda provvigionale di cui all'Articolo 9.4.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 17 — CESSIONE DEL CONTRATTO</h2>
+
+<p><strong>17.1.</strong> Il presente Contratto è concluso in considerazione della persona del Procacciatore, che non può cederlo né cedere i crediti da esso derivanti senza il previo consenso scritto dell'Azienda.</p>
+<p><strong>17.2.</strong> L'Azienda può cedere il presente Contratto a terzi, anche nell'ambito di operazioni societarie o di trasferimento d'azienda, con preavviso scritto di 30 giorni al Procacciatore; restano fermi i diritti maturati dal Procacciatore alla data di efficacia della cessione.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 18 — COMUNICAZIONI</h2>
+
+<p>Tutte le comunicazioni formali previste dal presente Contratto devono essere effettuate in forma scritta via PEC o raccomandata A/R agli indirizzi indicati in intestazione del Contratto. Le comunicazioni si intendono ricevute alla data di ricezione della PEC o della raccomandata. Le comunicazioni operative ordinarie (rendiconti, listini, aggiornamenti dei Documenti Operativi) possono avvenire tramite gli strumenti della Piattaforma o email ordinaria.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 19 — LEGGE APPLICABILE E FORO COMPETENTE</h2>
+
+<p><strong>19.1.</strong> Il presente Contratto è regolato dalla legge italiana.</p>
+<p><strong>19.2.</strong> Per qualsiasi controversia derivante dal presente Contratto o ad esso connessa, le Parti riconoscono la competenza esclusiva del Foro di Messina, con espressa rinuncia a qualsiasi altro foro concorrente.</p>
+
+<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">ARTICOLO 20 — DISPOSIZIONI FINALI</h2>
+
+<p><strong>20.1. Intero Accordo.</strong> Il presente Contratto costituisce l'intero accordo tra le Parti in relazione al suo oggetto e sostituisce ogni precedente accordo, intesa o comunicazione, scritta o orale. I Documenti Operativi richiamati hanno natura di policy organizzative interne: in caso di contrasto con il presente Contratto, prevale quest'ultimo.</p>
+<p><strong>20.2. Modifiche.</strong> Qualsiasi modifica al presente Contratto deve essere concordata per iscritto e sottoscritta da entrambe le Parti, salvo quanto previsto dagli Articoli 4.6 e 5.4.</p>
+<p><strong>20.3. Nullità Parziale.</strong> L'eventuale nullità o inefficacia di una clausola non travolge le restanti clausole. Le Parti si impegnano a sostituire la clausola nulla con una clausola valida di effetto economico e giuridico il più possibile simile.</p>
+<p><strong>20.4. Tolleranza.</strong> La mancata applicazione di una clausola da parte di una Parte non costituisce rinuncia al diritto di applicarla successivamente.</p>
+<p><strong>20.5. Copie.</strong> Il presente Contratto è redatto in due copie originali, una per ciascuna Parte.</p>
+
+<div style="text-align: center; padding: 20px; border-radius: 12px; background: linear-gradient(90deg, #4f46e5, #2563eb); color: white; margin: 32px 0; font-weight: bold; font-size: 18px;">
+APPROVAZIONE SPECIFICA<br>
+<span style="font-size: 13px; font-weight: normal; opacity: 0.9;">ai sensi degli articoli 1341 e 1342 del Codice Civile</span>
+</div>
+
+<p>Il Procacciatore <strong>{{procacciatore_nome}}</strong> (P.IVA {{procacciatore_piva}}, con sede/domicilio fiscale in {{procacciatore_sede}}), con la sottoscrizione del presente Contratto, dichiara di aver letto, compreso e di approvare specificamente le seguenti clausole:</p>
+
+<div style="padding: 16px; border-radius: 12px; background: #fef2f2; border: 1px solid #fecaca; margin: 16px 0;">
+<ul>
+<li><strong>Art. 2</strong> — Facoltà dell'Azienda di non concludere gli affari segnalati, senza compenso o indennizzo</li>
+<li><strong>Art. 4</strong> — Rilevanza delle risultanze del CRM, riassegnazione per inattività e facoltà di aggiornamento dei Documenti Operativi</li>
+<li><strong>Art. 5</strong> — Base di calcolo, attribuzione degli Affari secondo le risultanze del CRM e variazioni dell'aliquota</li>
+<li><strong>Art. 6</strong> — Maturazione della Provvigione condizionata all'incasso confermato, pro-quota sulle rate</li>
+<li><strong>Art. 7.3</strong> — Termine di 15 giorni per la contestazione del Rendiconto</li>
+<li><strong>Art. 8</strong> — Storni (clawback), compensazione sulle Provvigioni successive e obbligo di restituzione</li>
+<li><strong>Art. 9</strong> — Recesso con preavviso, esclusione di indennità di cessazione e termine della coda provvigionale</li>
+<li><strong>Art. 11</strong> — Titolarità esclusiva dell'Azienda su lead, dati e CRM, anche dopo la cessazione</li>
+<li><strong>Art. 13</strong> — Non concorrenza in costanza di rapporto e non sollecitazione post-contrattuale</li>
+<li><strong>Art. 15.4</strong> — Manleva per obblighi fiscali, previdenziali e assicurativi del Procacciatore</li>
+<li><strong>Art. 16</strong> — Clausola risolutiva espressa ed esclusione della coda provvigionale in caso di risoluzione</li>
+<li><strong>Art. 17</strong> — Limiti alla cessione del Contratto e dei crediti da parte del Procacciatore</li>
+<li><strong>Art. 19</strong> — Foro esclusivo di Messina</li>
+</ul>
+</div>
+
+<p>La firma digitale apposta tramite OTP al presente Contratto costituisce accettazione espressa di tutte le clausole sopra elencate ai sensi e per gli effetti degli artt. 1341 e 1342 del Codice Civile.</p>`;

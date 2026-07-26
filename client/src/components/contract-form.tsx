@@ -76,6 +76,20 @@ const contractFormSchema = z.object({
     data_nascita: z.string().optional(),
     stesso_indirizzo: z.boolean().optional(),
 
+    // === Contratto "Procacciatore d'Affari" ===
+    // Anagrafica del procacciatore + parametri economici. DEVONO stare
+    // nello schema: zod elimina le chiavi sconosciute al parse, quindi
+    // senza queste righe i valori si perderebbero al salvataggio bozza.
+    procacciatore_nome: z.string().optional(),
+    procacciatore_piva: z.string().optional(),
+    procacciatore_sede: z.string().optional(),
+    data_decorrenza: z.string().optional(),
+    ciclo_liquidazione: z.string().optional(),
+    giorno_cutoff: z.string().optional(),
+    giorni_pagamento: z.string().optional(),
+    mesi_coda_provvigionale: z.string().optional(),
+    giorni_preavviso: z.string().optional(),
+
     // Dynamic sections
     bonus_list: z.array(z.object({
       bonus_descrizione: z.string().min(1, "Descrizione bonus richiesta")
@@ -99,6 +113,10 @@ const contractFormSchema = z.object({
   partnershipPercentage: z.number().min(0.01).max(100).optional(),
   selectedSectionIds: z.array(z.string()).default([]).optional(),
   fillMode: z.enum(["seller", "client_fill"]).default("seller"),
+  // Tipo di destinatario del template selezionato. Lo schema zod non può
+  // conoscere il template, quindi il form sincronizza questo campo quando
+  // cambia template e le validazioni condizionali lo leggono da qui.
+  recipientType: z.enum(["cliente", "procacciatore"]).default("cliente"),
   // Variabili-prodotto del template orbitale: livello di accesso, canone
   // mensile e costo di attivazione una tantum. Vengono passate al
   // backend che le formatta e le inietta nei placeholder
@@ -123,6 +141,9 @@ const contractFormSchema = z.object({
   // essere lasciate vuote dal venditore: il cliente le vedrà comunque
   // come anteprima e firmerà. Il refine si attiva solo per "seller".
   if (data.fillMode === "client_fill") return true;
+  // Il contratto procacciatore non ha prezzo totale né percentuale
+  // partnership: il compenso è definito in percentuale nel testo.
+  if (data.recipientType === "procacciatore") return true;
   if (data.isPercentagePartnership) {
     return data.partnershipPercentage !== undefined && data.partnershipPercentage > 0;
   }
@@ -168,6 +189,56 @@ const contractFormSchema = z.object({
   message: "La data di fine contratto deve essere successiva o uguale alla data di inizio",
   path: ["contractEndDate"]
 }).superRefine((data, ctx) => {
+  // === Contratto procacciatore d'affari ===
+  // I parametri economici sono SEMPRE a carico di chi emette il contratto,
+  // in entrambe le modalità di compilazione. L'anagrafica del procacciatore
+  // è obbligatoria solo quando la compila il venditore ("seller").
+  if (data.recipientType === "procacciatore") {
+    const cd = data.clientData as Record<string, any>;
+    const econChecks: Array<[string, string]> = [
+      ["data_decorrenza", "Data di decorrenza richiesta"],
+      ["ciclo_liquidazione", "Ciclo di liquidazione richiesto"],
+      ["giorno_cutoff", "Giorno di cut-off richiesto"],
+      ["giorni_pagamento", "Giorni per il pagamento richiesti"],
+      ["mesi_coda_provvigionale", "Mesi di coda provvigionale richiesti"],
+      ["giorni_preavviso", "Giorni di preavviso richiesti"],
+    ];
+    for (const [field, msg] of econChecks) {
+      const v = cd[field];
+      if (v === undefined || v === null || (typeof v === "string" && !v.trim())) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["clientData", field], message: msg });
+      }
+    }
+    if (cd.giorno_cutoff && String(cd.giorno_cutoff).trim()) {
+      const cutoff = parseInt(String(cd.giorno_cutoff), 10);
+      if (!Number.isFinite(cutoff) || cutoff < 1 || cutoff > 31) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["clientData", "giorno_cutoff"], message: "Il giorno di cut-off deve essere tra 1 e 31" });
+      }
+    }
+    for (const key of ["giorni_pagamento", "mesi_coda_provvigionale", "giorni_preavviso"]) {
+      const raw = cd[key];
+      if (raw === undefined || raw === null || String(raw).trim() === "") continue;
+      const n = parseInt(String(raw), 10);
+      if (!Number.isFinite(n) || n < 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["clientData", key], message: "Inserisci un numero valido (maggiore o uguale a 0)" });
+      }
+    }
+    if (data.fillMode === "client_fill") return;
+    const anagrafica: Array<[string, string]> = [
+      ["procacciatore_nome", "Nome / ragione sociale del procacciatore richiesto"],
+      ["procacciatore_piva", "P.IVA o Codice Fiscale del procacciatore richiesto"],
+      ["procacciatore_sede", "Sede / domicilio fiscale richiesto"],
+      ["cellulare", "Numero di cellulare richiesto"],
+    ];
+    for (const [field, msg] of anagrafica) {
+      const v = cd[field];
+      if (!v || (typeof v === "string" && !v.trim())) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["clientData", field], message: msg });
+      }
+    }
+    return;
+  }
+
   // In modalità "client_fill" l'unica cosa richiesta sui dati cliente è
   // l'email (già validata dallo schema). Tutto il resto verrà compilato
   // dal cliente sul link, quindi saltiamo le validazioni di obbligo.
@@ -254,7 +325,7 @@ interface WizardStepConfig {
   label: string;
   icon: LucideIcon;
   sectionId: string;
-  validateFields?: (mode: "seller" | "client_fill") => string[];
+  validateFields?: (mode: "seller" | "client_fill", recipient: "cliente" | "procacciatore") => string[];
 }
 const WIZARD_STEPS: WizardStepConfig[] = [
   {
@@ -269,8 +340,18 @@ const WIZARD_STEPS: WizardStepConfig[] = [
     label: "Cliente",
     icon: Users,
     sectionId: "section-client",
-    validateFields: (mode) => {
+    validateFields: (mode, recipient) => {
       const base = ["clientData.email"];
+      if (recipient === "procacciatore") {
+        if (mode === "client_fill") return base;
+        return [
+          ...base,
+          "clientData.procacciatore_nome",
+          "clientData.procacciatore_piva",
+          "clientData.procacciatore_sede",
+          "clientData.cellulare",
+        ];
+      }
       if (mode === "client_fill") return base;
       return [
         ...base,
@@ -292,14 +373,28 @@ const WIZARD_STEPS: WizardStepConfig[] = [
     label: "Pacchetti & Bonus",
     icon: Layers,
     sectionId: "section-modular-sections",
-    validateFields: () => [],
+    // Per il contratto procacciatore lo step 3 ospita i parametri economici
+    // (obbligatori in entrambe le modalità: li imposta sempre il venditore).
+    validateFields: (_mode, recipient) =>
+      recipient === "procacciatore"
+        ? [
+            "clientData.data_decorrenza",
+            "clientData.ciclo_liquidazione",
+            "clientData.giorno_cutoff",
+            "clientData.giorni_pagamento",
+            "clientData.mesi_coda_provvigionale",
+            "clientData.giorni_preavviso",
+          ]
+        : [],
   },
   {
     id: 4,
     label: "Prezzo & Durata",
     icon: Euro,
     sectionId: "section-payment",
-    validateFields: (mode) => {
+    validateFields: (mode, recipient) => {
+      // Il contratto procacciatore non ha prezzo/durata da impostare.
+      if (recipient === "procacciatore") return [];
       if (mode === "client_fill") return [];
       return ["totalValue", "partnershipPercentage", "contractStartDate", "contractEndDate"];
     },
@@ -479,6 +574,13 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     ? templates.find((template: any) => template.id === selectedTemplateId)
     : null;
 
+  // Tipo di destinatario del template: "procacciatore" attiva il wizard
+  // dedicato (anagrafica procacciatore + parametri contratto, niente
+  // pacchetti/prezzo/autorinnovo).
+  const recipientKind: "cliente" | "procacciatore" =
+    (selectedTemplate as any)?.recipientType === "procacciatore" ? "procacciatore" : "cliente";
+  const isProcacciatore = recipientKind === "procacciatore";
+
   const form = useForm<ContractForm>({
     resolver: zodResolver(contractFormSchema),
     defaultValues: {
@@ -506,6 +608,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         return Array.isArray(raw) ? raw : undefined;
       })(),
       fillMode: ((contract as any)?.fillMode === "client_fill" ? "client_fill" : "seller") as "seller" | "client_fill",
+      recipientType: "cliente" as const,
       clientData: {
         tipo_cliente: "azienda" as const,
         societa: "",
@@ -524,6 +627,15 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         indirizzo_residenza: "",
         data_nascita: "",
         stesso_indirizzo: false,
+        procacciatore_nome: "",
+        procacciatore_piva: "",
+        procacciatore_sede: "",
+        data_decorrenza: "",
+        ciclo_liquidazione: "",
+        giorno_cutoff: "",
+        giorni_pagamento: "",
+        mesi_coda_provvigionale: "",
+        giorni_preavviso: "",
         bonus_list: [],
         payment_plan: [{ rata_importo: "", rata_scadenza: "" }],
         rata_list: [],
@@ -532,13 +644,20 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     },
   });
 
+  // Mantiene il campo recipientType del form allineato al template
+  // selezionato: refine/superRefine dipendono da questo valore perché lo
+  // schema zod non può conoscere il template da solo.
+  useEffect(() => {
+    form.setValue("recipientType", recipientKind);
+  }, [recipientKind, form]);
+
   // Validazione di uno step prima di avanzare. Restituisce true se i campi
   // obbligatori dello step sono validi (per la modalità di compilazione
   // corrente), altrimenti false e mostra un banner con il primo errore.
   const validateStep = useCallback(async (stepId: number): Promise<boolean> => {
     const step = WIZARD_STEPS.find((s) => s.id === stepId);
     if (!step?.validateFields) return true;
-    const fields = step.validateFields(fillMode);
+    const fields = step.validateFields(fillMode, recipientKind);
     if (fields.length === 0) return true;
     type FormValues = z.infer<typeof contractFormSchema>;
     const typedFields = fields as Array<FieldPath<FormValues>>;
@@ -571,7 +690,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     }
     setStepBanner(null);
     return true;
-  }, [form, fillMode]);
+  }, [form, fillMode, recipientKind]);
 
   const goToStep = useCallback(
     async (target: number, opts?: { skipValidation?: boolean }) => {
@@ -844,7 +963,19 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     // In modalità "client_fill" l'anteprima mostra solo le condizioni
     // commerciali con i dati anagrafici come placeholder: non blocchiamo
     // il venditore se l'anagrafica non è ancora compilata.
-    if (fillMode === "seller") {
+    if (fillMode === "seller" && isProcacciatore) {
+      // Contratto procacciatore: bastano nome/ragione sociale ed email.
+      // Niente prezzo totale né percentuale partnership da controllare.
+      if (!cd.procacciatore_nome || !cd.email) {
+        toast({
+          title: "Compila i dati del procacciatore",
+          description: "Servono almeno nome/ragione sociale ed email del procacciatore per generare l'anteprima.",
+          variant: "destructive",
+        });
+        scrollToSection("section-client");
+        return;
+      }
+    } else if (fillMode === "seller") {
       const isPrivato = (cd.tipo_cliente || "azienda") === "privato";
       const referenteOk = isPrivato ? true : !!cd.cliente_nome;
       if (!cd.societa || !referenteOk || !cd.email) {
@@ -985,7 +1116,19 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     }
     const cd: any = values.clientData || {};
     const isPrivato = (cd.tipo_cliente || "azienda") === "privato";
-    if (fillMode === "seller") {
+    if (fillMode === "seller" && isProcacciatore) {
+      // Contratto procacciatore: bastano nome/ragione sociale ed email;
+      // il valore economico non è previsto (provvigioni % nel testo).
+      if (!cd.procacciatore_nome || !cd.email) {
+        toast({
+          title: "Compila i dati del procacciatore",
+          description: "Servono almeno nome/ragione sociale ed email del procacciatore per inviare il contratto.",
+          variant: "destructive",
+        });
+        scrollToSection("section-client");
+        return;
+      }
+    } else if (fillMode === "seller") {
       const referenteOk = isPrivato ? true : !!cd.cliente_nome;
       if (!cd.societa || !referenteOk || !cd.email) {
         toast({
@@ -1119,7 +1262,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     const tmplSecs = getTemplateSections(selectedTemplate);
     const cd: any = watchedClientData || {};
     const tipo = (cd.tipo_cliente || cd.clientType || "azienda") as "azienda" | "privato";
-    const clientLabel = tipo === "privato"
+    const clientLabel = isProcacciatore
+      ? (cd.procacciatore_nome || null)
+      : tipo === "privato"
       ? (cd.cliente_nome || cd.nome || null)
       : (cd.societa || cd.cliente_nome || cd.nome || null);
     let durationMonths: number | null = null;
@@ -1576,7 +1721,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     <span className={`text-xs mt-2 font-medium text-center transition-colors duration-200 whitespace-nowrap ${
                       isActive ? "text-indigo-700" : isCompleted ? "text-indigo-500" : "text-gray-500"
                     }`}>
-                      {step.label}
+                      {isProcacciatore
+                        ? (({ 2: "Procacciatore", 3: "Parametri contratto", 4: "Condizioni" } as Record<number, string>)[step.id] ?? step.label)
+                        : step.label}
                     </span>
                   </button>
                   {index < WIZARD_STEPS.length - 1 && (
@@ -1597,6 +1744,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               variant="accordion"
               className="lg:hidden mb-3"
               clientData={watchedClientData}
+              recipientType={recipientKind}
               onJumpToField={jumpToClientField}
             />
             <ContractRecapPanel data={recapData} variant="accordion" className="lg:hidden mb-6" />
@@ -1765,7 +1913,104 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
             </div>
             </>)}
 
-            {currentStep === 2 && (
+            {currentStep === 2 && isProcacciatore && (
+            /* Section 2 (procacciatore): anagrafica del procacciatore d'affari */
+            <div id="section-client" className="pt-2">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-2">
+                <Users className="mr-3 h-5 w-5 text-indigo-600" />
+                Dati del Procacciatore d'Affari
+              </h3>
+              <p className="text-xs text-slate-500 mb-6">
+                {fillMode === "client_fill"
+                  ? "Basta l'email: nome, P.IVA e sede li inserirà il procacciatore dal link di compilazione. I parametri del contratto (step successivo) restano comunque a carico tuo."
+                  : "Inserisci i dati anagrafici e fiscali del procacciatore che firmerà il contratto."}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="md:col-span-2">
+                  <Label htmlFor="procacciatore_nome" className={labelClass}>
+                    Nome e cognome / Ragione sociale {fillMode === "seller" ? "*" : ""}
+                  </Label>
+                  <Input
+                    id="procacciatore_nome"
+                    placeholder="Es. Mario Rossi oppure Rossi Consulting Srl"
+                    {...form.register("clientData.procacciatore_nome")}
+                    disabled={createContractMutation.isPending}
+                    className={inputClass}
+                    data-testid="input-procacciatore-nome"
+                  />
+                  {form.formState.errors.clientData?.procacciatore_nome && (
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.procacciatore_nome.message}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="procacciatore_piva" className={labelClass}>
+                    Partita IVA / Codice Fiscale {fillMode === "seller" ? "*" : ""}
+                  </Label>
+                  <Input
+                    id="procacciatore_piva"
+                    placeholder="Es. 01234567890"
+                    {...form.register("clientData.procacciatore_piva")}
+                    disabled={createContractMutation.isPending}
+                    className={inputClass}
+                    data-testid="input-procacciatore-piva"
+                  />
+                  {form.formState.errors.clientData?.procacciatore_piva && (
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.procacciatore_piva.message}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="procacciatore_sede" className={labelClass}>
+                    Sede / Domicilio fiscale {fillMode === "seller" ? "*" : ""}
+                  </Label>
+                  <Input
+                    id="procacciatore_sede"
+                    placeholder="Es. Via Roma 1, 98100 Messina (ME)"
+                    {...form.register("clientData.procacciatore_sede")}
+                    disabled={createContractMutation.isPending}
+                    className={inputClass}
+                    data-testid="input-procacciatore-sede"
+                  />
+                  {form.formState.errors.clientData?.procacciatore_sede && (
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.procacciatore_sede.message}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="email" className={labelClass}>Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="email@esempio.com"
+                    {...form.register("clientData.email")}
+                    disabled={createContractMutation.isPending}
+                    className={inputClass}
+                    data-testid="input-procacciatore-email"
+                  />
+                  {form.formState.errors.clientData?.email && (
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.email.message}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="cellulare" className={labelClass}>
+                    Cellulare {fillMode === "seller" ? "*" : ""}
+                  </Label>
+                  <Input
+                    id="cellulare"
+                    type="tel"
+                    placeholder="+39 333 123 4567"
+                    {...form.register("clientData.cellulare")}
+                    disabled={createContractMutation.isPending}
+                    className={inputClass}
+                    data-testid="input-procacciatore-cellulare"
+                  />
+                  {form.formState.errors.clientData?.cellulare && (
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.cellulare.message}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            )}
+
+            {currentStep === 2 && !isProcacciatore && (
             /* Section 2: Client Data */
             <div id="section-client" className="pt-2">
               <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -2291,7 +2536,27 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
             )}
 
-            {currentStep === 4 && (<>
+            {currentStep === 4 && isProcacciatore && (
+            <div id="section-payment" className="pt-2">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
+                <Euro className="mr-3 h-5 w-5 text-indigo-600" />
+                Compensi e durata
+              </h3>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5 space-y-2 text-sm text-slate-700" data-testid="procacciatore-no-price-info">
+                <p className="font-semibold text-slate-900">Nessun prezzo da impostare</p>
+                <p>
+                  Il contratto di procacciamento non ha un valore economico fisso: le provvigioni sono
+                  definite in percentuale direttamente nel testo e maturano solo sugli affari andati a buon fine.
+                </p>
+                <p>
+                  Durata: a tempo indeterminato, con recesso libero secondo i giorni di preavviso impostati
+                  nello step precedente. Non è previsto il rinnovo automatico.
+                </p>
+              </div>
+            </div>
+            )}
+
+            {currentStep === 4 && !isProcacciatore && (<>
             {/* Section 3: Payment */}
             <div id="section-payment" className="pt-2">
               <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-6">
@@ -2785,7 +3050,126 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
             </>)}
 
-            {currentStep === 3 && (<>
+            {currentStep === 3 && isProcacciatore && (
+            <div id="section-modular-sections" className="pt-2">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center mb-2">
+                <Layers className="mr-3 h-5 w-5 text-indigo-600" />
+                Parametri del contratto
+              </h3>
+              <p className="text-sm text-slate-500 mb-6">
+                Vengono inseriti automaticamente nel testo del contratto. Li imposti tu: non verranno mai
+                chiesti al procacciatore, nemmeno in modalità "compila lui".
+              </p>
+              <div className="rounded-xl border-2 border-indigo-200 bg-indigo-50/30 p-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <Label htmlFor="data_decorrenza" className={labelClass}>Data di decorrenza *</Label>
+                    <Input
+                      id="data_decorrenza"
+                      type="date"
+                      {...form.register("clientData.data_decorrenza")}
+                      disabled={createContractMutation.isPending}
+                      className={inputClass}
+                      data-testid="input-data-decorrenza"
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">Da quando il contratto ha effetto.</p>
+                    {form.formState.errors.clientData?.data_decorrenza && (
+                      <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.data_decorrenza.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="ciclo_liquidazione" className={labelClass}>Ciclo di liquidazione *</Label>
+                    <select
+                      id="ciclo_liquidazione"
+                      {...form.register("clientData.ciclo_liquidazione")}
+                      disabled={createContractMutation.isPending}
+                      className={`${inputClass} w-full`}
+                      data-testid="select-ciclo-liquidazione"
+                    >
+                      <option value="">Seleziona…</option>
+                      <option value="mensile">Mensile</option>
+                      <option value="bimestrale">Bimestrale</option>
+                      <option value="trimestrale">Trimestrale</option>
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1.5">Ogni quanto vengono liquidate le provvigioni.</p>
+                    {form.formState.errors.clientData?.ciclo_liquidazione && (
+                      <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.ciclo_liquidazione.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="giorno_cutoff" className={labelClass}>Giorno di cut-off *</Label>
+                    <Input
+                      id="giorno_cutoff"
+                      type="number"
+                      min={1}
+                      max={31}
+                      placeholder="Es. 5"
+                      {...form.register("clientData.giorno_cutoff")}
+                      disabled={createContractMutation.isPending}
+                      className={inputClass}
+                      data-testid="input-giorno-cutoff"
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">Giorno del mese entro cui gli incassi entrano nel ciclo.</p>
+                    {form.formState.errors.clientData?.giorno_cutoff && (
+                      <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.giorno_cutoff.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="giorni_pagamento" className={labelClass}>Giorni per il pagamento *</Label>
+                    <Input
+                      id="giorni_pagamento"
+                      type="number"
+                      min={0}
+                      placeholder="Es. 15"
+                      {...form.register("clientData.giorni_pagamento")}
+                      disabled={createContractMutation.isPending}
+                      className={inputClass}
+                      data-testid="input-giorni-pagamento"
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">Dalla ricezione della fattura del procacciatore.</p>
+                    {form.formState.errors.clientData?.giorni_pagamento && (
+                      <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.giorni_pagamento.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="mesi_coda_provvigionale" className={labelClass}>Mesi di coda provvigionale *</Label>
+                    <Input
+                      id="mesi_coda_provvigionale"
+                      type="number"
+                      min={0}
+                      placeholder="Es. 6"
+                      {...form.register("clientData.mesi_coda_provvigionale")}
+                      disabled={createContractMutation.isPending}
+                      className={inputClass}
+                      data-testid="input-mesi-coda"
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">Provvigioni riconosciute dopo la cessazione del rapporto.</p>
+                    {form.formState.errors.clientData?.mesi_coda_provvigionale && (
+                      <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.mesi_coda_provvigionale.message}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="giorni_preavviso" className={labelClass}>Giorni di preavviso per il recesso *</Label>
+                    <Input
+                      id="giorni_preavviso"
+                      type="number"
+                      min={0}
+                      placeholder="Es. 30"
+                      {...form.register("clientData.giorni_preavviso")}
+                      disabled={createContractMutation.isPending}
+                      className={inputClass}
+                      data-testid="input-giorni-preavviso"
+                    />
+                    {form.formState.errors.clientData?.giorni_preavviso && (
+                      <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.giorni_preavviso.message}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            )}
+
+            {currentStep === 3 && !isProcacciatore && (<>
             {/* Section 4b: Sezioni modulari (servizi opzionali dal template) */}
             {Array.isArray(getTemplateSections(selectedTemplate)) && getTemplateSections(selectedTemplate).length > 0 && (
               <div id="section-modular-sections" className="border-t border-gray-100 pt-8 mt-8">
@@ -3158,14 +3542,27 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 <p className="text-xs text-slate-500">Controlla, modifica i blocchi se serve, poi invia.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {([
+                {((isProcacciatore ? [
+                  { step: 1, label: "Template & Preset", icon: FileText, value: selectedTemplate?.name || (form.watch("templateId") ? `Template #${form.watch("templateId")}` : "—") },
+                  { step: 2, label: "Procacciatore", icon: Users, value: (form.watch("clientData.procacciatore_nome") || form.watch("clientData.email") || "—") as string },
+                  { step: 3, label: "Parametri contratto", icon: Layers, value: (() => {
+                    const ciclo = form.watch("clientData.ciclo_liquidazione");
+                    const dec = form.watch("clientData.data_decorrenza");
+                    if (!ciclo && !dec) return "—";
+                    return [
+                      ciclo ? `Liquidazione ${ciclo}` : null,
+                      dec ? `dal ${dec.split("-").reverse().join("/")}` : null,
+                    ].filter(Boolean).join(" · ");
+                  })() },
+                  { step: 4, label: "Condizioni", icon: Euro, value: "Provvigioni % da contratto" },
+                ] : [
                   { step: 1, label: "Template & Preset", icon: FileText, value: selectedTemplate?.name || (form.watch("templateId") ? `Template #${form.watch("templateId")}` : "—") },
                   { step: 2, label: "Cliente", icon: Users, value: (form.watch("clientData.societa") || form.watch("clientData.cliente_nome") || form.watch("clientData.email") || "—") as string },
                   { step: 3, label: "Pacchetti & Bonus", icon: Layers, value: `${(form.watch("selectedSectionIds")?.length ?? 0)} pacchetti · ${(form.watch("clientData.bonus_list")?.length ?? 0)} bonus` },
                   { step: 4, label: "Prezzo & Durata", icon: Euro, value: form.watch("isPercentagePartnership")
                     ? `${form.watch("partnershipPercentage") ?? "—"}% partnership`
                     : (form.watch("totalValue") != null ? `€ ${Number(form.watch("totalValue") || 0).toLocaleString("it-IT")}` : "—") },
-                ] as Array<{ step: number; label: string; icon: LucideIcon; value: string }>).map((row) => {
+                ]) as Array<{ step: number; label: string; icon: LucideIcon; value: string }>).map((row) => {
                   const Icon = row.icon;
                   return (
                     <div key={row.step} className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 transition-colors">
@@ -3199,11 +3596,15 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               <div className="space-y-5">
                 {/* Modalità di compilazione */}
                 <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/40">
-                  <Label className={labelClass}>Chi compila i dati del cliente?</Label>
+                  <Label className={labelClass}>Chi compila i dati del {isProcacciatore ? "procacciatore" : "cliente"}?</Label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                     {([
-                      { value: "seller", title: "Compilo io", desc: "Inserisco tutti i dati del cliente e gli invio il contratto pronto da firmare." },
-                      { value: "client_fill", title: "Lascia che compili il cliente", desc: "Invio il link: il cliente vede un'anteprima delle condizioni, inserisce i propri dati e firma con OTP." },
+                      { value: "seller", title: "Compilo io", desc: isProcacciatore
+                        ? "Inserisco io i dati del procacciatore e gli invio il contratto pronto da firmare."
+                        : "Inserisco tutti i dati del cliente e gli invio il contratto pronto da firmare." },
+                      { value: "client_fill", title: isProcacciatore ? "Lascia che compili il procacciatore" : "Lascia che compili il cliente", desc: isProcacciatore
+                        ? "Invio il link: il procacciatore vede il contratto, inserisce i propri dati e firma con OTP."
+                        : "Invio il link: il cliente vede un'anteprima delle condizioni, inserisce i propri dati e firma con OTP." },
                     ] as const).map((opt) => {
                       const selected = fillMode === opt.value;
                       return (
@@ -3234,7 +3635,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   </div>
                   {fillMode === "client_fill" && (
                     <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-3">
-                      In questa modalità, dei dati cliente serve solo l'email di invio. Tutto il resto lo compilerà il cliente sul link.
+                      {isProcacciatore
+                        ? "In questa modalità, del procacciatore serve solo l'email di invio. Nome, P.IVA e sede li compilerà lui sul link; i parametri del contratto restano quelli impostati da te."
+                        : "In questa modalità, dei dati cliente serve solo l'email di invio. Tutto il resto lo compilerà il cliente sul link."}
                     </p>
                   )}
                 </div>
@@ -3281,10 +3684,10 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   <div className="flex items-start gap-3">
                     <Send className="h-5 w-5 text-indigo-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-slate-700">
-                      <p className="font-semibold text-slate-900 mb-1">Invio sicuro al cliente</p>
+                      <p className="font-semibold text-slate-900 mb-1">Invio sicuro al {isProcacciatore ? "procacciatore" : "cliente"}</p>
                       <p className="text-xs text-slate-600 leading-relaxed">
                         Quando sei pronto, premi <strong>Procedi all'invio</strong>: aprirò una conferma con
-                        l'esatta email che riceverà il cliente, il documento e il link sicuro. Niente parte
+                        l'esatta email che riceverà {isProcacciatore ? "il procacciatore" : "il cliente"}, il documento e il link sicuro. Niente parte
                         finché non confermi.
                       </p>
                     </div>
@@ -3305,6 +3708,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               variant="sidebar"
               className="flex-1"
               clientData={watchedClientData}
+              recipientType={recipientKind}
               onJumpToField={jumpToClientField}
             />
           </div>

@@ -7,7 +7,12 @@ import { z } from "zod";
 import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, insertContractPresetSchema, type InsertCoFillSession, type User } from "@shared/schema";
 import { resolveSelectedSections, renderSectionsHtml, parseSelectedIds, parseSections, SECTIONS_MARKER } from "@shared/sections";
 import { isOrbitalPackagesTemplate } from "@shared/orbital-packages";
-import { getMissingClientFields, getClientType, SYNCED_FIELD_KEYS } from "@shared/client-fields";
+import { getMissingClientFields, getClientType, SYNCED_FIELD_KEYS, getContractPartyDisplayName } from "@shared/client-fields";
+import {
+  getMissingProcacciatoreFields,
+  getTemplateRecipientType,
+  PROCACCIATORE_SYNCED_FIELD_KEYS,
+} from "@shared/procacciatore-fields";
 // @ts-ignore - no shipped types
 import cookie from "cookie";
 // @ts-ignore - no shipped types
@@ -252,11 +257,22 @@ const clientDataRateLimiter = rateLimit({
 // finirebbe direttamente nel testo del contratto generato.
 const CLIENT_DATA_ALLOWED_KEYS: ReadonlySet<string> = new Set(SYNCED_FIELD_KEYS);
 
-function sanitizeClientDataInput(input: unknown): Record<string, any> {
+function sanitizeClientDataInput(
+  input: unknown,
+  extraAllowedKeys?: readonly string[],
+  // true → l'allowlist è SOLO `extraAllowedKeys` (usato per i contratti
+  // procacciatore: i campi anagrafici del cliente NON devono essere
+  // scrivibili, altrimenti dati spuri finiscono nel clientData e possono
+  // ingannare euristiche/rendering a valle).
+  replaceBaseAllowlist = false,
+): Record<string, any> {
   const out: Record<string, any> = {};
   if (!input || typeof input !== "object") return out;
+  const extra = extraAllowedKeys && extraAllowedKeys.length > 0 ? new Set(extraAllowedKeys) : null;
   for (const [k, v] of Object.entries(input as Record<string, any>)) {
-    if (!CLIENT_DATA_ALLOWED_KEYS.has(k)) continue;
+    if (replaceBaseAllowlist) {
+      if (!(extra && extra.has(k))) continue;
+    } else if (!CLIENT_DATA_ALLOWED_KEYS.has(k) && !(extra && extra.has(k))) continue;
     if (v === null || v === undefined) continue;
     if (typeof v === "string") {
       // Limita la lunghezza per evitare payload abusivi nel PDF.
@@ -411,13 +427,18 @@ export function registerRoutes(app: Express): Server {
           monthlyFee: input.monthlyFee ?? null,
           activationFee: input.activationFee ?? null,
         },
+        req.user.companyId,
       );
 
       // Rete di sicurezza: se il template contiene placeholder `{{...}}`
       // ancora non risolti (es. il venditore non ha compilato livello /
       // canone / attivazione), restituiamo errore strutturato che il
       // wizard intercetta per portare l'utente al campo mancante.
-      const unresolved = findUnresolvedPlaceholders(generatedContent);
+      const unresolved = filterProcacciatoreSelfFillUnresolved(
+        findUnresolvedPlaceholders(generatedContent),
+        template,
+        input.fillMode,
+      );
       if (unresolved.length > 0) {
         return res.status(400).json({
           message: "Il contratto contiene variabili non compilate.",
@@ -1485,6 +1506,7 @@ export function registerRoutes(app: Express): Server {
               monthlyFee: req.body.monthlyFee ?? existingContract.monthlyFee ?? null,
               activationFee: req.body.activationFee ?? existingContract.activationFee ?? null,
             },
+            req.user.companyId,
           );
 
       // Validate the updated contract data
@@ -1521,7 +1543,11 @@ export function registerRoutes(app: Express): Server {
         // contenuto generato contiene ancora placeholder `{{...}}` non
         // risolti. Si esegue PRIMA di toccare il DB per evitare di
         // marcare il contratto come "sent" quando non lo è realmente.
-        const unresolved = findUnresolvedPlaceholders(generatedContent);
+        const unresolved = filterProcacciatoreSelfFillUnresolved(
+          findUnresolvedPlaceholders(generatedContent),
+          template,
+          req.body.fillMode ?? (existingContract as any).fillMode,
+        );
         if (unresolved.length > 0) {
           return res.status(400).json({
             message: "Impossibile inviare: il contratto contiene variabili non compilate.",
@@ -1649,12 +1675,17 @@ export function registerRoutes(app: Express): Server {
             message: "Per la modalità 'cliente compila' serve almeno l'email del destinatario.",
           });
         }
-        // Normalizza minimo indispensabile
-        req.body.clientData = {
-          tipo_cliente: req.body.clientData?.tipo_cliente || "azienda",
-          ...(req.body.clientData || {}),
-          email,
-        };
+        // Normalizza minimo indispensabile. Il tipo_cliente ha senso solo
+        // per i contratti destinati a un cliente: il contratto procacciatore
+        // non distingue azienda/privato.
+        req.body.clientData =
+          getTemplateRecipientType(template) === "procacciatore"
+            ? { ...(req.body.clientData || {}), email }
+            : {
+                tipo_cliente: req.body.clientData?.tipo_cliente || "azienda",
+                ...(req.body.clientData || {}),
+                email,
+              };
       }
 
       const generatedContent = await generateContractContent(
@@ -1674,6 +1705,7 @@ export function registerRoutes(app: Express): Server {
           monthlyFee: req.body.monthlyFee ?? null,
           activationFee: req.body.activationFee ?? null,
         },
+        req.user.companyId,
       );
 
       // Now validate the complete contract data including generated content
@@ -1712,7 +1744,11 @@ export function registerRoutes(app: Express): Server {
         // previewToken di per sé è già sufficiente (preview ha già
         // bloccato i placeholder), ma una doppia verifica difende da
         // eventuali bypass futuri o token riusati su payload diversi.
-        const unresolved = findUnresolvedPlaceholders(generatedContent);
+        const unresolved = filterProcacciatoreSelfFillUnresolved(
+          findUnresolvedPlaceholders(generatedContent),
+          template,
+          fillMode,
+        );
         if (unresolved.length > 0) {
           await storage.deleteContracts([contract.id], req.user.companyId).catch(() => {});
           return res.status(400).json({
@@ -1978,7 +2014,7 @@ export function registerRoutes(app: Express): Server {
           continue;
         }
         const cd: any = c.clientData || {};
-        const clientLabel = cd.societa || cd.cliente_nome || cd.nome || "—";
+        const clientLabel = getContractPartyDisplayName(cd) || "—";
         const email = c.sentToEmail || cd.email || null;
         const totalEuro = typeof c.totalValue === "number" ? c.totalValue / 100 : null;
         const emailSubject = subjectTemplate.replace("{{codice}}", c.contractCode);
@@ -2004,7 +2040,7 @@ export function registerRoutes(app: Express): Server {
           // Filtriamo via i campi anagrafici noti per non bloccare i
           // bulk legittimi.
           const blocking = unresolved.filter(
-            (k) => !["nome", "cognome", "codice_fiscale", "data_nascita", "luogo_nascita", "indirizzo_residenza", "residente_a", "provincia_residenza", "nome_legale_rappresentante", "cognome_legale_rappresentante", "societa", "ragione_sociale", "sede", "indirizzo", "provincia_sede", "partita_iva", "telefono", "email"].includes(k),
+            (k) => !["nome", "cognome", "codice_fiscale", "data_nascita", "luogo_nascita", "indirizzo_residenza", "residente_a", "provincia_residenza", "nome_legale_rappresentante", "cognome_legale_rappresentante", "societa", "ragione_sociale", "sede", "indirizzo", "provincia_sede", "partita_iva", "telefono", "email", "procacciatore_nome", "procacciatore_piva", "procacciatore_sede"].includes(k),
           );
           if (blocking.length > 0) {
             eligible = false;
@@ -2089,7 +2125,7 @@ export function registerRoutes(app: Express): Server {
           // contratti con variabili-prodotto irrisolte.
           const unresolved = findUnresolvedPlaceholders(c.generatedContent || "");
           const blocking = unresolved.filter(
-            (k) => !["nome", "cognome", "codice_fiscale", "data_nascita", "luogo_nascita", "indirizzo_residenza", "residente_a", "provincia_residenza", "nome_legale_rappresentante", "cognome_legale_rappresentante", "societa", "ragione_sociale", "sede", "indirizzo", "provincia_sede", "partita_iva", "telefono", "email"].includes(k),
+            (k) => !["nome", "cognome", "codice_fiscale", "data_nascita", "luogo_nascita", "indirizzo_residenza", "residente_a", "provincia_residenza", "nome_legale_rappresentante", "cognome_legale_rappresentante", "societa", "ragione_sociale", "sede", "indirizzo", "provincia_sede", "partita_iva", "telefono", "email", "procacciatore_nome", "procacciatore_piva", "procacciatore_sede"].includes(k),
           );
           if (blocking.length > 0) {
             failed.push({ id, error: `variabili non compilate: ${blocking.map((k) => PLACEHOLDER_LABELS[k]?.label || k).join(", ")}` });
@@ -2168,7 +2204,17 @@ export function registerRoutes(app: Express): Server {
       // completato i dati anagrafici: altrimenti la UI gating sull'OTP
       // resterebbe bloccata su un documento ancora con placeholder.
       const cFillModeForStatus = (contract as any).fillMode === "client_fill" ? "client_fill" : "seller";
-      const missingForStatus = getMissingClientFields(contract.clientData as any);
+      // Il tipo di destinatario del template decide QUALI campi anagrafici
+      // servono per considerare i dati "completi" (cliente vs procacciatore).
+      const contractTemplate = await storage
+        .getTemplate(contract.templateId, (contract as any).companyId)
+        .catch(() => undefined);
+      const recipientTypeForContract = getTemplateRecipientType(contractTemplate);
+      const computeMissing = (cd: any) =>
+        recipientTypeForContract === "procacciatore"
+          ? getMissingProcacciatoreFields(cd)
+          : getMissingClientFields(cd);
+      const missingForStatus = computeMissing(contract.clientData as any);
       const dataCompleteForStatus = missingForStatus.length === 0;
       if (contract.status === "sent") {
         await storage.updateContract(contract.id, { status: "viewed" });
@@ -2189,7 +2235,7 @@ export function registerRoutes(app: Express): Server {
       // omettiamo il generatedContent (contiene placeholder vuoti) ed esponiamo
       // solo l'anteprima delle condizioni commerciali.
       const cFillMode = (contract as any).fillMode === "client_fill" ? "client_fill" : "seller";
-      const missingFields = getMissingClientFields(contract.clientData as any);
+      const missingFields = computeMissing(contract.clientData as any);
       const dataComplete = missingFields.length === 0;
 
       // In modalità "client_fill" prima della compilazione, generiamo
@@ -2208,10 +2254,7 @@ export function registerRoutes(app: Express): Server {
       let publicTemplate: any = null;
       if (cFillMode === "client_fill" && !dataComplete) {
         try {
-          const tplForPreview = await storage.getTemplate(
-            contract.templateId,
-            (contract as any).companyId
-          );
+          const tplForPreview = contractTemplate;
           if (tplForPreview) {
             const productVarsForPreview = {
               accessLevel: contract.accessLevel ?? null,
@@ -2219,8 +2262,15 @@ export function registerRoutes(app: Express): Server {
               activationFee: contract.activationFee ?? null,
             };
             if (contract.contentManuallyEdited && contract.generatedContent) {
+              // Per i contratti procacciatore i placeholder azienda_* e la
+              // data di decorrenza vanno risolti anche nel percorso
+              // "contenuto modificato a mano".
+              const cdForPreview =
+                recipientTypeForContract === "procacciatore"
+                  ? withProcacciatorePlaceholders(contract.clientData, contractCompanySettings)
+                  : contract.clientData;
               const enhancedForPreview = buildEnhancedClientData(
-                contract.clientData,
+                cdForPreview,
                 tplForPreview,
                 contract.autoRenewal ?? false,
                 contract.renewalDuration ?? 12,
@@ -2258,11 +2308,13 @@ export function registerRoutes(app: Express): Server {
                 contract.contractEndDate ?? undefined,
                 contract.selectedSectionIds ?? undefined,
                 productVarsForPreview,
+                (contract as any).companyId,
               );
             }
             publicTemplate = {
               id: tplForPreview.id,
               name: tplForPreview.name,
+              recipientType: recipientTypeForContract,
               content: tplForPreview.content,
               customContent: (tplForPreview as any).customContent ?? null,
               paymentText: (tplForPreview as any).paymentText ?? null,
@@ -2284,6 +2336,7 @@ export function registerRoutes(app: Express): Server {
         templateId: contract.templateId,
         status: contract.status,
         fillMode: cFillMode,
+        recipientType: recipientTypeForContract,
         dataComplete,
         clientData: contract.clientData,
         template: publicTemplate,
@@ -2341,10 +2394,24 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Contratto già firmato." });
       }
 
+      // Il tipo di destinatario del template decide quali campi il firmatario
+      // può inviare e quali servono per considerare i dati "completi".
+      let tplForFill: any = null;
+      try {
+        tplForFill = await storage.getTemplate(contract.templateId, contract.companyId);
+      } catch {}
+      const isProcacciatoreFill = getTemplateRecipientType(tplForFill) === "procacciatore";
+
       // Sanitizza l'input: solo campi anagrafici whitelistati, niente
       // sovrascrittura di campi commerciali (prezzo, durata, ecc.) che
       // verrebbero iniettati direttamente nel testo del contratto.
-      const incoming = sanitizeClientDataInput(req.body?.clientData);
+      // Per i contratti procacciatore sono ammessi anche i campi anagrafici
+      // del procacciatore (MAI i parametri economici, che restano del venditore).
+      const incoming = sanitizeClientDataInput(
+        req.body?.clientData,
+        isProcacciatoreFill ? PROCACCIATORE_SYNCED_FIELD_KEYS : undefined,
+        isProcacciatoreFill, // procacciatore: SOLO i suoi campi anagrafici
+      );
       const merged: Record<string, any> = {
         ...(contract.clientData as any || {}),
         ...incoming,
@@ -2354,14 +2421,16 @@ export function registerRoutes(app: Express): Server {
       const lockedEmail = (contract.sentToEmail || (contract.clientData as any)?.email || merged.email || "").toString();
       if (lockedEmail) merged.email = lockedEmail;
 
-      // "stesso_indirizzo" → riallinea residenza
-      if (merged.stesso_indirizzo) {
+      // "stesso_indirizzo" → riallinea residenza (solo contratti cliente)
+      if (!isProcacciatoreFill && merged.stesso_indirizzo) {
         merged.residente_a = merged.sede ?? merged.residente_a ?? "";
         merged.provincia_residenza = merged.provincia_sede ?? merged.provincia_residenza ?? "";
         merged.indirizzo_residenza = merged.indirizzo ?? merged.indirizzo_residenza ?? "";
       }
 
-      const missing = getMissingClientFields(merged);
+      const missing = isProcacciatoreFill
+        ? getMissingProcacciatoreFields(merged)
+        : getMissingClientFields(merged);
       const dataComplete = missing.length === 0;
 
       // Aggiorna i dati cliente. Quando completi, "rifondiamo" il contenuto
@@ -2375,16 +2444,27 @@ export function registerRoutes(app: Express): Server {
       let nextContent = contract.generatedContent;
       if (dataComplete) {
         try {
-          const tpl = await storage.getTemplate(contract.templateId, contract.companyId);
+          const tpl = tplForFill;
           if (tpl) {
             const productVars = {
               accessLevel: contract.accessLevel ?? null,
               monthlyFee: contract.monthlyFee ?? null,
               activationFee: contract.activationFee ?? null,
             };
+            // Contratto procacciatore + contenuto modificato a mano: i
+            // placeholder azienda_* e la data di decorrenza vanno risolti
+            // anche in questo percorso di sola sostituzione.
+            let mergedForContent = merged;
+            if (isProcacciatoreFill && contract.contentManuallyEdited) {
+              let settingsForFill: any = null;
+              try {
+                settingsForFill = await storage.getCompanySettings(contract.companyId);
+              } catch {}
+              mergedForContent = withProcacciatorePlaceholders(merged, settingsForFill);
+            }
             if (contract.contentManuallyEdited) {
               const enhanced = buildEnhancedClientData(
-                merged,
+                mergedForContent,
                 tpl,
                 contract.autoRenewal ?? false,
                 contract.renewalDuration ?? 12,
@@ -2422,6 +2502,7 @@ export function registerRoutes(app: Express): Server {
                 contract.contractEndDate,
                 contract.selectedSectionIds ?? null,
                 productVars,
+                contract.companyId,
               );
             }
           }
@@ -2463,7 +2544,7 @@ export function registerRoutes(app: Express): Server {
               companyId: contract.companyId,
               to: seller.email,
               link,
-              clientName: (merged.societa || merged.email || "Cliente").toString(),
+              clientName: (getContractPartyDisplayName(merged) || merged.email || "Cliente").toString(),
             });
           }
         } catch (notifyErr: any) {
@@ -2495,9 +2576,16 @@ export function registerRoutes(app: Express): Server {
       }
 
       // In modalità "cliente compila": l'invio OTP è bloccato finché i dati
-      // anagrafici obbligatori non sono completi.
+      // anagrafici obbligatori non sono completi. Il set di campi richiesti
+      // dipende dal destinatario del template (cliente vs procacciatore).
       if ((contract as any).fillMode === "client_fill") {
-        const missing = getMissingClientFields(contract.clientData as any);
+        const otpGateTemplate = await storage
+          .getTemplate(contract.templateId, (contract as any).companyId)
+          .catch(() => undefined);
+        const missing =
+          getTemplateRecipientType(otpGateTemplate) === "procacciatore"
+            ? getMissingProcacciatoreFields(contract.clientData as any)
+            : getMissingClientFields(contract.clientData as any);
         if (missing.length > 0) {
           return res.status(400).json({
             message: "Per ricevere il codice di firma devi prima completare i tuoi dati.",
@@ -2913,7 +3001,7 @@ export function registerRoutes(app: Express): Server {
               const seller = await storage.getUser(contract.sellerId);
               if (seller?.email && seller.companyId) {
                 const cd = (contract.clientData as any) || {};
-                const clientName = cd.cliente_nome || cd.nome || cd.ragione_sociale || null;
+                const clientName = cd.cliente_nome || cd.nome || cd.ragione_sociale || cd.procacciatore_nome || null;
                 const baseUrl = getBaseUrl();
                 const contractLink = `${baseUrl}/client/${encodeURIComponent(contract.contractCode)}`;
                 await sendOtpLockoutAlertEmail({
@@ -3085,7 +3173,7 @@ export function registerRoutes(app: Express): Server {
         // Invia messaggio di congratulazioni su WhatsApp
         try {
           const clientPhone = clientData.cellulare || clientData.phone || clientData.telefono;
-          const clientName = clientData.cliente_nome || clientData.nome || 'Cliente';
+          const clientName = clientData.cliente_nome || clientData.nome || clientData.procacciatore_nome || 'Cliente';
 
           if (clientPhone) {
             console.log('📱 Invio congratulazioni WhatsApp...');
@@ -3501,7 +3589,7 @@ export function registerRoutes(app: Express): Server {
       const link = `${getBaseUrl()}/co-fill/${sess.token}`;
 
       const currentData = (sess.currentData as Record<string, any>) || {};
-      const clientName = currentData.cliente_nome || currentData.nome || null;
+      const clientName = currentData.cliente_nome || currentData.nome || currentData.procacciatore_nome || null;
 
       try {
         const result = await sendCoFillLinkEmail({
@@ -3936,6 +4024,19 @@ export const PLACEHOLDER_LABELS: Record<string, { label: string; hint?: string }
   livello_accesso: { label: "Livello di accesso", hint: "Sezione Prezzo & Durata → Variabili contratto" },
   canone_mensile: { label: "Canone mensile", hint: "Sezione Prezzo & Durata → Variabili contratto" },
   costo_attivazione: { label: "Costo di attivazione", hint: "Sezione Prezzo & Durata → Variabili contratto" },
+  // --- Contratto Procacciatore d'Affari ---
+  azienda_ragione_sociale: { label: "Ragione sociale azienda", hint: "Impostazioni Azienda → Dati aziendali" },
+  azienda_piva: { label: "P.IVA azienda", hint: "Impostazioni Azienda → Dati aziendali" },
+  azienda_sede: { label: "Sede azienda (indirizzo, CAP e città)", hint: "Impostazioni Azienda → Dati aziendali" },
+  procacciatore_nome: { label: "Nome e cognome / ragione sociale del procacciatore", hint: "Step Procacciatore" },
+  procacciatore_piva: { label: "Partita IVA del procacciatore", hint: "Step Procacciatore" },
+  procacciatore_sede: { label: "Sede / domicilio fiscale del procacciatore", hint: "Step Procacciatore" },
+  data_decorrenza: { label: "Data di decorrenza", hint: "Step Parametri contratto" },
+  ciclo_liquidazione: { label: "Ciclo di liquidazione", hint: "Step Parametri contratto" },
+  giorno_cutoff: { label: "Giorno di cut-off", hint: "Step Parametri contratto" },
+  giorni_pagamento: { label: "Giorni per il pagamento", hint: "Step Parametri contratto" },
+  mesi_coda_provvigionale: { label: "Mesi di coda provvigionale", hint: "Step Parametri contratto" },
+  giorni_preavviso: { label: "Giorni di preavviso per il recesso", hint: "Step Parametri contratto" },
 };
 
 // Formatta un importo numerico (string|number) come "EUR 297,00".
@@ -3969,6 +4070,73 @@ export function withProductPlaceholders(
     if (f) out.costo_attivazione = f;
   }
   return out;
+}
+
+// Arricchisce clientData per i contratti "procacciatore":
+//  - azienda_ragione_sociale / azienda_piva / azienda_sede vengono iniettati
+//    dalle Impostazioni Azienda (il venditore non li digita mai a mano);
+//  - data_decorrenza (YYYY-MM-DD dal date picker) viene formattata in
+//    italiano esteso, coerente con le altre date del documento.
+// Le chiavi già valorizzate non vengono sovrascritte. Se un valore manca la
+// chiave non viene aggiunta: così findUnresolvedPlaceholders può segnalarla.
+export function withProcacciatorePlaceholders(
+  clientData: any,
+  settings?: {
+    companyName?: string | null;
+    vatId?: string | null;
+    taxId?: string | null;
+    address?: string | null;
+    city?: string | null;
+    postalCode?: string | null;
+  } | null,
+): any {
+  const out: any = { ...(clientData || {}) };
+  if (settings) {
+    if (!out.azienda_ragione_sociale && settings.companyName) {
+      out.azienda_ragione_sociale = settings.companyName;
+    }
+    const piva = settings.vatId || settings.taxId;
+    if (!out.azienda_piva && piva) out.azienda_piva = piva;
+    if (!out.azienda_sede) {
+      const capCitta = [settings.postalCode, settings.city].filter(Boolean).join(" ");
+      const sede = [settings.address, capCitta].filter(Boolean).join(", ");
+      if (sede) out.azienda_sede = sede;
+    }
+  }
+  if (typeof out.data_decorrenza === "string") {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(out.data_decorrenza.trim());
+    if (m) {
+      const months = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+      out.data_decorrenza = `${m[3]} ${months[parseInt(m[2], 10) - 1]} ${m[1]}`;
+    }
+  }
+  return out;
+}
+
+// Contratto procacciatore in modalità "compila il destinatario": i campi
+// anagrafici del procacciatore verranno compilati da lui sul link pubblico,
+// quindi NON devono bloccare anteprima/invio. I parametri economici invece
+// restano a carico del venditore e continuano a bloccare. Questa esenzione
+// deve essere identica su preview, create e update: se divergono, il token
+// di anteprima passa ma l'invio viene rifiutato (o viceversa).
+const PROCACCIATORE_SELF_FILL_PLACEHOLDER_KEYS = new Set([
+  "procacciatore_nome",
+  "procacciatore_piva",
+  "procacciatore_sede",
+]);
+
+function filterProcacciatoreSelfFillUnresolved(
+  unresolved: string[],
+  template: unknown,
+  fillMode: string | null | undefined,
+): string[] {
+  if (
+    getTemplateRecipientType(template as any) === "procacciatore" &&
+    fillMode === "client_fill"
+  ) {
+    return unresolved.filter((k) => !PROCACCIATORE_SELF_FILL_PLACEHOLDER_KEYS.has(k));
+  }
+  return unresolved;
 }
 
 // Cerca nel testo finale del contratto eventuali placeholder `{{nome}}`
@@ -4011,6 +4179,7 @@ async function generateContractContent(
   contractEndDate?: string,
   selectedSectionIds?: string[] | null,
   productVars?: ProductPlaceholderVars,
+  companyIdForSettings?: number | null,
 ): Promise<string> {
   // Inietta in clientData le variabili-prodotto (livello_accesso,
   // canone_mensile, costo_attivazione) lette dalle colonne dedicate del
@@ -4018,6 +4187,17 @@ async function generateContractContent(
   // del template orbitale vengono compilati come tutti gli altri.
   if (productVars) {
     clientData = withProductPlaceholders(clientData, productVars);
+  }
+  // Contratto procacciatore: inietta azienda_* dalle Impostazioni Azienda
+  // e formatta la data di decorrenza, prima di qualsiasi sostituzione.
+  if (template && getTemplateRecipientType(template) === "procacciatore") {
+    let settingsForAzienda: any = null;
+    if (companyIdForSettings != null) {
+      try {
+        settingsForAzienda = await storage.getCompanySettings(companyIdForSettings);
+      } catch {}
+    }
+    clientData = withProcacciatorePlaceholders(clientData, settingsForAzienda);
   }
   let content = templateContent;
 

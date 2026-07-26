@@ -567,7 +567,7 @@ export default function SellerDashboard() {
       const q = searchQuery.toLowerCase();
       result = result.filter((c: any) => {
         const clientData = c.clientData || {};
-        const clientName = (clientData.cliente_nome || clientData.nome || "").toLowerCase();
+        const clientName = (clientData.cliente_nome || clientData.nome || clientData.procacciatore_nome || "").toLowerCase();
         const clientEmail = (clientData.email || "").toLowerCase();
         return clientName.includes(q) || clientEmail.includes(q);
       });
@@ -894,7 +894,7 @@ export default function SellerDashboard() {
                 </div>
                 {pagedContracts.map((contract: any) => {
                   const clientData = contract.clientData || {};
-                  const clientName = clientData.cliente_nome || clientData.nome || "Cliente";
+                  const clientName = clientData.cliente_nome || clientData.nome || clientData.procacciatore_nome || "Cliente";
                   const clientEmail = clientData.email || "";
                   const isUnsigned = contract.status === "sent" || contract.status === "viewed";
                   const isSelected = selectedIds.has(contract.id);

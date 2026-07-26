@@ -23,6 +23,12 @@ import {
 } from "@shared/orbital-template";
 import { parseSections } from "@shared/sections";
 import { isOrbitalPackagesTemplate } from "@shared/orbital-packages";
+import {
+  getProcacciatoreContractHtml,
+  PROCACCIATORE_TEMPLATE_NAME,
+  PROCACCIATORE_TEMPLATE_DESCRIPTION,
+  PROCACCIATORE_TEMPLATE_MARKER_PREFIX,
+} from "@shared/procacciatore-template";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -291,10 +297,85 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Seed idempotente del "Contratto Procacciatore d'Affari" (contratto per
+  // l'ingresso nel team commerciale). Stesso pattern di ensureOrbitalTemplate:
+  // advisory lock per company, riconoscimento per nome O marker nel contenuto,
+  // nessuna sovrascrittura del contenuto se il template esiste già (le
+  // modifiche dell'admin si rispettano). Garantisce però recipientType e
+  // category corretti sui candidati riconosciuti.
+  async ensureProcacciatoreTemplate(companyId: number): Promise<void> {
+    try {
+      await db.transaction(async (tx) => {
+        // Namespace diverso da quello orbitale (4242) per non serializzare
+        // i due seed tra loro.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(4243, ${companyId})`);
+
+        const candidates = await tx
+          .select({
+            id: contractTemplates.id,
+            recipientType: contractTemplates.recipientType,
+            category: contractTemplates.category,
+          })
+          .from(contractTemplates)
+          .innerJoin(users, eq(contractTemplates.createdBy, users.id))
+          .where(
+            and(
+              eq(users.companyId, companyId),
+              or(
+                eq(contractTemplates.name, PROCACCIATORE_TEMPLATE_NAME),
+                like(contractTemplates.content, `%${PROCACCIATORE_TEMPLATE_MARKER_PREFIX}%`),
+              ),
+            ),
+          );
+
+        if (candidates.length === 0) {
+          const [adminUser] = await tx
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.companyId, companyId), eq(users.role, "admin")))
+            .limit(1);
+          if (!adminUser) return;
+
+          await tx.insert(contractTemplates).values({
+            name: PROCACCIATORE_TEMPLATE_NAME,
+            description: PROCACCIATORE_TEMPLATE_DESCRIPTION,
+            category: "Team",
+            recipientType: "procacciatore",
+            content: getProcacciatoreContractHtml(),
+            sections: [],
+            createdBy: adminUser.id,
+            updatedAt: new Date(),
+          });
+          console.log(`Storage: Seeded "${PROCACCIATORE_TEMPLATE_NAME}" template for company ${companyId}`);
+          return;
+        }
+
+        // Il template esiste già: assicura solo i metadati che guidano il
+        // comportamento dell'app (wizard/pagina pubblica), senza toccare il
+        // contenuto eventualmente personalizzato dall'admin.
+        for (const candidate of candidates) {
+          if (candidate.recipientType !== "procacciatore") {
+            await tx
+              .update(contractTemplates)
+              .set({ recipientType: "procacciatore", updatedAt: new Date() })
+              .where(eq(contractTemplates.id, candidate.id));
+            console.log(
+              `Storage: Fixed recipientType=procacciatore on template #${candidate.id} for company ${companyId}`,
+            );
+          }
+        }
+      });
+    } catch (err) {
+      console.error("Storage: Failed to ensure Procacciatore template:", err);
+    }
+  }
+
   async getTemplates(companyId: number): Promise<ContractTemplateWithUsage[]> {
     try {
         // Idempotent seed of the Sistema Orbitale modular template
         await this.ensureOrbitalTemplate(companyId);
+        // Idempotent seed of the Contratto Procacciatore d'Affari template
+        await this.ensureProcacciatoreTemplate(companyId);
 
         // Filter templates by company - get templates created by users of this company
         const templates = await db
@@ -303,6 +384,7 @@ export class DatabaseStorage implements IStorage {
             name: contractTemplates.name,
             description: contractTemplates.description,
             category: contractTemplates.category,
+            recipientType: contractTemplates.recipientType,
             content: contractTemplates.content,
             customContent: contractTemplates.customContent,
             paymentText: contractTemplates.paymentText,
@@ -365,6 +447,7 @@ export class DatabaseStorage implements IStorage {
           name: contractTemplates.name,
           description: contractTemplates.description,
           category: contractTemplates.category,
+          recipientType: contractTemplates.recipientType,
           content: contractTemplates.content,
           customContent: contractTemplates.customContent,
           paymentText: contractTemplates.paymentText,

@@ -20,6 +20,10 @@ export const contractTemplates = pgTable("contract_templates", {
   name: text("name").notNull(),
   description: text("description"),
   category: text("category"), // Categoria assegnata dall'admin (es. "Clienti", "Team", "Test/Archivio")
+  // Destinatario del contratto: "cliente" (default) oppure "procacciatore"
+  // (contratto di ingresso nel team commerciale). Determina quali campi
+  // anagrafici chiedono il wizard e la pagina pubblica di compilazione.
+  recipientType: text("recipient_type").notNull().default("cliente"),
   content: text("content").notNull(), // HTML content with placeholders
   customContent: text("custom_content"), // Custom content before bonuses
   paymentText: text("payment_text"), // Payment terms text

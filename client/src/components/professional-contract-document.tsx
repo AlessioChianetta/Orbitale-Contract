@@ -43,9 +43,14 @@ interface ProfessionalContractDocumentProps {
     data_nascita?: string;
     residente_a?: string;
     indirizzo_residenza?: string;
+    // Contratto procacciatore d'affari
+    procacciatore_nome?: string;
+    procacciatore_piva?: string;
+    procacciatore_sede?: string;
   };
   template?: {
     name?: string;
+    recipientType?: string;
     content?: string;
     customContent?: string;
     paymentText?: string;
@@ -143,6 +148,12 @@ export default function ProfessionalContractDocument({
   const isPreview = mode === "preview";
   const company = companySettings || {};
   const client = clientData || {};
+  // Contratto "procacciatore d'affari": anagrafica dedicata al posto della
+  // tabella cliente/committente e niente clausola di autorinnovo standard
+  // (durata e recesso sono disciplinati dagli articoli del contratto stesso).
+  const isProcacciatore =
+    template?.recipientType === "procacciatore" ||
+    (!!client.procacciatore_nome && !client.societa && !client.cliente_nome);
   const hasPaymentPlan = paymentPlan && paymentPlan.length > 0;
   const isPartnership =
     contract?.isPercentagePartnership && contract?.partnershipPercentage;
@@ -178,7 +189,11 @@ export default function ProfessionalContractDocument({
   const sections = useMemo(() => {
     const s: Array<{ id: string; title: string; icon: any }> = [
       { id: "intestazione", title: "Intestazione", icon: Building2 },
-      { id: "dati-cliente", title: "Dati Cliente", icon: User },
+      {
+        id: "dati-cliente",
+        title: isProcacciatore ? "Dati Procacciatore" : "Dati Cliente",
+        icon: User,
+      },
     ];
     if (hasCustomContent)
       s.push({
@@ -208,11 +223,11 @@ export default function ProfessionalContractDocument({
       });
     if (hasBonuses)
       s.push({ id: "bonus", title: "Bonus", icon: Gift });
-    s.push(
-      { id: "validita", title: "Validità Contratto", icon: Calendar },
-      { id: "autorinnovo", title: "Autorinnovo", icon: Shield },
-      { id: "firma", title: "Firma", icon: FileText }
-    );
+    s.push({ id: "validita", title: "Validità Contratto", icon: Calendar });
+    if (!isProcacciatore) {
+      s.push({ id: "autorinnovo", title: "Autorinnovo", icon: Shield });
+    }
+    s.push({ id: "firma", title: "Firma", icon: FileText });
     return s;
   }, [
     hasCustomContent,
@@ -224,6 +239,7 @@ export default function ProfessionalContractDocument({
     showDedicatedModularBlock,
     contentHasMarker,
     hasBonuses,
+    isProcacciatore,
   ]);
 
   useEffect(() => {
@@ -318,6 +334,94 @@ export default function ProfessionalContractDocument({
           </h1>
         </div>
 
+        {isProcacciatore ? (
+        <section data-section="dati-cliente" className="space-y-4">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
+            DATI DEL PROCACCIATORE D'AFFARI
+          </h2>
+
+          <div className="hidden sm:block overflow-hidden rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <td
+                    colSpan={2}
+                    className="bg-blue-500 text-white font-semibold text-sm uppercase tracking-wide px-4 py-3"
+                  >
+                    Dati del procacciatore d'affari
+                  </td>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                <tr>
+                  <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100">
+                    <strong className="text-slate-900">Nome / Ragione sociale</strong>{" "}
+                    {p(client.procacciatore_nome, "Nome Cognome")}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-700">
+                    <strong className="text-slate-900">P.IVA / C.F.</strong>{" "}
+                    {p(client.procacciatore_piva, "00000000000")}
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={2} className="px-4 py-2.5 text-slate-700">
+                    <strong className="text-slate-900">Sede / Domicilio fiscale</strong>{" "}
+                    {p(client.procacciatore_sede, "Via..., Città")}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100">
+                    Email {p(client.email, "email@esempio.it")}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-700">
+                    Cellulare {p(client.cellulare, "+39...")}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="sm:hidden space-y-3">
+            {[
+              {
+                label: "Nome / Ragione sociale",
+                value: p(client.procacciatore_nome, "Nome Cognome"),
+              },
+              {
+                label: "P.IVA / C.F.",
+                value: p(client.procacciatore_piva, "00000000000"),
+              },
+              {
+                label: "Sede / Domicilio fiscale",
+                value: p(client.procacciatore_sede, "Via..., Città"),
+              },
+              {
+                label: "Email",
+                value: p(client.email, "email@esempio.it"),
+              },
+              {
+                label: "Cellulare",
+                value: p(client.cellulare, "+39..."),
+              },
+            ].map(
+              (item, i) =>
+                item.value && (
+                  <div
+                    key={i}
+                    className="flex justify-between py-2 px-3 bg-slate-50 rounded-lg text-sm"
+                  >
+                    <span className="text-slate-500 font-medium">
+                      {item.label}
+                    </span>
+                    <span className="text-slate-800 text-right ml-2">
+                      {item.value}
+                    </span>
+                  </div>
+                )
+            )}
+          </div>
+        </section>
+        ) : (
         <section data-section="dati-cliente" className="space-y-4">
           <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
             DATI DEL CLIENTE / COMMITTENTE
@@ -498,6 +602,7 @@ export default function ProfessionalContractDocument({
             )}
           </div>
         </section>
+        )}
 
         {hasCustomContent && (
           <section data-section="contenuto-personalizzato" className="space-y-4">
@@ -753,6 +858,7 @@ export default function ProfessionalContractDocument({
           </div>
         </section>
 
+        {!isProcacciatore && (
         <section data-section="autorinnovo" className="space-y-4">
           <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-violet-500 pl-4">
             CLAUSOLA DI AUTORINNOVO
@@ -785,6 +891,7 @@ export default function ProfessionalContractDocument({
             </div>
           </div>
         </section>
+        )}
 
         <section data-section="firma" className="space-y-4">
           <h2 className="text-lg sm:text-xl font-bold text-slate-800 border-l-4 border-indigo-500 pl-4">
@@ -793,8 +900,8 @@ export default function ProfessionalContractDocument({
           <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-br from-slate-50/80 to-gray-50/40 border border-slate-200">
             <div className="space-y-3 text-sm text-slate-700">
               <p className="leading-relaxed">
-                Con la sottoscrizione del presente contratto, il Cliente
-                dichiara:
+                Con la sottoscrizione del presente contratto,{" "}
+                {isProcacciatore ? "il Procacciatore" : "il Cliente"} dichiara:
               </p>
               <ul className="space-y-2 ml-2">
                 {[

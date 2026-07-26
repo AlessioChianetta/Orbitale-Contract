@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
 import { getMissingClientFields, getClientType } from "@/lib/required-client-fields";
+import { getMissingProcacciatoreFields, formatDateItalian } from "@shared/procacciatore-fields";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import {
   ValidatedCityField,
@@ -404,8 +405,15 @@ function ClientFillFlow({
 }) {
   const { toast } = useToast();
   const initial = (contract.clientData || {}) as Record<string, any>;
+  // Contratto "Procacciatore d'Affari": il firmatario compila la propria
+  // anagrafica (nome, P.IVA, sede) al posto dei dati cliente classici.
+  // I parametri economici restano quelli impostati da chi ha inviato.
+  const isProcacciatore = contract?.recipientType === "procacciatore";
   const [data, setData] = useState<Record<string, any>>({
     tipo_cliente: initial.tipo_cliente || "azienda",
+    procacciatore_nome: initial.procacciatore_nome || "",
+    procacciatore_piva: initial.procacciatore_piva || "",
+    procacciatore_sede: initial.procacciatore_sede || "",
     societa: initial.societa || "",
     sede: initial.sede || "",
     provincia_sede: initial.provincia_sede || "",
@@ -433,10 +441,11 @@ function ClientFillFlow({
 
   // Heuristics derivati per gating del bottone
   const cellulareInvalid = isMobileInvalid(data.cellulare || "");
-  const pivaBlocking = isCfPivaBlocking(data.p_iva || "", vatValidation);
+  const pivaBlocking = !isProcacciatore && isCfPivaBlocking(data.p_iva || "", vatValidation);
 
   // Sincronizza residenza con sede quando "stesso indirizzo" è attivo
   useEffect(() => {
+    if (isProcacciatore) return;
     if (!stessoIndirizzo) return;
     setData((d) => ({
       ...d,
@@ -444,9 +453,11 @@ function ClientFillFlow({
       provincia_residenza: d.provincia_sede ?? "",
       indirizzo_residenza: d.indirizzo ?? "",
     }));
-  }, [stessoIndirizzo, data.sede, data.provincia_sede, data.indirizzo]);
+  }, [isProcacciatore, stessoIndirizzo, data.sede, data.provincia_sede, data.indirizzo]);
 
-  const missing = getMissingClientFields(data);
+  const missing = isProcacciatore
+    ? getMissingProcacciatoreFields(data)
+    : getMissingClientFields(data);
   const canSubmit =
     missing.length === 0 && !submitting && !cellulareInvalid && !pivaBlocking;
 
@@ -492,7 +503,9 @@ function ClientFillFlow({
             <div className="text-sm opacity-90">{companySettings?.companyName || "Contratto"}</div>
             <h1 className="text-xl sm:text-2xl font-bold">Compila i tuoi dati e firma il contratto</h1>
             <p className="text-sm text-white/80 mt-2">
-              Controlla l'anteprima delle condizioni qui sotto, inserisci i tuoi dati e procedi con la firma sicura via codice OTP.
+              {isProcacciatore
+                ? "Leggi le condizioni dell'incarico, inserisci i tuoi dati e procedi con la firma sicura via codice OTP."
+                : "Controlla l'anteprima delle condizioni qui sotto, inserisci i tuoi dati e procedi con la firma sicura via codice OTP."}
             </p>
           </div>
         </div>
@@ -501,7 +514,30 @@ function ClientFillFlow({
       <div className={contentClass}>
         {/* Anteprima condizioni — saltata in modalità embedded perché il
             documento completo è già visibile sotto */}
-        {!embedded && (
+        {!embedded && isProcacciatore && (
+        <Card className="rounded-2xl shadow-sm border border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg">Il tuo incarico</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-50 rounded-lg p-3">
+                <div className="text-xs text-slate-500">Decorrenza</div>
+                <div className="font-semibold text-slate-900">{formatDateItalian(initial.data_decorrenza) || "—"}</div>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3">
+                <div className="text-xs text-slate-500">Liquidazione provvigioni</div>
+                <div className="font-semibold text-slate-900 capitalize">{initial.ciclo_liquidazione || "—"}</div>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              Le provvigioni sono definite in percentuale nel testo del contratto. Il documento completo
+              con tutte le clausole sarà disponibile dopo aver compilato i tuoi dati.
+            </p>
+          </CardContent>
+        </Card>
+        )}
+        {!embedded && !isProcacciatore && (
         <Card className="rounded-2xl shadow-sm border border-slate-200">
           <CardHeader>
             <CardTitle className="text-lg">Anteprima del contratto</CardTitle>
@@ -537,7 +573,50 @@ function ClientFillFlow({
         </Card>
         )}
 
+        {/* Dati del procacciatore d'affari */}
+        {isProcacciatore && (
+        <Card className="rounded-2xl shadow-sm border border-slate-200">
+          <CardHeader><CardTitle className="text-lg">I tuoi dati</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <Field label="Nome e cognome / Ragione sociale">
+              <Input
+                value={data.procacciatore_nome}
+                onChange={(e) => set("procacciatore_nome", e.target.value)}
+                placeholder="Es. Mario Rossi oppure Rossi Consulting Srl"
+                data-testid="input-clientfill-procacciatore-nome"
+              />
+            </Field>
+            <Field label="Partita IVA / Codice Fiscale" hint="P.IVA (11 cifre) oppure Codice Fiscale.">
+              <Input
+                value={data.procacciatore_piva}
+                onChange={(e) => set("procacciatore_piva", e.target.value)}
+                placeholder="Es. 01234567890"
+                data-testid="input-clientfill-procacciatore-piva"
+              />
+            </Field>
+            <Field label="Sede / Domicilio fiscale">
+              <Input
+                value={data.procacciatore_sede}
+                onChange={(e) => set("procacciatore_sede", e.target.value)}
+                placeholder="Es. Via Roma 1, 98100 Messina (ME)"
+                data-testid="input-clientfill-procacciatore-sede"
+              />
+            </Field>
+            <Field label="Email" hint="L'email dove ti è arrivato questo link.">
+              <Input type="email" value={data.email} disabled className="bg-slate-100" />
+            </Field>
+            <ValidatedMobileField
+              label="Cellulare"
+              value={data.cellulare}
+              onChange={(v) => set("cellulare", v)}
+              testId="input-clientfill-procacciatore-cellulare"
+            />
+          </CardContent>
+        </Card>
+        )}
+
         {/* Tipo cliente */}
+        {!isProcacciatore && (
         <Card className="rounded-2xl shadow-sm border border-slate-200">
           <CardContent className="pt-6">
             <Label className="text-sm font-medium text-slate-700 mb-2 block">Sei un'azienda o un privato?</Label>
@@ -558,8 +637,10 @@ function ClientFillFlow({
             </div>
           </CardContent>
         </Card>
+        )}
 
         {/* Dati azienda/privato */}
+        {!isProcacciatore && (
         <Card className="rounded-2xl shadow-sm border border-slate-200">
           <CardHeader><CardTitle className="text-lg">{isPrivato ? "Dati cliente privato" : "Dati Azienda/Società"}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -620,8 +701,10 @@ function ClientFillFlow({
             />
           </CardContent>
         </Card>
+        )}
 
         {/* Dati anagrafici */}
+        {!isProcacciatore && (
         <Card className="rounded-2xl shadow-sm border border-slate-200">
           <CardHeader><CardTitle className="text-lg">{isPrivato ? "Dati anagrafici" : "Dati del referente"}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -667,6 +750,7 @@ function ClientFillFlow({
             />
           </CardContent>
         </Card>
+        )}
 
         {missing.length > 0 && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-start gap-2">
@@ -980,7 +1064,7 @@ export default function ClientView() {
     );
   }
 
-  const clientName = clientData.cliente_nome || clientData.nome || "Cliente";
+  const clientName = clientData.cliente_nome || clientData.nome || clientData.procacciatore_nome || "Cliente";
   const clientEmail = clientData.email || "";
 
   // Combine predefined bonuses from template with manual bonuses
@@ -1056,6 +1140,13 @@ export default function ClientView() {
       clientData={clientData}
       template={{
         ...contract.template,
+        // Il payload pubblico espone recipientType a livello contratto (il
+        // template "safe" non lo include): va propagato esplicitamente,
+        // altrimenti il documento firmato ricade sull'euristica sui dati
+        // cliente e può mostrare la variante cliente/autorinnovo sbagliata.
+        recipientType:
+          (contract as { recipientType?: string }).recipientType ??
+          contract.template?.recipientType,
         // Sorgente unica: usiamo `generatedContent` (HTML finale risolto
         // dal server con placeholder e sezioni modulari già iniettate)
         // così client-view, preview e PDF rendono identicamente.

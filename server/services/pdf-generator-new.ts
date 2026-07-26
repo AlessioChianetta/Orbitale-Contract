@@ -231,6 +231,12 @@ export async function generatePDF(
 function generateClientViewIdenticalHtml(contractData: any, companySettings?: any): string {
   const client = contractData.clientData || {};
 
+  // Contratto "procacciatore d'affari": la tabella anagrafica mostra i dati
+  // del procacciatore invece di quelli del cliente/committente.
+  const isProcacciatore =
+    contractData.template?.recipientType === "procacciatore" ||
+    (!!client.procacciatore_nome && !client.societa && !client.cliente_nome);
+
   const company = companySettings || {
     companyName: 'ALE srl',
     address: 'ale, 11',
@@ -590,7 +596,28 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
         ${contractData.template?.name || contractData.templateName || company.contractTitle || 'Contratto'}
       </div>
 
-      <!-- 2. DATI CLIENTE -->
+      <!-- 2. DATI CONTROPARTE (cliente/committente oppure procacciatore) -->
+      ${isProcacciatore ? `
+      <h2 class="section-header commercial">DATI DEL PROCACCIATORE D'AFFARI</h2>
+      <table class="client-table">
+        <tr>
+          <td colspan="2" class="client-table-header full-width">
+            Dati del procacciatore d'affari
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Nome / Ragione sociale</strong> ${client.procacciatore_nome || ''}</td>
+          <td><strong>P.IVA / C.F.</strong> ${client.procacciatore_piva || ''}</td>
+        </tr>
+        <tr>
+          <td colspan="2" class="full-width"><strong>Sede / Domicilio fiscale</strong> ${client.procacciatore_sede || ''}</td>
+        </tr>
+        <tr>
+          <td>Email ${client.email || ''}</td>
+          <td>Cellulare ${client.cellulare || ''}</td>
+        </tr>
+      </table>
+      ` : `
       <h2 class="section-header commercial">DATI DEL CLIENTE / COMMITTENTE</h2>
       <table class="client-table">
         <tr>
@@ -632,6 +659,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           <td colspan="2" class="full-width"><strong>Indirizzo di residenza:</strong> ${client.indirizzo_residenza || ''}</td>
         </tr>
       </table>
+      `}
 
       <!-- 3. CONTENUTO PERSONALIZZATO -->
       ${hasCustomContent ? `
@@ -745,7 +773,9 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
         </div>
       </div>
 
-      <!-- 9. CLAUSOLA DI AUTORINNOVO -->
+      <!-- 9. CLAUSOLA DI AUTORINNOVO (solo contratti cliente: il contratto
+           procacciatore disciplina durata e recesso nei propri articoli) -->
+      ${isProcacciatore ? '' : `
       <h2 class="section-header legal">CLAUSOLA DI AUTORINNOVO</h2>
       <div class="section-card violet">
         <div style="font-size: 10pt; color: #374151;">
@@ -757,13 +787,14 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           </p>
         </div>
       </div>
+      `}
 
       <!-- 10. DICHIARAZIONI E FIRMA -->
       <h2 class="section-header commercial">DICHIARAZIONI E FIRMA</h2>
       <div class="section-card slate" style="page-break-inside: avoid;">
         <div style="font-size: 10pt; color: #374151;">
           <p style="line-height: 1.7; margin-bottom: 12px;">
-            Con la sottoscrizione del presente contratto, il Cliente dichiara:
+            Con la sottoscrizione del presente contratto, ${isProcacciatore ? 'il Procacciatore' : 'il Cliente'} dichiara:
           </p>
           <div style="margin-left: 8px;">
             <div class="dot-item">
@@ -787,7 +818,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       </div>
 
       <div style="margin-top: 32px; page-break-inside: avoid;">
-        <p style="margin-bottom: 16px; font-size: 10pt; color: #374151;">Data ${formatShortDateItalian(new Date())} &nbsp;&nbsp; <strong>Firma Cliente/Committente</strong></p>
+        <p style="margin-bottom: 16px; font-size: 10pt; color: #374151;">Data ${formatShortDateItalian(new Date())} &nbsp;&nbsp; <strong>${isProcacciatore ? 'Firma Procacciatore' : 'Firma Cliente/Committente'}</strong></p>
         <div class="signature-area">
           ${(contractData.status === 'signed' || contractData.status === 'completed') && contractData.signatures?.marketing ? 
             (contractData.signatures.marketing.startsWith('data:image') ? 
@@ -795,7 +826,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
               `<div class="signature-text">${contractData.signatures.marketing}</div>`
             ) :
             `<div class="signature-placeholder">
-              <div>✒️ Firma del cliente</div>
+              <div>✒️ ${isProcacciatore ? 'Firma del procacciatore' : 'Firma del cliente'}</div>
               <div style="font-size: 12px; margin-top: 4px;">Area firma digitale</div>
             </div>`
           }

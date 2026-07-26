@@ -3,10 +3,16 @@ import { ClipboardList, Copy, Edit3, CheckCircle2, ChevronDown, ChevronUp, Check
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getMissingClientFields, type RequiredClientField } from "@/lib/required-client-fields";
+import {
+  getMissingProcacciatoreFields,
+  getMissingProcacciatoreEconomicFields,
+} from "@shared/procacciatore-fields";
 
 interface MissingDataPanelProps {
   clientData: Record<string, any> | undefined | null;
   onJumpToField: (field: RequiredClientField) => void;
+  /** "procacciatore" mostra la checklist del contratto procacciatore d'affari. */
+  recipientType?: "cliente" | "procacciatore";
   variant?: "sidebar" | "accordion";
   className?: string;
 }
@@ -14,17 +20,28 @@ interface MissingDataPanelProps {
 export default function MissingDataPanel({
   clientData,
   onJumpToField,
+  recipientType = "cliente",
   variant = "sidebar",
   className = "",
 }: MissingDataPanelProps) {
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(true);
   const [justCopied, setJustCopied] = useState(false);
-  const missing = getMissingClientFields(clientData);
+  const isProcacciatore = recipientType === "procacciatore";
+  const missing = (isProcacciatore
+    ? [...getMissingProcacciatoreFields(clientData), ...getMissingProcacciatoreEconomicFields(clientData)]
+    : getMissingClientFields(clientData)) as unknown as RequiredClientField[];
   const isComplete = missing.length === 0;
+  const panelTitle = isProcacciatore ? "Dati da completare" : "Dati da chiedere al cliente";
+  const copyLabel = isProcacciatore ? "Copia elenco per il procacciatore" : "Copia elenco per il cliente";
 
   const handleCopy = async () => {
-    const text = `Ciao, per completare il contratto mi servono i seguenti dati:\n${missing
+    // Per il procacciatore copiamo solo l'anagrafica: i parametri economici
+    // sono a carico del venditore, non ha senso chiederli al destinatario.
+    const askable = isProcacciatore
+      ? (getMissingProcacciatoreFields(clientData) as unknown as RequiredClientField[])
+      : missing;
+    const text = `Ciao, per completare il contratto mi servono i seguenti dati:\n${askable
       .map((f) => `• ${f.label}`)
       .join("\n")}\n\nGrazie!`;
     try {
@@ -33,7 +50,9 @@ export default function MissingDataPanel({
       setTimeout(() => setJustCopied(false), 1800);
       toast({
         title: "Elenco copiato",
-        description: "Puoi incollarlo in WhatsApp o email per il cliente.",
+        description: isProcacciatore
+          ? "Puoi incollarlo in WhatsApp o email per il procacciatore."
+          : "Puoi incollarlo in WhatsApp o email per il cliente.",
       });
     } catch {
       toast({
@@ -72,7 +91,7 @@ export default function MissingDataPanel({
         >
           <span className="flex items-center gap-2">
             <ClipboardList className={`h-4 w-4 ${isComplete ? "text-emerald-600" : "text-amber-600"}`} />
-            <span className="text-sm font-semibold text-slate-800">Dati da chiedere al cliente</span>
+            <span className="text-sm font-semibold text-slate-800">{panelTitle}</span>
             {headerCount}
           </span>
           {expanded ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
@@ -85,6 +104,7 @@ export default function MissingDataPanel({
               onJumpToField={onJumpToField}
               onCopy={handleCopy}
               justCopied={justCopied}
+              copyLabel={copyLabel}
               compact
             />
           </div>
@@ -95,14 +115,14 @@ export default function MissingDataPanel({
 
   return (
     <aside
-      aria-label="Dati cliente mancanti"
+      aria-label={isProcacciatore ? "Dati procacciatore mancanti" : "Dati cliente mancanti"}
       className={`flex flex-col bg-gradient-to-b from-slate-50 to-white border-l border-gray-100 ${className}`}
       data-testid="missing-data-panel"
     >
       <div className="px-5 py-4 border-b border-gray-100 bg-white/70">
         <div className="flex items-center gap-2 mb-1">
           <ClipboardList className="h-4 w-4 text-indigo-600" />
-          <h4 className="text-sm font-semibold text-slate-900">Dati da chiedere al cliente</h4>
+          <h4 className="text-sm font-semibold text-slate-900">{panelTitle}</h4>
           {headerCount}
         </div>
         <p className="text-xs text-slate-500 leading-snug">
@@ -118,6 +138,7 @@ export default function MissingDataPanel({
           onJumpToField={onJumpToField}
           onCopy={handleCopy}
           justCopied={justCopied}
+          copyLabel={copyLabel}
         />
       </div>
     </aside>
@@ -130,6 +151,7 @@ function PanelBody({
   onJumpToField,
   onCopy,
   justCopied,
+  copyLabel,
   compact,
 }: {
   missing: RequiredClientField[];
@@ -137,6 +159,7 @@ function PanelBody({
   onJumpToField: (field: RequiredClientField) => void;
   onCopy: () => void;
   justCopied: boolean;
+  copyLabel: string;
   compact?: boolean;
 }) {
   if (isComplete) {
@@ -187,7 +210,7 @@ function PanelBody({
         ) : (
           <>
             <Copy className="h-3.5 w-3.5 mr-1.5" />
-            Copia elenco per il cliente
+            {copyLabel}
           </>
         )}
       </Button>

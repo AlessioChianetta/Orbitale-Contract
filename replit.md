@@ -1,5 +1,13 @@
 # Turbo Contract
 
+## Recent changes (Task #1 — Contratto Procacciatore d'Affari)
+- Nuovo template auto-seedato per ogni company alla prima lettura dei template ("Contratto Procacciatore d'Affari", categoria "Team", `ensureProcacciatoreTemplate` in server/storage.ts con advisory lock; contenuto embedded in `shared/procacciatore-contract-content.ts` dall'HTML in attached_assets).
+- Colonna `contract_templates.recipient_type` (TEXT `cliente`|`procacciatore`, default cliente) applicata via SQL diretto — MAI `drizzle db:push` (si blocca su prompt interattivo di drift). Helper condivisi in `shared/procacciatore-fields.ts` (`getTemplateRecipientType`, `getMissingProcacciatoreFields`, `getMissingProcacciatoreEconomicFields`, `formatDateItalian`).
+- Wizard venditore (contract-form.tsx): per template procacciatore lo step 2 è l'anagrafica procacciatore (nome/P.IVA/sede/email/cellulare), lo step 3 i parametri economici SOLO venditore (`data_decorrenza` → "01 agosto 2026", `ciclo_liquidazione`, `giorno_cutoff`, `giorni_pagamento`, `mesi_coda_provvigionale`, `giorni_preavviso`); niente pacchetti/prezzi/bonus.
+- Modalità "compila il destinatario": i placeholder `procacciatore_nome/piva/sede` sono esenti dal blocco unresolved su preview/create/update tramite l'helper condiviso `filterProcacciatoreSelfFillUnresolved` (routes.ts) — le tre rotte DEVONO restare allineate, altrimenti l'anteprima passa e l'invio fallisce. I parametri economici bloccano sempre.
+- Link pubblico: card "I tuoi dati" con i campi procacciatore; sanitize `client-data` con allowlist SOLO campi procacciatore (`replaceBaseAllowlist` — i campi anagrafici cliente vengono scartati); gate `send-otp` recipient-aware; client-view propaga il `recipientType` top-level del payload pubblico dentro il template prop (il template "safe" pubblico non espone recipientType).
+- Documento e PDF (professional-contract-document.tsx + pdf-generator-new.ts): variante procacciatore = tabella "DATI DEL PROCACCIATORE D'AFFARI", nessuna sezione Autorinnovo, dicitura firma "il Procacciatore".
+
 ## Recent changes (Task #5 — Contratto Orbitale v2: 5 pacchetti cumulativi)
 - Il contratto cliente "Sistema Orbitale" è stato sostituito con la v2 (PREMESSE → Art. 22): 5 pacchetti CUMULATIVI — BASE (Liv. 3), SOCIAL (4), SETTER (5), GROWTH (6), FULL (7) — più FAQ facoltativa. Listino Art. 4 (canone/attivazione·crediti-mese): 200/500€·5k, 300/500€·10k, 500/1.000€·20k, 800/1.000€·20k, 1.200/2.000€·50k.
 - Contenuto embedded in `shared/orbital-contract-content.ts`, AUTO-GENERATO da `scripts/generate-orbital-content.ts` dai file HTML in `attached_assets/` (rigenerare con `npx tsx`, non modificare a mano).
