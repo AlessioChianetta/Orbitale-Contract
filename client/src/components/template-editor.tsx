@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useForm } from "react-hook-form";
@@ -34,6 +35,7 @@ import {
   AlertCircle,
   Download,
   GripVertical,
+  Users,
 } from "lucide-react";
 import BonusManager from "./bonus-manager";
 import AiContractChat from "./ai-contract-chat";
@@ -45,6 +47,8 @@ import {
   getOrbitalContractEmptyHtml,
   getOrbitalServicePackages,
 } from "@shared/orbital-template";
+import { getProcacciatoreContractHtml } from "@shared/procacciatore-template";
+import { PROCACCIATORE_PLACEHOLDER_LABELS } from "@shared/procacciatore-fields";
 import { resolveSelectedSections, parseSections, type ModularSection } from "@shared/sections";
 
 const templateFormSchema = insertContractTemplateSchema.omit({ createdBy: true });
@@ -283,6 +287,7 @@ export default function TemplateEditor({ template, onClose }: TemplateEditorProp
     defaultValues: {
       name: template?.name || "",
       description: template?.description || "",
+      recipientType: template?.recipientType === "procacciatore" ? "procacciatore" : "cliente",
       content:
         template?.content ||
         `<div class="contract-content">
@@ -373,6 +378,17 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
   };
 
   const isPending = saveTemplateMutation.isPending;
+
+  // Template rivolto al procacciatore d'affari: le tab "Pacchetti / Moduli" e
+  // "Bonus & Pagamenti" non hanno senso (niente pacchetti orbitali né
+  // BONUS_LIST) e le variabili disponibili sono quelle del procacciatore.
+  const recipientTypeValue = (form.watch("recipientType") as string) || "cliente";
+  const isProcTpl = recipientTypeValue === "procacciatore";
+  useEffect(() => {
+    if (isProcTpl && (activeTab === "sections" || activeTab === "bonuspay")) {
+      setActiveTab("info");
+    }
+  }, [isProcTpl, activeTab]);
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
@@ -510,26 +526,30 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         <FileText className="h-3.5 w-3.5 mr-1.5" />
                         2. Testo Contratto
                       </TabsTrigger>
-                      <TabsTrigger
-                        value="sections"
-                        className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
-                      >
-                        <List className="h-3.5 w-3.5 mr-1.5" />
-                        3. Pacchetti / Moduli
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="bonuspay"
-                        className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
-                      >
-                        <Gift className="h-3.5 w-3.5 mr-1.5" />
-                        4. Bonus & Pagamenti
-                      </TabsTrigger>
+                      {!isProcTpl && (
+                        <TabsTrigger
+                          value="sections"
+                          className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
+                        >
+                          <List className="h-3.5 w-3.5 mr-1.5" />
+                          3. Pacchetti / Moduli
+                        </TabsTrigger>
+                      )}
+                      {!isProcTpl && (
+                        <TabsTrigger
+                          value="bonuspay"
+                          className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
+                        >
+                          <Gift className="h-3.5 w-3.5 mr-1.5" />
+                          4. Bonus & Pagamenti
+                        </TabsTrigger>
+                      )}
                       <TabsTrigger
                         value="preview"
                         className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
                       >
                         <Eye className="h-3.5 w-3.5 mr-1.5" />
-                        5. Anteprima
+                        {isProcTpl ? "3. Anteprima" : "5. Anteprima"}
                       </TabsTrigger>
                     </TabsList>
                   </div>
@@ -576,6 +596,44 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         </div>
                       </div>
                       <div className="h-px bg-[#F1F5F9] my-5" />
+                      <div className="p-4 bg-[#FAFBFC] rounded-xl border border-[#E5E7EB]/40 mb-5">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                          <div>
+                            <Label className="text-sm font-medium text-[#0F172A] flex items-center gap-1.5">
+                              <Users className="h-3.5 w-3.5 text-[#64748B]" />
+                              Destinatario del contratto
+                            </Label>
+                            <p className="text-xs text-[#94A3B8] mt-1 max-w-md">
+                              "Cliente" usa l'anagrafica del cliente/committente. "Procacciatore d'affari" usa
+                              l'anagrafica del procacciatore e i parametri economici dedicati (provvigioni,
+                              liquidazione), senza pacchetti né bonus.
+                            </p>
+                          </div>
+                          <Select
+                            value={recipientTypeValue}
+                            onValueChange={(v) => form.setValue("recipientType", v as any, { shouldDirty: true })}
+                            disabled={isPending}
+                          >
+                            <SelectTrigger
+                              className="w-full md:w-[240px] rounded-xl border-[#E5E7EB]"
+                              data-testid="select-recipient-type"
+                            >
+                              <SelectValue placeholder="Seleziona destinatario" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="cliente">Cliente / Committente</SelectItem>
+                              <SelectItem value="procacciatore">Procacciatore d'affari</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {isEditing && (template?.recipientType === "procacciatore") !== isProcTpl && (
+                          <p className="mt-3 text-xs text-amber-600 flex items-center gap-1.5" data-testid="warn-recipient-type-changed">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Attenzione: cambiare destinatario modifica i passaggi del wizard e le variabili attese.
+                            Assicurati che il corpo del contratto usi le variabili giuste prima di salvare.
+                          </p>
+                        )}
+                      </div>
                       <div className="flex items-center justify-between p-4 bg-[#FAFBFC] rounded-xl border border-[#E5E7EB]/40">
                         <div>
                           <Label htmlFor="isActive" className="text-sm font-medium text-[#0F172A]">
@@ -618,6 +676,8 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {!isProcTpl && (
+                        <>
                         <button
                           type="button"
                           disabled={isPending}
@@ -693,6 +753,33 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                             Corpo "vuoto" + 11 pacchetti che il venditore sceglie per ogni cliente.
                           </p>
                         </button>
+                        </>
+                        )}
+
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          data-testid="button-import-procacciatore"
+                          onClick={() => {
+                            form.setValue("content", getProcacciatoreContractHtml());
+                            form.setValue("sections", [], { shouldDirty: true });
+                            form.setValue("recipientType", "procacciatore" as any, { shouldDirty: true });
+                            toast({
+                              title: "Template procacciatore importato",
+                              description:
+                                "Corpo del contratto per procacciatore d'affari caricato. Il destinatario del template è stato impostato su \"Procacciatore\".",
+                            });
+                          }}
+                          className="group text-left rounded-xl bg-white border border-[#E5E7EB] p-4 hover:border-emerald-300 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Users className="h-4 w-4 text-emerald-600" />
+                            <span className="text-sm font-semibold text-[#0F172A]">Procacciatore d'Affari</span>
+                          </div>
+                          <p className="text-[11px] text-[#64748B] leading-relaxed">
+                            Contratto di procacciamento con anagrafica del procacciatore e provvigioni.
+                          </p>
+                        </button>
                       </div>
                     </div>
 
@@ -716,18 +803,28 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                           Variabili e blocchi disponibili
                         </summary>
                         <div className="px-4 pb-4 pt-2">
-                          <div className="flex flex-wrap gap-2">
-                            <VariablePill code={"{{societa}}"} label="Nome società" />
-                            <VariablePill code={"{{cliente_nome}}"} label="Nome cliente" />
-                            <VariablePill code={"{{p_iva}}"} label="P.IVA" />
-                            <VariablePill code={"{{sede}}"} label="Sede legale" />
-                          </div>
-                          <p className="mt-3 text-[11px] text-[#94A3B8]">
-                            Blocchi ripetibili:{" "}
-                            <code className="text-[#64748B] bg-white px-1.5 py-0.5 rounded border border-[#E5E7EB]/60 text-[10px]">
-                              {"<!-- BLOCK:BONUS_LIST -->...<!-- END_BLOCK:BONUS_LIST -->"}
-                            </code>
-                          </p>
+                          {isProcTpl ? (
+                            <div className="flex flex-wrap gap-2" data-testid="pills-procacciatore-variables">
+                              {Object.entries(PROCACCIATORE_PLACEHOLDER_LABELS).map(([key, label]) => (
+                                <VariablePill key={key} code={`{{${key}}}`} label={label} />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              <VariablePill code={"{{societa}}"} label="Nome società" />
+                              <VariablePill code={"{{cliente_nome}}"} label="Nome cliente" />
+                              <VariablePill code={"{{p_iva}}"} label="P.IVA" />
+                              <VariablePill code={"{{sede}}"} label="Sede legale" />
+                            </div>
+                          )}
+                          {!isProcTpl && (
+                            <p className="mt-3 text-[11px] text-[#94A3B8]">
+                              Blocchi ripetibili:{" "}
+                              <code className="text-[#64748B] bg-white px-1.5 py-0.5 rounded border border-[#E5E7EB]/60 text-[10px]">
+                                {"<!-- BLOCK:BONUS_LIST -->...<!-- END_BLOCK:BONUS_LIST -->"}
+                              </code>
+                            </p>
+                          )}
                         </div>
                       </details>
 
@@ -1073,6 +1170,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                             customContent: form.watch("customContent") || "",
                             paymentText: form.watch("paymentText") || "",
                             predefinedBonuses: (form.watch("predefinedBonuses") as any[]) || [],
+                            recipientType: recipientTypeValue,
                           }}
                           bonusList={
                             ((form.watch("predefinedBonuses") as any[]) || []).map((bonus: any) => ({

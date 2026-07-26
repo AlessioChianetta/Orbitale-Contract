@@ -54,6 +54,14 @@ export function hashContractPayload(input: any): string {
     ss: Array.isArray(input?.selectedSectionIds) ? [...input.selectedSectionIds].sort() : null,
     fm: input?.fillMode ?? "seller",
     se: input?.sendToEmail ?? null,
+    // Parametri economici (livello di accesso / canone / attivazione):
+    // entrano nel contenuto generato del contratto, quindi una modifica
+    // dopo l'anteprima DEVE invalidare il token. Normalizzo i due importi
+    // a stringa per neutralizzare eventuali drift string/number tra la
+    // chiamata di anteprima e quella di invio.
+    al: input?.accessLevel ?? null,
+    mf: input?.monthlyFee != null ? String(input.monthlyFee) : null,
+    af: input?.activationFee != null ? String(input.activationFee) : null,
   });
   return crypto.createHash("sha256").update(canonical).digest("hex");
 }

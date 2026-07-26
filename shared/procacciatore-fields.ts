@@ -24,16 +24,27 @@ export type ProcacciatoreField = {
   type?: "text" | "email" | "tel" | "date" | "select" | "number";
   options?: string[];
   hint?: string;
+  /** true = campo facoltativo: non blocca invio/firma, appare solo nella tabella dati. */
+  optional?: boolean;
 };
 
 // Anagrafica: compilabile dal venditore oppure dal procacciatore stesso
 // tramite link di compilazione (client_fill / co-fill).
+// I campi con `optional: true` (PEC, SDI, IBAN) non bloccano mai il flusso:
+// compaiono nella tabella dati del contratto solo se valorizzati.
 export const PROCACCIATORE_ANAGRAFICA_FIELDS: ProcacciatoreField[] = [
   { key: "procacciatore_nome", label: "Nome e cognome / Ragione sociale", sectionId: "section-client", group: "anagrafica" },
-  { key: "procacciatore_piva", label: "Partita IVA", sectionId: "section-client", group: "anagrafica", hint: "P.IVA del procacciatore (11 cifre) o Codice Fiscale" },
+  { key: "procacciatore_piva", label: "Partita IVA", sectionId: "section-client", group: "anagrafica", hint: "P.IVA del procacciatore (11 cifre)" },
+  { key: "procacciatore_codice_fiscale", label: "Codice Fiscale", sectionId: "section-client", group: "anagrafica", hint: "16 caratteri per le persone fisiche (o 11 cifre se coincide con la P.IVA)" },
+  { key: "procacciatore_nato_a", label: "Luogo di nascita", sectionId: "section-client", group: "anagrafica", hint: "Es. Messina (ME)" },
+  { key: "procacciatore_data_nascita", label: "Data di nascita", sectionId: "section-client", group: "anagrafica", type: "date" },
+  { key: "procacciatore_residenza", label: "Residenza", sectionId: "section-client", group: "anagrafica", hint: "Via, CAP, città e provincia. Es. Via Garibaldi 10, 98100 Messina (ME)" },
   { key: "procacciatore_sede", label: "Sede / Domicilio fiscale", sectionId: "section-client", group: "anagrafica", hint: "Es. Via Roma 1, 98100 Messina (ME)" },
   { key: "email", label: "Email", sectionId: "section-client", group: "anagrafica", type: "email" },
   { key: "cellulare", label: "Cellulare", sectionId: "section-client", group: "anagrafica", type: "tel" },
+  { key: "procacciatore_pec", label: "PEC", sectionId: "section-client", group: "anagrafica", type: "email", hint: "Indirizzo di posta certificata (facoltativo)", optional: true },
+  { key: "procacciatore_sdi", label: "Codice SDI", sectionId: "section-client", group: "anagrafica", hint: "Codice destinatario per la fatturazione elettronica (facoltativo)", optional: true },
+  { key: "procacciatore_iban", label: "IBAN", sectionId: "section-client", group: "anagrafica", hint: "IBAN per l'accredito delle provvigioni (facoltativo)", optional: true },
 ];
 
 // Parametri economici del contratto: SOLO chi emette il contratto li imposta.
@@ -57,12 +68,14 @@ export const PROCACCIATORE_ALL_FIELDS: ProcacciatoreField[] = [
 // controllo esclusivo di chi emette il contratto.
 export const PROCACCIATORE_SYNCED_FIELD_KEYS: string[] = PROCACCIATORE_ANAGRAFICA_FIELDS.map((f) => f.key);
 
-/** Campi anagrafici mancanti (per il flusso "compila il procacciatore"). */
+/** Campi anagrafici mancanti (per il flusso "compila il procacciatore").
+ *  I campi `optional` non vengono mai considerati mancanti. */
 export function getMissingProcacciatoreFields(
   clientData: Record<string, any> | undefined | null,
 ): ProcacciatoreField[] {
   const cd = clientData || {};
   return PROCACCIATORE_ANAGRAFICA_FIELDS.filter((f) => {
+    if (f.optional) return false;
     const v = cd[f.key];
     return v === undefined || v === null || (typeof v === "string" && v.trim() === "");
   });
@@ -87,6 +100,10 @@ export const PROCACCIATORE_PLACEHOLDER_LABELS: Record<string, string> = {
   azienda_sede: "Sede azienda (da Impostazioni Azienda)",
   procacciatore_nome: "Nome e cognome / ragione sociale del procacciatore",
   procacciatore_piva: "Partita IVA del procacciatore",
+  procacciatore_codice_fiscale: "Codice Fiscale del procacciatore",
+  procacciatore_nato_a: "Luogo di nascita del procacciatore",
+  procacciatore_data_nascita: "Data di nascita del procacciatore",
+  procacciatore_residenza: "Residenza del procacciatore",
   procacciatore_sede: "Sede / domicilio fiscale del procacciatore",
   data_decorrenza: "Data di decorrenza del contratto",
   ciclo_liquidazione: "Ciclo di liquidazione (mensile/bimestrale/trimestrale)",

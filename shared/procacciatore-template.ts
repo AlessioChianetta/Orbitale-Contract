@@ -14,7 +14,10 @@ export const PROCACCIATORE_TEMPLATE_DESCRIPTION =
 // l'admin lo rinomina. Prefisso stabile + versione per eventuali sync futuri.
 export const PROCACCIATORE_TEMPLATE_MARKER_PREFIX = "<!-- PROCACCIATORE-TEMPLATE";
 export const PROCACCIATORE_TEMPLATE_V1_MARKER = "<!-- PROCACCIATORE-TEMPLATE v1 -->";
+// v2: premessa con anagrafica estesa del procacciatore (luogo/data di nascita,
+// codice fiscale, residenza). Il marker fa da guardia one-shot per il sync.
+export const PROCACCIATORE_TEMPLATE_V2_MARKER = "<!-- PROCACCIATORE-TEMPLATE v2 -->";
 
 export function getProcacciatoreContractHtml(): string {
-  return `${PROCACCIATORE_TEMPLATE_V1_MARKER}\n${PROCACCIATORE_CONTRACT_BODY}`;
+  return `${PROCACCIATORE_TEMPLATE_V2_MARKER}\n${PROCACCIATORE_CONTRACT_BODY}`;
 }

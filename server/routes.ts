@@ -2039,9 +2039,7 @@ export function registerRoutes(app: Express): Server {
           // sono accettabili: vengono iniettate al submit del modulo.
           // Filtriamo via i campi anagrafici noti per non bloccare i
           // bulk legittimi.
-          const blocking = unresolved.filter(
-            (k) => !["nome", "cognome", "codice_fiscale", "data_nascita", "luogo_nascita", "indirizzo_residenza", "residente_a", "provincia_residenza", "nome_legale_rappresentante", "cognome_legale_rappresentante", "societa", "ragione_sociale", "sede", "indirizzo", "provincia_sede", "partita_iva", "telefono", "email", "procacciatore_nome", "procacciatore_piva", "procacciatore_sede"].includes(k),
-          );
+          const blocking = unresolved.filter((k) => !BULK_SELF_FILL_EXEMPT_KEYS.has(k));
           if (blocking.length > 0) {
             eligible = false;
             reason = `variabili non compilate: ${blocking.map((k) => PLACEHOLDER_LABELS[k]?.label || k).join(", ")}`;
@@ -2124,9 +2122,7 @@ export function registerRoutes(app: Express): Server {
           // Stessa rete di sicurezza dell'anteprima bulk: rifiuta i
           // contratti con variabili-prodotto irrisolte.
           const unresolved = findUnresolvedPlaceholders(c.generatedContent || "");
-          const blocking = unresolved.filter(
-            (k) => !["nome", "cognome", "codice_fiscale", "data_nascita", "luogo_nascita", "indirizzo_residenza", "residente_a", "provincia_residenza", "nome_legale_rappresentante", "cognome_legale_rappresentante", "societa", "ragione_sociale", "sede", "indirizzo", "provincia_sede", "partita_iva", "telefono", "email", "procacciatore_nome", "procacciatore_piva", "procacciatore_sede"].includes(k),
-          );
+          const blocking = unresolved.filter((k) => !BULK_SELF_FILL_EXEMPT_KEYS.has(k));
           if (blocking.length > 0) {
             failed.push({ id, error: `variabili non compilate: ${blocking.map((k) => PLACEHOLDER_LABELS[k]?.label || k).join(", ")}` });
             continue;
@@ -2680,11 +2676,15 @@ export function registerRoutes(app: Express): Server {
 
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      // Crea il record OTP nel database solo se non usiamo Twilio Verify
+      // Crea il record OTP nel database solo se non usiamo Twilio Verify.
+      // NB: il campo phoneNumber del record OTP registra il RECAPITO REALE a
+      // cui viene spedito il codice. Sul ramo tradizionale l'invio avviene
+      // sempre via email (vedi contactForOtp più sotto), quindi si salva
+      // l'email: il registro audit della firma cita così il contatto giusto.
       if (!useTwilioVerify) {
         await storage.createOtpCode({
           contractId: contract.id,
-          phoneNumber: contactInfo,
+          phoneNumber: clientEmail || contactInfo,
           code: otpCode,
           expiresAt,
         });
@@ -2743,8 +2743,13 @@ export function registerRoutes(app: Express): Server {
       // altrimenti => email (anche se il cliente ha un telefono ma il
       // metodo aziendale è "email" o Twilio non era configurato).
       const actualOtpMethod: 'sms' | 'email' = useTwilioVerify ? 'sms' : 'email';
+      // Recapito REALE a cui è stato spedito il codice: telefono sul ramo
+      // Twilio Verify, email sul ramo tradizionale. `contact` storicamente
+      // poteva contenere il telefono anche quando l'invio avveniva via email:
+      // `sentTo` è la fonte di verità per il registro audit.
+      const actualDestination = useTwilioVerify ? clientPhone : clientEmail;
 
-      // Log OTP sending con metodo realmente utilizzato e numero telefono effettivo
+      // Log OTP sending con metodo realmente utilizzato e recapito effettivo
       await storage.createAuditLog({
         contractId: contract.id,
         action: "otp_sent",
@@ -2752,6 +2757,7 @@ export function registerRoutes(app: Express): Server {
         ipAddress: getRealClientIP(req),
         metadata: {
           contact: contactInfo,
+          sentTo: actualDestination || null,
           actualPhoneNumber: clientPhone || "N/A",
           method: actualOtpMethod,
           twilioVerify: useTwilioVerify,
@@ -3067,13 +3073,32 @@ export function registerRoutes(app: Express): Server {
         if (typeof lastOtpMeta.twilioVerify === 'boolean') {
           return lastOtpMeta.twilioVerify ? 'sms' : 'email';
         }
+        // `method` storico affidabile solo quando dice "email": l'era col
+        // bug marcava "sms" anche per invii reali via email. (Per le firme
+        // nuove questo ramo è comunque irraggiungibile: l'otp_sent appena
+        // scritto contiene sempre twilioVerify.)
         const v = (lastOtpMeta.method || '').toString().toLowerCase();
-        if (v === 'sms' || v === 'email') return v as 'sms' | 'email';
+        if (v === 'email') return 'email';
         const c = (companyOtpMethodRaw || '').toLowerCase();
         if (c === 'twilio' || c === 'sms') return 'sms';
         if (c === 'email') return 'email';
-        return validOtp?.phoneNumber ? 'sms' : 'email';
+        // Ultimo fallback: il recapito registrato sull'OTP. Se contiene una
+        // '@' è un'email (i record nuovi salvano il recapito reale), quindi
+        // la sola presenza del valore non implica più un SMS.
+        const rec = validOtp?.phoneNumber ? String(validOtp.phoneNumber) : '';
+        return rec && !rec.includes('@') ? 'sms' : 'email';
       })();
+
+      // Contatto VERIFICATO tramite OTP, coerente con il canale risolto:
+      // - email => il recapito email registrato sull'OTP (o l'email di invio
+      //   del contratto per i record storici che salvavano il telefono);
+      // - sms   => il numero registrato sull'OTP (o il telefono del cliente).
+      // Mai inventare: se il dato storico non è ricostruibile resta null e il
+      // PDF mostra una dicitura neutra.
+      const otpRecordContact = validOtp?.phoneNumber ? String(validOtp.phoneNumber) : '';
+      const verifiedContact: string | null = resolvedOtpMethod === 'email'
+        ? (otpRecordContact.includes('@') ? otpRecordContact : (emailAddress || null))
+        : ((otpRecordContact && !otpRecordContact.includes('@')) ? otpRecordContact : (phoneNumber || null));
 
       const signedAuditEntry = {
         id: -1,
@@ -3089,6 +3114,7 @@ export function registerRoutes(app: Express): Server {
           consents: consents,
           contactUsedForOTP: validOtp?.phoneNumber,
           otpMethod: resolvedOtpMethod,
+          verifiedContact: verifiedContact,
         },
         timestamp: now,
       };
@@ -4030,6 +4056,10 @@ export const PLACEHOLDER_LABELS: Record<string, { label: string; hint?: string }
   azienda_sede: { label: "Sede azienda (indirizzo, CAP e città)", hint: "Impostazioni Azienda → Dati aziendali" },
   procacciatore_nome: { label: "Nome e cognome / ragione sociale del procacciatore", hint: "Step Procacciatore" },
   procacciatore_piva: { label: "Partita IVA del procacciatore", hint: "Step Procacciatore" },
+  procacciatore_codice_fiscale: { label: "Codice Fiscale del procacciatore", hint: "Step Procacciatore" },
+  procacciatore_nato_a: { label: "Luogo di nascita del procacciatore", hint: "Step Procacciatore" },
+  procacciatore_data_nascita: { label: "Data di nascita del procacciatore", hint: "Step Procacciatore" },
+  procacciatore_residenza: { label: "Residenza del procacciatore", hint: "Step Procacciatore" },
   procacciatore_sede: { label: "Sede / domicilio fiscale del procacciatore", hint: "Step Procacciatore" },
   data_decorrenza: { label: "Data di decorrenza", hint: "Step Parametri contratto" },
   ciclo_liquidazione: { label: "Ciclo di liquidazione", hint: "Step Parametri contratto" },
@@ -4103,12 +4133,20 @@ export function withProcacciatorePlaceholders(
       if (sede) out.azienda_sede = sede;
     }
   }
+  const formatDateEsteso = (value: string): string => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (!m) return value;
+    const months = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+    return `${m[3]} ${months[parseInt(m[2], 10) - 1]} ${m[1]}`;
+  };
   if (typeof out.data_decorrenza === "string") {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(out.data_decorrenza.trim());
-    if (m) {
-      const months = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
-      out.data_decorrenza = `${m[3]} ${months[parseInt(m[2], 10) - 1]} ${m[1]}`;
-    }
+    out.data_decorrenza = formatDateEsteso(out.data_decorrenza);
+  }
+  // Data di nascita nella premessa ("il 12 marzo 1988"): stessa formattazione
+  // estesa. Il valore grezzo YYYY-MM-DD resta in clientData sul DB; qui si
+  // formatta solo la copia usata per generare il contenuto.
+  if (typeof out.procacciatore_data_nascita === "string") {
+    out.procacciatore_data_nascita = formatDateEsteso(out.procacciatore_data_nascita);
   }
   return out;
 }
@@ -4119,10 +4157,23 @@ export function withProcacciatorePlaceholders(
 // restano a carico del venditore e continuano a bloccare. Questa esenzione
 // deve essere identica su preview, create e update: se divergono, il token
 // di anteprima passa ma l'invio viene rifiutato (o viceversa).
-const PROCACCIATORE_SELF_FILL_PLACEHOLDER_KEYS = new Set([
-  "procacciatore_nome",
-  "procacciatore_piva",
-  "procacciatore_sede",
+// Derivata dalla lista anagrafica condivisa: aggiungendo un campo in
+// PROCACCIATORE_ANAGRAFICA_FIELDS l'esenzione si estende da sola.
+const PROCACCIATORE_SELF_FILL_PLACEHOLDER_KEYS = new Set<string>(
+  PROCACCIATORE_SYNCED_FIELD_KEYS,
+);
+
+// Bulk send (anteprima + invio): placeholder anagrafici che il destinatario
+// compilerà sul link pubblico e che quindi non devono bloccare l'invio in
+// blocco. Cliente + procacciatore, in un'unica lista condivisa dai due punti
+// di filtro (devono restare identici).
+const BULK_SELF_FILL_EXEMPT_KEYS = new Set<string>([
+  "nome", "cognome", "codice_fiscale", "data_nascita", "luogo_nascita",
+  "indirizzo_residenza", "residente_a", "provincia_residenza",
+  "nome_legale_rappresentante", "cognome_legale_rappresentante",
+  "societa", "ragione_sociale", "sede", "indirizzo", "provincia_sede",
+  "partita_iva", "telefono", "email",
+  ...PROCACCIATORE_SYNCED_FIELD_KEYS,
 ]);
 
 function filterProcacciatoreSelfFillUnresolved(

@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import path from 'path';
 import { AuditLog } from '@shared/schema';
+import { formatDateItalian } from '@shared/procacciatore-fields';
 
 // Singleton Puppeteer browser: launch once, reuse across PDF generations.
 // Auto-resets if the underlying process dies or disconnects.
@@ -607,7 +608,14 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
         </tr>
         <tr>
           <td><strong>Nome / Ragione sociale</strong> ${client.procacciatore_nome || ''}</td>
-          <td><strong>P.IVA / C.F.</strong> ${client.procacciatore_piva || ''}</td>
+          <td><strong>P.IVA</strong> ${client.procacciatore_piva || ''}</td>
+        </tr>
+        <tr>
+          <td><strong>Codice Fiscale</strong> ${client.procacciatore_codice_fiscale || ''}</td>
+          <td><strong>Nato/a a</strong> ${[client.procacciatore_nato_a, client.procacciatore_data_nascita ? `il ${formatDateItalian(client.procacciatore_data_nascita)}` : ''].filter(Boolean).join(' ')}</td>
+        </tr>
+        <tr>
+          <td colspan="2" class="full-width"><strong>Residenza</strong> ${client.procacciatore_residenza || ''}</td>
         </tr>
         <tr>
           <td colspan="2" class="full-width"><strong>Sede / Domicilio fiscale</strong> ${client.procacciatore_sede || ''}</td>
@@ -616,6 +624,17 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           <td>Email ${client.email || ''}</td>
           <td>Cellulare ${client.cellulare || ''}</td>
         </tr>
+        ${(client.procacciatore_pec || client.procacciatore_sdi) ? `
+        <tr>
+          <td><strong>PEC</strong> ${client.procacciatore_pec || '—'}</td>
+          <td><strong>Codice SDI</strong> ${client.procacciatore_sdi || '—'}</td>
+        </tr>
+        ` : ''}
+        ${client.procacciatore_iban ? `
+        <tr>
+          <td colspan="2" class="full-width"><strong>IBAN</strong> ${client.procacciatore_iban}</td>
+        </tr>
+        ` : ''}
       </table>
       ` : `
       <h2 class="section-header commercial">DATI DEL CLIENTE / COMMITTENTE</h2>
@@ -890,7 +909,7 @@ function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): stri
       </div>
 
       <!-- Document Info Section -->
-      <div style="background: #f8fafb; border: 1px solid #e5e7eb; padding: 24px; margin: 0 0 30px 0; border-radius: 8px;">
+      <div style="background: #f8fafb; border: 1px solid #e5e7eb; padding: 24px; margin: 0 0 30px 0; border-radius: 8px; page-break-inside: avoid;">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
           <div>
             <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em;">TIPOLOGIA DOCUMENTO</div>
@@ -914,14 +933,17 @@ function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): stri
       </div>
 
       <!-- Timeline Table -->
-      <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+      <!-- NB: niente overflow:hidden sul contenitore e page-break-inside:avoid
+           sulle singole righe: il registro può superare una pagina e le righe
+           non devono essere tagliate a metà dal cambio pagina. -->
+      <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <div style="background: #f8fafb; padding: 20px 24px; border-bottom: 2px solid #e5e7eb;">
           <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: #111827;">Cronologia delle Operazioni</h3>
           <p style="margin: 6px 0 0 0; font-size: 13px; color: #6b7280;">Registro completo di tutte le azioni eseguite sul documento</p>
         </div>
 
         <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-          <thead>
+          <thead style="display: table-header-group;">
             <tr style="background: #f3f4f6;">
               <th style="padding: 16px 24px; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">OPERAZIONE</th>
               <th style="padding: 16px 24px; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">DATA E ORA</th>
@@ -930,7 +952,7 @@ function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): stri
           </thead>
           <tbody>
             ${auditLogs.map((log, index) => `
-              <tr style="border-bottom: ${index < auditLogs.length - 1 ? '1px solid #f3f4f6' : 'none'};">
+              <tr style="border-bottom: ${index < auditLogs.length - 1 ? '1px solid #f3f4f6' : 'none'}; page-break-inside: avoid;">
                 <td style="padding: 20px 24px; vertical-align: top;">
                   <div style="display: flex; align-items: center; gap: 10px;">
                     <div style="width: 10px; height: 10px; border-radius: 50%; background: ${getActionColor(log.action)}; flex-shrink: 0;"></div>
@@ -940,7 +962,7 @@ function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): stri
                 <td style="padding: 20px 24px; vertical-align: top; color: #6b7280; font-family: 'Courier New', monospace; font-size: 11px; white-space: nowrap;">
                   ${formatTimestamp(log.timestamp)}
                 </td>
-                <td style="padding: 20px 24px; vertical-align: top; line-height: 1.6; color: #374151;">
+                <td style="padding: 20px 24px; vertical-align: top; line-height: 1.6; color: #374151; word-break: break-word;">
                   ${generateAuditDetails(log, auditLogs)}
                 </td>
               </tr>
@@ -950,15 +972,15 @@ function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): stri
       </div>
 
       <!-- Footer Security Notice -->
-      <div style="margin-top: 40px; padding: 24px; background: #fef3c7; border: 2px solid #fbbf24; border-radius: 8px;">
+      <div style="margin-top: 40px; padding: 24px; background: #fef3c7; border: 2px solid #fbbf24; border-radius: 8px; page-break-inside: avoid;">
         <div style="display: flex; align-items: flex-start; gap: 12px;">
           <div style="width: 24px; height: 24px; background: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; flex-shrink: 0; margin-top: 2px;">!</div>
           <div style="flex: 1;">
             <h4 style="margin: 0 0 8px 0; color: #92400e; font-size: 16px; font-weight: 600;">AVVISO DI SICUREZZA E VALIDITÀ LEGALE</h4>
             <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.6;">
-              Questo registro audit è stato generato automaticamente dal sistema Turbo Contract e costituisce prova legale dell'integrità del processo di firma digitale. 
-              Ogni operazione è stata registrata con timestamp UTC, indirizzo IP del cliente e metadati di sicurezza. 
-              La manomissione di questo documento è tecnicamente rilevabile e legalmente perseguibile.
+              Questo registro audit è stato generato automaticamente dal sistema Turbo Contract e documenta l'integrità del processo di firma elettronica. 
+              Ogni operazione è stata registrata con data e ora nel fuso orario Europe/Rome (CET/CEST), indirizzo IP del dispositivo e metadati di sicurezza. 
+              La manomissione di questo documento è tecnicamente rilevabile.
             </p>
           </div>
         </div>
@@ -967,24 +989,59 @@ function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): stri
   `;
 }
 
+// Etichette in italiano per OGNI azione registrata nel sistema (stessa
+// nomenclatura della timeline nel gestionale venditore). Le azioni non
+// mappate NON mostrano mai la chiave tecnica grezza: etichetta neutra.
 function getActionLabel(action: string): string {
   switch(action) {
-    case 'sent': return 'Invitato';
-    case 'viewed': return 'Visualizzato';
-    case 'otp_sent': return 'Inviato OTP';
+    case 'created': return 'Contratto creato';
+    case 'updated': return 'Contratto aggiornato';
+    case 'sent': return 'Inviato al firmatario';
+    case 'updated_and_sent': return 'Aggiornato e reinviato';
+    case 'viewed': return 'Documento visualizzato';
+    case 'client_data_updated': return 'Compilazione dati in corso';
+    case 'client_data_completed': return 'Dati anagrafici completati';
+    case 'otp_sent': return 'Codice OTP inviato';
+    case 'otp_failed': return 'Tentativo OTP non riuscito';
     case 'signed': return 'Firmato';
     case 'completed': return 'Completato';
-    default: return action;
+    case 'archived': return 'Archiviato';
+    case 'unarchived': return 'Ripristinato dall\u2019archivio';
+    case 'duplicated': return 'Duplicato';
+    case 'content_regenerated': return 'Contenuto rigenerato';
+    case 'content_manually_edited': return 'Documento modificato manualmente';
+    case 'co_fill_draft_created': return 'Link di compilazione generato';
+    case 'co_fill_link_emailed': return 'Link di compilazione inviato';
+    case 'co_fill_link_email_failed': return 'Invio link non riuscito';
+    case 'email_failed': return 'Notifica email non recapitata';
+    case 'incident_review': return 'Verifica tecnica interna';
+    default: return 'Operazione di sistema';
   }
 }
 
 function getActionColor(action: string): string {
   switch(action) {
+    case 'created': return '#6366f1'; // Indigo
+    case 'updated': return '#6366f1'; // Indigo
     case 'sent': return '#3b82f6'; // Blue
+    case 'updated_and_sent': return '#3b82f6'; // Blue
     case 'viewed': return '#8b5cf6'; // Purple
+    case 'client_data_updated': return '#0ea5e9'; // Sky
+    case 'client_data_completed': return '#06b6d4'; // Cyan
     case 'otp_sent': return '#f59e0b'; // Orange
+    case 'otp_failed': return '#ef4444'; // Red
     case 'signed': return '#10b981'; // Green
     case 'completed': return '#059669'; // Emerald
+    case 'archived': return '#64748b'; // Gray
+    case 'unarchived': return '#64748b'; // Gray
+    case 'duplicated': return '#64748b'; // Gray
+    case 'content_regenerated': return '#a855f7'; // Violet
+    case 'content_manually_edited': return '#a855f7'; // Violet
+    case 'co_fill_draft_created': return '#3b82f6'; // Blue
+    case 'co_fill_link_emailed': return '#3b82f6'; // Blue
+    case 'co_fill_link_email_failed': return '#ef4444'; // Red
+    case 'email_failed': return '#ef4444'; // Red
+    case 'incident_review': return '#64748b'; // Gray
     default: return '#64748b'; // Gray
   }
 }
@@ -1050,66 +1107,130 @@ function generateAuditDetails(log: AuditLog, allLogs: AuditLog[] = []): string {
       `;
     }
     case 'otp_sent': {
-      const phoneNumber = metadata.actualPhoneNumber || metadata.phoneNumber || 'Numero non disponibile';
-      // Per coerenza con la riga "Firmato": prima twilioVerify (sempre veritiero
-      // anche su log storici), poi il campo method, poi etichetta neutra.
-      const otpMethod = (typeof metadata.twilioVerify === 'boolean')
-        ? (metadata.twilioVerify ? 'SMS' : 'Email')
-        : (metadata.method === 'sms' ? 'SMS' : metadata.method === 'email' ? 'Email' : 'OTP');
-      const twilioUsed = metadata.twilioVerify ? 'Twilio Verify' : 'Sistema personalizzato';
+      // Canale REALE di invio: prima twilioVerify (sempre veritiero anche sui
+      // log storici), poi il campo method, altrimenti canale sconosciuto.
+      const looksEmail = (v: any) => typeof v === 'string' && v.includes('@');
+      let channel: 'sms' | 'email' | null = null;
+      if (typeof metadata.twilioVerify === 'boolean') {
+        channel = metadata.twilioVerify ? 'sms' : 'email';
+      } else if (metadata.method === 'email') {
+        // Il campo `method` storico è affidabile SOLO quando dice "email":
+        // l'era col bug marcava "sms" anche per invii realmente via email
+        // (deduceva il canale dalla presenza del telefono), mentre nessun
+        // percorso di codice ha mai marcato "email" un invio via SMS.
+        // Con method="sms" senza twilioVerify il canale resta sconosciuto.
+        channel = 'email';
+      }
+      // Recapito di destinazione: i log nuovi hanno `sentTo` (fonte di
+      // verità); per i log storici si ricostruisce SOLO se non ambiguo,
+      // altrimenti si dichiara che il recapito non è stato registrato.
+      // Mai spacciare un telefono per destinatario di un OTP via email.
+      let sentTo: string | null = (typeof metadata.sentTo === 'string' && metadata.sentTo.trim()) ? metadata.sentTo : null;
+      if (!sentTo) {
+        if (channel === 'sms') {
+          const phone = (metadata.actualPhoneNumber && metadata.actualPhoneNumber !== 'N/A')
+            ? metadata.actualPhoneNumber
+            : (!looksEmail(metadata.contact) ? metadata.contact : null);
+          sentTo = phone || null;
+        } else if (channel === 'email') {
+          sentTo = looksEmail(metadata.contact) ? metadata.contact : null;
+        }
+      }
+      const header = channel === 'sms'
+        ? '📱 Codice OTP inviato via SMS'
+        : channel === 'email'
+          ? '📧 Codice OTP inviato via Email'
+          : '🔐 Codice OTP inviato';
+      const sistema = channel === 'sms'
+        ? 'Twilio Verify (SMS)'
+        : channel === 'email'
+          ? 'Invio email con codice di verifica'
+          : 'Sistema OTP';
+      const recapitoLabel = channel === 'sms' ? 'Inviato al numero' : channel === 'email' ? 'Inviato all\u2019indirizzo' : 'Recapito';
       return `
-        <div style="font-weight: 500;">📱 Codice OTP inviato via ${otpMethod}</div>
+        <div style="font-weight: 500;">${header}</div>
         <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Numero telefono:</strong> ${phoneNumber}<br>
-          <strong>Sistema:</strong> ${twilioUsed}
+          <strong>${recapitoLabel}:</strong> ${sentTo || 'non registrato nei log'}<br>
+          ${metadata.modifiedPhone ? `<strong>Numero modificato dal firmatario:</strong> ${metadata.modifiedPhone}<br>` : ''}
+          <strong>Sistema:</strong> ${sistema}<br>
+          <strong>Indirizzo IP:</strong> ${ipAddress}
         </div>
       `;
     }
     case 'signed': {
+      const looksEmail = (v: any) => typeof v === 'string' && v.includes('@');
       const signerEmail = metadata.emailUsedForSigning || metadata.emailFromContract || 'Email non disponibile';
-      const phoneUsed = metadata.phoneNumber || 'Telefono non disponibile';
       const signatureMethod = metadata.signatureMethod || 'Metodo non specificato';
       const signaturesCount = metadata.signatures ? Object.keys(metadata.signatures).length : 0;
 
-      // Determina la label del metodo OTP usando, in ordine:
-      // 1) il valore congelato in metadata.otpMethod della firma stessa
-      // 2) per firme legacy senza otpMethod, ricostruzione dal log "otp_sent"
-      //    più recente:
-      //    a) flag twilioVerify (sempre veritiero) — true=sms, false=email
-      //    b) campo method (canonico solo per i log post-fix)
-      // 3) etichetta neutra "Verifica OTP" (NON assumere SMS) per veridicità.
-      let authLabel: string;
+      // Determina il canale OTP usando, in ordine:
+      // 1) flag twilioVerify dell'ultimo log "otp_sent" (ground truth del
+      //    canale di consegna: true=SMS via Twilio, false=email — il codice
+      //    non ha mai avuto un canale SMS alternativo a Twilio). Vince anche
+      //    sul valore congelato nella firma, perché nei record storici
+      //    otpMethod poteva restare "sms" pur con invio reale via email.
+      // 2) il valore congelato in metadata.otpMethod della firma stessa
+      //    (corretto nei record recenti, dove coincide comunque con 1)
+      // 3) campo method dell'ultimo "otp_sent" (canonico solo post-fix)
+      // 4) canale sconosciuto => etichette neutre (NON assumere SMS).
+      let otpKind: 'sms' | 'email' | null = null;
       if (signatureMethod === 'otp_verification') {
-        const fromSigned = (metadata.otpMethod || '').toString().toLowerCase();
-        let otpKind: 'sms' | 'email' | null = null;
-        if (fromSigned === 'sms' || fromSigned === 'email') {
-          otpKind = fromSigned as 'sms' | 'email';
-        } else if (Array.isArray(allLogs)) {
+        let lastOtpMeta: any = null;
+        if (Array.isArray(allLogs)) {
           const lastOtpSent = [...allLogs]
             .filter((l: any) => l.action === 'otp_sent')
             .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-          const lm: any = lastOtpSent?.metadata || {};
-          if (typeof lm.twilioVerify === 'boolean') {
-            otpKind = lm.twilioVerify ? 'sms' : 'email';
-          } else {
-            const m = (lm.method || '').toString().toLowerCase();
-            if (m === 'sms' || m === 'email') otpKind = m as 'sms' | 'email';
+          lastOtpMeta = lastOtpSent?.metadata || null;
+        }
+        if (lastOtpMeta && typeof lastOtpMeta.twilioVerify === 'boolean') {
+          otpKind = lastOtpMeta.twilioVerify ? 'sms' : 'email';
+        }
+        if (!otpKind) {
+          const fromSigned = (metadata.otpMethod || '').toString().toLowerCase();
+          if (fromSigned === 'sms' || fromSigned === 'email') {
+            otpKind = fromSigned as 'sms' | 'email';
           }
         }
-        authLabel = otpKind === 'sms'
-          ? 'Verifica OTP via SMS'
-          : otpKind === 'email'
-            ? 'Verifica OTP via Email'
-            : 'Verifica OTP';
-      } else {
-        authLabel = signatureMethod;
+        if (!otpKind && lastOtpMeta) {
+          // `method` storico affidabile solo quando dice "email" (vedi
+          // caso otp_sent): con "sms" senza twilioVerify il canale resta
+          // sconosciuto e le etichette restano neutre.
+          const m = (lastOtpMeta.method || '').toString().toLowerCase();
+          if (m === 'email') otpKind = 'email';
+        }
       }
+      const authLabel = signatureMethod === 'otp_verification'
+        ? (otpKind === 'sms' ? 'Verifica OTP via SMS' : otpKind === 'email' ? 'Verifica OTP via Email' : 'Verifica OTP')
+        : signatureMethod;
+
+      // Contatto VERIFICATO coerente con il canale: i log nuovi hanno
+      // metadata.verifiedContact (fonte di verità scritta dal server al
+      // momento della firma). Per i log storici si ricostruisce senza mai
+      // inventare: per l'OTP via email il vecchio campo phoneNumber NON è il
+      // contatto verificato — in quel caso vale l'email di firma.
+      let verifiedContact: string | null =
+        (typeof metadata.verifiedContact === 'string' && metadata.verifiedContact.trim()) ? metadata.verifiedContact : null;
+      if (!verifiedContact) {
+        const cu = metadata.contactUsedForOTP;
+        if (otpKind === 'email') {
+          verifiedContact = looksEmail(cu) ? cu : (looksEmail(signerEmail) ? signerEmail : null);
+        } else if (otpKind === 'sms') {
+          verifiedContact = (typeof cu === 'string' && cu.trim() && !cu.includes('@'))
+            ? cu
+            : (metadata.phoneNumber && metadata.phoneNumber !== 'Telefono non disponibile' ? metadata.phoneNumber : null);
+        }
+      }
+      const verifiedLabel = otpKind === 'sms'
+        ? 'Contatto verificato (numero SMS)'
+        : otpKind === 'email'
+          ? 'Contatto verificato (indirizzo email)'
+          : 'Contatto verificato';
 
       return `
         <div style="font-weight: 500;">✅ Contratto firmato digitalmente</div>
         <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
           <strong>Email firmatario:</strong> ${signerEmail}<br>
-          <strong>Telefono verificato:</strong> ${phoneUsed}<br>
+          <strong>${verifiedLabel}:</strong> ${verifiedContact || 'non registrato nei log'}<br>
           <strong>Metodo autenticazione:</strong> ${authLabel}<br>
           <strong>Numero firme:</strong> ${signaturesCount} firma/e elettronica/e<br>
           <strong>Indirizzo IP:</strong> ${ipAddress}<br>
@@ -1126,14 +1247,157 @@ function generateAuditDetails(log: AuditLog, allLogs: AuditLog[] = []): string {
         </div>
       `;
     }
-    default: {
+    case 'created': {
       return `
-        <div style="font-weight: 500;">⚙️ ${log.action}</div>
+        <div style="font-weight: 500;">📝 Contratto creato nel gestionale</div>
         <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          ${metadata && Object.keys(metadata).length > 0 ?
-            `<strong>Dettagli:</strong> ${JSON.stringify(metadata)}` :
-            'Nessun dettaglio aggiuntivo'}<br>
-          <strong>IP:</strong> ${ipAddress}
+          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
+          <strong>Browser:</strong> ${browserName}
+        </div>
+      `;
+    }
+    case 'updated': {
+      return `
+        <div style="font-weight: 500;">✏️ Dettagli del contratto aggiornati dal venditore</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
+          <strong>Browser:</strong> ${browserName}
+        </div>
+      `;
+    }
+    case 'updated_and_sent': {
+      const dest = metadata.sentToEmail || metadata.email || null;
+      return `
+        <div style="font-weight: 500;">📧 Contratto aggiornato e reinviato al firmatario</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          ${dest ? `<strong>Destinatario:</strong> ${dest}<br>` : ''}
+          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
+          <strong>Browser:</strong> ${browserName}
+        </div>
+      `;
+    }
+    case 'client_data_updated': {
+      return `
+        <div style="font-weight: 500;">⌨️ Il firmatario sta compilando i propri dati</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
+          <strong>Browser:</strong> ${browserName}
+        </div>
+      `;
+    }
+    case 'client_data_completed': {
+      return `
+        <div style="font-weight: 500;">✅ Il firmatario ha completato i propri dati anagrafici</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
+          <strong>Browser:</strong> ${browserName}
+        </div>
+      `;
+    }
+    case 'otp_failed': {
+      return `
+        <div style="font-weight: 500;">⚠️ Tentativo di verifica OTP non riuscito</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          Codice errato o scaduto: la firma non è avvenuta con questo tentativo.<br>
+          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
+          <strong>Browser:</strong> ${browserName}
+        </div>
+      `;
+    }
+    case 'content_regenerated': {
+      return `
+        <div style="font-weight: 500;">🔄 Contenuto del contratto rigenerato dal template</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
+          <strong>Browser:</strong> ${browserName}
+        </div>
+      `;
+    }
+    case 'content_manually_edited': {
+      return `
+        <div style="font-weight: 500;">🖊️ Testo del documento modificato manualmente dal venditore</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
+          <strong>Browser:</strong> ${browserName}
+        </div>
+      `;
+    }
+    case 'archived': {
+      return `
+        <div style="font-weight: 500;">📦 Contratto archiviato</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}
+        </div>
+      `;
+    }
+    case 'unarchived': {
+      return `
+        <div style="font-weight: 500;">♻️ Contratto ripristinato dall'archivio</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}
+        </div>
+      `;
+    }
+    case 'duplicated': {
+      return `
+        <div style="font-weight: 500;">📄 Contratto creato come duplicato di un contratto esistente</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}
+        </div>
+      `;
+    }
+    case 'co_fill_draft_created': {
+      return `
+        <div style="font-weight: 500;">🔗 Link di compilazione assistita generato</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}
+        </div>
+      `;
+    }
+    case 'co_fill_link_emailed': {
+      const dest = metadata.sentToEmail || metadata.email || null;
+      return `
+        <div style="font-weight: 500;">📧 Link di compilazione inviato via email</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          ${dest ? `<strong>Destinatario:</strong> ${dest}<br>` : ''}
+          <strong>Indirizzo IP:</strong> ${ipAddress}
+        </div>
+      `;
+    }
+    case 'co_fill_link_email_failed': {
+      return `
+        <div style="font-weight: 500;">⚠️ Invio del link di compilazione non riuscito</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          L'email non è stata recapitata: nessun accesso è avvenuto tramite questo invio.<br>
+          <strong>Indirizzo IP:</strong> ${ipAddress}
+        </div>
+      `;
+    }
+    case 'email_failed': {
+      return `
+        <div style="font-weight: 500;">⚠️ Una email di notifica non è stata recapitata</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          Problema tecnico del sistema di invio email. L'esito delle operazioni
+          registrate in questo documento non ne è influenzato.
+        </div>
+      `;
+    }
+    case 'incident_review': {
+      return `
+        <div style="font-weight: 500;">🛠️ Verifica tecnica interna registrata</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          Annotazione di controllo del sistema, senza effetti sul contenuto
+          o sulla validità del contratto.
+        </div>
+      `;
+    }
+    default: {
+      // Azione non mappata: dicitura neutra, MAI dump JSON dei metadati nel
+      // documento legale.
+      return `
+        <div style="font-weight: 500;">⚙️ Operazione registrata dal sistema</div>
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          <strong>Indirizzo IP:</strong> ${ipAddress}
         </div>
       `;
     }

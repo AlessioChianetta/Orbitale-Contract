@@ -413,7 +413,14 @@ function ClientFillFlow({
     tipo_cliente: initial.tipo_cliente || "azienda",
     procacciatore_nome: initial.procacciatore_nome || "",
     procacciatore_piva: initial.procacciatore_piva || "",
+    procacciatore_codice_fiscale: initial.procacciatore_codice_fiscale || "",
+    procacciatore_nato_a: initial.procacciatore_nato_a || "",
+    procacciatore_data_nascita: initial.procacciatore_data_nascita || "",
+    procacciatore_residenza: initial.procacciatore_residenza || "",
     procacciatore_sede: initial.procacciatore_sede || "",
+    procacciatore_pec: initial.procacciatore_pec || "",
+    procacciatore_sdi: initial.procacciatore_sdi || "",
+    procacciatore_iban: initial.procacciatore_iban || "",
     societa: initial.societa || "",
     sede: initial.sede || "",
     provincia_sede: initial.provincia_sede || "",
@@ -586,12 +593,46 @@ function ClientFillFlow({
                 data-testid="input-clientfill-procacciatore-nome"
               />
             </Field>
-            <Field label="Partita IVA / Codice Fiscale" hint="P.IVA (11 cifre) oppure Codice Fiscale.">
+            <Field label="Partita IVA" hint="P.IVA del procacciatore (11 cifre).">
               <Input
                 value={data.procacciatore_piva}
                 onChange={(e) => set("procacciatore_piva", e.target.value)}
                 placeholder="Es. 01234567890"
                 data-testid="input-clientfill-procacciatore-piva"
+              />
+            </Field>
+            <Field label="Codice Fiscale" hint="16 caratteri (o 11 cifre se coincide con la P.IVA).">
+              <Input
+                value={data.procacciatore_codice_fiscale}
+                onChange={(e) => set("procacciatore_codice_fiscale", e.target.value)}
+                placeholder="Es. RSSMRA88C15F158X"
+                data-testid="input-clientfill-procacciatore-codice-fiscale"
+              />
+            </Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Luogo di nascita">
+                <Input
+                  value={data.procacciatore_nato_a}
+                  onChange={(e) => set("procacciatore_nato_a", e.target.value)}
+                  placeholder="Es. Messina (ME)"
+                  data-testid="input-clientfill-procacciatore-nato-a"
+                />
+              </Field>
+              <Field label="Data di nascita">
+                <Input
+                  type="date"
+                  value={data.procacciatore_data_nascita}
+                  onChange={(e) => set("procacciatore_data_nascita", e.target.value)}
+                  data-testid="input-clientfill-procacciatore-data-nascita"
+                />
+              </Field>
+            </div>
+            <Field label="Residenza" hint="Via, CAP, città e provincia.">
+              <Input
+                value={data.procacciatore_residenza}
+                onChange={(e) => set("procacciatore_residenza", e.target.value)}
+                placeholder="Es. Via Garibaldi 10, 98100 Messina (ME)"
+                data-testid="input-clientfill-procacciatore-residenza"
               />
             </Field>
             <Field label="Sede / Domicilio fiscale">
@@ -611,6 +652,37 @@ function ClientFillFlow({
               onChange={(v) => set("cellulare", v)}
               testId="input-clientfill-procacciatore-cellulare"
             />
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">Dati per fatturazione e pagamenti (facoltativi)</div>
+                <div className="text-xs text-slate-500">Puoi lasciarli vuoti: non bloccano la firma.</div>
+              </div>
+              <Field label="PEC (facoltativa)">
+                <Input
+                  type="email"
+                  value={data.procacciatore_pec}
+                  onChange={(e) => set("procacciatore_pec", e.target.value)}
+                  placeholder="nome@pec.it"
+                  data-testid="input-clientfill-procacciatore-pec"
+                />
+              </Field>
+              <Field label="Codice SDI (facoltativo)">
+                <Input
+                  value={data.procacciatore_sdi}
+                  onChange={(e) => set("procacciatore_sdi", e.target.value)}
+                  placeholder="Es. M5UXCR1"
+                  data-testid="input-clientfill-procacciatore-sdi"
+                />
+              </Field>
+              <Field label="IBAN per le provvigioni (facoltativo)">
+                <Input
+                  value={data.procacciatore_iban}
+                  onChange={(e) => set("procacciatore_iban", e.target.value)}
+                  placeholder="Es. IT60X0542811101000000123456"
+                  data-testid="input-clientfill-procacciatore-iban"
+                />
+              </Field>
+            </div>
           </CardContent>
         </Card>
         )}

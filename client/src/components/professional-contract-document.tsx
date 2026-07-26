@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { SECTIONS_MARKER, renderSectionsHtml, type ModularSection } from "@shared/sections";
+import { formatDateItalian } from "@shared/procacciatore-fields";
 import {
   FileText,
   ChevronLeft,
@@ -46,7 +47,14 @@ interface ProfessionalContractDocumentProps {
     // Contratto procacciatore d'affari
     procacciatore_nome?: string;
     procacciatore_piva?: string;
+    procacciatore_codice_fiscale?: string;
+    procacciatore_nato_a?: string;
+    procacciatore_data_nascita?: string;
+    procacciatore_residenza?: string;
     procacciatore_sede?: string;
+    procacciatore_pec?: string;
+    procacciatore_sdi?: string;
+    procacciatore_iban?: string;
   };
   template?: {
     name?: string;
@@ -359,8 +367,31 @@ export default function ProfessionalContractDocument({
                     {p(client.procacciatore_nome, "Nome Cognome")}
                   </td>
                   <td className="px-4 py-2.5 text-slate-700">
-                    <strong className="text-slate-900">P.IVA / C.F.</strong>{" "}
+                    <strong className="text-slate-900">P.IVA</strong>{" "}
                     {p(client.procacciatore_piva, "00000000000")}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100">
+                    <strong className="text-slate-900">Codice Fiscale</strong>{" "}
+                    {p(client.procacciatore_codice_fiscale, "RSSMRA88C15F158X")}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-700">
+                    <strong className="text-slate-900">Nato/a a</strong>{" "}
+                    {p(client.procacciatore_nato_a, "Città (Prov.)")}
+                    {" il "}
+                    {p(
+                      client.procacciatore_data_nascita
+                        ? formatDateItalian(client.procacciatore_data_nascita)
+                        : undefined,
+                      "gg/mm/aaaa",
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={2} className="px-4 py-2.5 text-slate-700">
+                    <strong className="text-slate-900">Residenza</strong>{" "}
+                    {p(client.procacciatore_residenza, "Via..., CAP Città (Prov.)")}
                   </td>
                 </tr>
                 <tr>
@@ -377,6 +408,26 @@ export default function ProfessionalContractDocument({
                     Cellulare {p(client.cellulare, "+39...")}
                   </td>
                 </tr>
+                {(client.procacciatore_pec || client.procacciatore_sdi) && (
+                  <tr>
+                    <td className="px-4 py-2.5 text-slate-700 border-r border-slate-100">
+                      <strong className="text-slate-900">PEC</strong>{" "}
+                      {client.procacciatore_pec || "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-700">
+                      <strong className="text-slate-900">Codice SDI</strong>{" "}
+                      {client.procacciatore_sdi || "—"}
+                    </td>
+                  </tr>
+                )}
+                {client.procacciatore_iban && (
+                  <tr>
+                    <td colSpan={2} className="px-4 py-2.5 text-slate-700">
+                      <strong className="text-slate-900">IBAN</strong>{" "}
+                      {client.procacciatore_iban}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -388,8 +439,29 @@ export default function ProfessionalContractDocument({
                 value: p(client.procacciatore_nome, "Nome Cognome"),
               },
               {
-                label: "P.IVA / C.F.",
+                label: "P.IVA",
                 value: p(client.procacciatore_piva, "00000000000"),
+              },
+              {
+                label: "Codice Fiscale",
+                value: p(client.procacciatore_codice_fiscale, "RSSMRA88C15F158X"),
+              },
+              {
+                label: "Nato/a a",
+                value: p(client.procacciatore_nato_a, "Città (Prov.)"),
+              },
+              {
+                label: "Data di nascita",
+                value: p(
+                  client.procacciatore_data_nascita
+                    ? formatDateItalian(client.procacciatore_data_nascita)
+                    : undefined,
+                  "gg/mm/aaaa",
+                ),
+              },
+              {
+                label: "Residenza",
+                value: p(client.procacciatore_residenza, "Via..., CAP Città (Prov.)"),
               },
               {
                 label: "Sede / Domicilio fiscale",
@@ -402,6 +474,18 @@ export default function ProfessionalContractDocument({
               {
                 label: "Cellulare",
                 value: p(client.cellulare, "+39..."),
+              },
+              {
+                label: "PEC",
+                value: client.procacciatore_pec || "",
+              },
+              {
+                label: "Codice SDI",
+                value: client.procacciatore_sdi || "",
+              },
+              {
+                label: "IBAN",
+                value: client.procacciatore_iban || "",
               },
             ].map(
               (item, i) =>

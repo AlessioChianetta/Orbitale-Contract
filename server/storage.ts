@@ -28,7 +28,13 @@ import {
   PROCACCIATORE_TEMPLATE_NAME,
   PROCACCIATORE_TEMPLATE_DESCRIPTION,
   PROCACCIATORE_TEMPLATE_MARKER_PREFIX,
+  PROCACCIATORE_TEMPLATE_V1_MARKER,
+  PROCACCIATORE_TEMPLATE_V2_MARKER,
 } from "@shared/procacciatore-template";
+import {
+  PROCACCIATORE_PREMESSA_PARTI_V1,
+  PROCACCIATORE_PREMESSA_PARTI_V2,
+} from "@shared/procacciatore-contract-content";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -315,6 +321,7 @@ export class DatabaseStorage implements IStorage {
             id: contractTemplates.id,
             recipientType: contractTemplates.recipientType,
             category: contractTemplates.category,
+            content: contractTemplates.content,
           })
           .from(contractTemplates)
           .innerJoin(users, eq(contractTemplates.createdBy, users.id))
@@ -362,6 +369,31 @@ export class DatabaseStorage implements IStorage {
             console.log(
               `Storage: Fixed recipientType=procacciatore on template #${candidate.id} for company ${companyId}`,
             );
+          }
+
+          // Sync one-shot v1 -> v2 della premessa (anagrafica estesa del
+          // procacciatore). Chirurgico: sostituisce SOLO il paragrafo "parti"
+          // v1 se è ancora identico al seed; se l'admin lo ha personalizzato,
+          // si rispetta il testo esistente e si stampa solo il marker v2 per
+          // non riprovare a ogni avvio.
+          const content = candidate.content ?? "";
+          if (!content.includes(PROCACCIATORE_TEMPLATE_V2_MARKER)) {
+            let next = content;
+            if (next.includes(PROCACCIATORE_PREMESSA_PARTI_V1)) {
+              next = next.replace(PROCACCIATORE_PREMESSA_PARTI_V1, PROCACCIATORE_PREMESSA_PARTI_V2);
+            }
+            next = next.includes(PROCACCIATORE_TEMPLATE_V1_MARKER)
+              ? next.replace(PROCACCIATORE_TEMPLATE_V1_MARKER, PROCACCIATORE_TEMPLATE_V2_MARKER)
+              : `${PROCACCIATORE_TEMPLATE_V2_MARKER}\n${next}`;
+            if (next !== content) {
+              await tx
+                .update(contractTemplates)
+                .set({ content: next, updatedAt: new Date() })
+                .where(eq(contractTemplates.id, candidate.id));
+              console.log(
+                `Storage: Synced Procacciatore template #${candidate.id} to v2 (premessa anagrafica estesa) for company ${companyId}`,
+              );
+            }
           }
         }
       });

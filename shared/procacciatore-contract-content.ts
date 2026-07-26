@@ -8,13 +8,21 @@
 // NON modificare a mano: il template seminato nel DB resta modificabile
 // dall'admin via UI; questo file serve solo per il seed iniziale.
 
+// Paragrafo "parti" della premessa, esportato in due versioni per il sync
+// idempotente del template già seminato nel DB (vedi ensureProcacciatoreTemplate):
+// se il template contiene ancora il paragrafo v1 non personalizzato, viene
+// sostituito con la v2 (anagrafica estesa: nascita, C.F., residenza).
+export const PROCACCIATORE_PREMESSA_PARTI_V1 = `<p style="margin: 0;"><strong>{{procacciatore_nome}}</strong>, P.IVA {{procacciatore_piva}}, con sede/domicilio fiscale in {{procacciatore_sede}} (di seguito "Procacciatore"); congiuntamente le "Parti".</p>`;
+
+export const PROCACCIATORE_PREMESSA_PARTI_V2 = `<p style="margin: 0;"><strong>{{procacciatore_nome}}</strong>, nato/a a {{procacciatore_nato_a}} il {{procacciatore_data_nascita}}, codice fiscale {{procacciatore_codice_fiscale}}, P.IVA {{procacciatore_piva}}, residente in {{procacciatore_residenza}}, con sede/domicilio fiscale in {{procacciatore_sede}} (di seguito "Procacciatore"); congiuntamente le "Parti".</p>`;
+
 export const PROCACCIATORE_CONTRACT_BODY = `<h2 style="font-size: 18px; font-weight: bold; color: #1e293b; border-left: 4px solid #6366f1; padding-left: 12px; margin: 24px 0 12px 0;">PREMESSE</h2>
 
 <p>Il presente Contratto di Procacciamento d'Affari (di seguito "Contratto") disciplina i termini e le condizioni del rapporto tra:</p>
 
 <div style="padding: 14px; border-radius: 10px; background: #eef2ff; border: 1px solid #c7d2fe; margin: 12px 0; font-size: 14px;">
 <p style="margin: 0 0 8px 0;"><strong>{{azienda_ragione_sociale}}</strong>, P.IVA {{azienda_piva}}, con sede in {{azienda_sede}} (di seguito "Azienda");</p>
-<p style="margin: 0;"><strong>{{procacciatore_nome}}</strong>, P.IVA {{procacciatore_piva}}, con sede/domicilio fiscale in {{procacciatore_sede}} (di seguito "Procacciatore"); congiuntamente le "Parti".</p>
+${PROCACCIATORE_PREMESSA_PARTI_V2}
 </div>
 
 <p><strong>Premesso che:</strong></p>

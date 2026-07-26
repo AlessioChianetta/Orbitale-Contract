@@ -82,7 +82,14 @@ const contractFormSchema = z.object({
     // senza queste righe i valori si perderebbero al salvataggio bozza.
     procacciatore_nome: z.string().optional(),
     procacciatore_piva: z.string().optional(),
+    procacciatore_codice_fiscale: z.string().optional(),
+    procacciatore_nato_a: z.string().optional(),
+    procacciatore_data_nascita: z.string().optional(),
+    procacciatore_residenza: z.string().optional(),
     procacciatore_sede: z.string().optional(),
+    procacciatore_pec: z.string().optional(),
+    procacciatore_sdi: z.string().optional(),
+    procacciatore_iban: z.string().optional(),
     data_decorrenza: z.string().optional(),
     ciclo_liquidazione: z.string().optional(),
     giorno_cutoff: z.string().optional(),
@@ -226,7 +233,11 @@ const contractFormSchema = z.object({
     if (data.fillMode === "client_fill") return;
     const anagrafica: Array<[string, string]> = [
       ["procacciatore_nome", "Nome / ragione sociale del procacciatore richiesto"],
-      ["procacciatore_piva", "P.IVA o Codice Fiscale del procacciatore richiesto"],
+      ["procacciatore_piva", "Partita IVA del procacciatore richiesta"],
+      ["procacciatore_codice_fiscale", "Codice Fiscale del procacciatore richiesto"],
+      ["procacciatore_nato_a", "Luogo di nascita richiesto"],
+      ["procacciatore_data_nascita", "Data di nascita richiesta"],
+      ["procacciatore_residenza", "Residenza richiesta"],
       ["procacciatore_sede", "Sede / domicilio fiscale richiesto"],
       ["cellulare", "Numero di cellulare richiesto"],
     ];
@@ -235,6 +246,17 @@ const contractFormSchema = z.object({
       if (!v || (typeof v === "string" && !v.trim())) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["clientData", field], message: msg });
       }
+    }
+    // Codice Fiscale: 16 caratteri (persona fisica) oppure 11 cifre se
+    // coincide con la P.IVA (ditta individuale / società). Validato solo se
+    // compilato: l'obbligo è già gestito dal loop sopra.
+    const cfRaw = String(cd.procacciatore_codice_fiscale || "").toUpperCase().replace(/\s/g, "");
+    if (cfRaw && !validateCodiceFiscale(cfRaw) && !validatePartitaIva(cfRaw)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["clientData", "procacciatore_codice_fiscale"],
+        message: "Codice Fiscale non valido: 16 caratteri (es. RSSMRA88C15F158X) o 11 cifre se coincide con la P.IVA",
+      });
     }
     return;
   }
@@ -348,6 +370,10 @@ const WIZARD_STEPS: WizardStepConfig[] = [
           ...base,
           "clientData.procacciatore_nome",
           "clientData.procacciatore_piva",
+          "clientData.procacciatore_codice_fiscale",
+          "clientData.procacciatore_nato_a",
+          "clientData.procacciatore_data_nascita",
+          "clientData.procacciatore_residenza",
           "clientData.procacciatore_sede",
           "clientData.cellulare",
         ];
@@ -629,7 +655,14 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         stesso_indirizzo: false,
         procacciatore_nome: "",
         procacciatore_piva: "",
+        procacciatore_codice_fiscale: "",
+        procacciatore_nato_a: "",
+        procacciatore_data_nascita: "",
+        procacciatore_residenza: "",
         procacciatore_sede: "",
+        procacciatore_pec: "",
+        procacciatore_sdi: "",
+        procacciatore_iban: "",
         data_decorrenza: "",
         ciclo_liquidazione: "",
         giorno_cutoff: "",
@@ -1922,7 +1955,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
               </h3>
               <p className="text-xs text-slate-500 mb-6">
                 {fillMode === "client_fill"
-                  ? "Basta l'email: nome, P.IVA e sede li inserirà il procacciatore dal link di compilazione. I parametri del contratto (step successivo) restano comunque a carico tuo."
+                  ? "Basta l'email: i dati anagrafici e fiscali (nome, P.IVA, Codice Fiscale, nascita, residenza, sede) li inserirà il procacciatore dal link di compilazione. I parametri del contratto (step successivo) restano comunque a carico tuo."
                   : "Inserisci i dati anagrafici e fiscali del procacciatore che firmerà il contratto."}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -1944,7 +1977,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 </div>
                 <div>
                   <Label htmlFor="procacciatore_piva" className={labelClass}>
-                    Partita IVA / Codice Fiscale {fillMode === "seller" ? "*" : ""}
+                    Partita IVA {fillMode === "seller" ? "*" : ""}
                   </Label>
                   <Input
                     id="procacciatore_piva"
@@ -1959,6 +1992,70 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   )}
                 </div>
                 <div>
+                  <Label htmlFor="procacciatore_codice_fiscale" className={labelClass}>
+                    Codice Fiscale {fillMode === "seller" ? "*" : ""}
+                  </Label>
+                  <Input
+                    id="procacciatore_codice_fiscale"
+                    placeholder="Es. RSSMRA88C15F158X"
+                    {...form.register("clientData.procacciatore_codice_fiscale")}
+                    disabled={createContractMutation.isPending}
+                    className={inputClass}
+                    data-testid="input-procacciatore-codice-fiscale"
+                  />
+                  {form.formState.errors.clientData?.procacciatore_codice_fiscale && (
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.procacciatore_codice_fiscale.message}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="procacciatore_nato_a" className={labelClass}>
+                    Luogo di nascita {fillMode === "seller" ? "*" : ""}
+                  </Label>
+                  <Input
+                    id="procacciatore_nato_a"
+                    placeholder="Es. Messina (ME)"
+                    {...form.register("clientData.procacciatore_nato_a")}
+                    disabled={createContractMutation.isPending}
+                    className={inputClass}
+                    data-testid="input-procacciatore-nato-a"
+                  />
+                  {form.formState.errors.clientData?.procacciatore_nato_a && (
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.procacciatore_nato_a.message}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="procacciatore_data_nascita" className={labelClass}>
+                    Data di nascita {fillMode === "seller" ? "*" : ""}
+                  </Label>
+                  <Input
+                    id="procacciatore_data_nascita"
+                    type="date"
+                    {...form.register("clientData.procacciatore_data_nascita")}
+                    disabled={createContractMutation.isPending}
+                    className={inputClass}
+                    data-testid="input-procacciatore-data-nascita"
+                  />
+                  {form.formState.errors.clientData?.procacciatore_data_nascita && (
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.procacciatore_data_nascita.message}</p>
+                  )}
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="procacciatore_residenza" className={labelClass}>
+                    Residenza {fillMode === "seller" ? "*" : ""}
+                  </Label>
+                  <Input
+                    id="procacciatore_residenza"
+                    placeholder="Es. Via Garibaldi 10, 98100 Messina (ME)"
+                    {...form.register("clientData.procacciatore_residenza")}
+                    disabled={createContractMutation.isPending}
+                    className={inputClass}
+                    data-testid="input-procacciatore-residenza"
+                  />
+                  {form.formState.errors.clientData?.procacciatore_residenza && (
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.procacciatore_residenza.message}</p>
+                  )}
+                </div>
+                <div className="md:col-span-2">
                   <Label htmlFor="procacciatore_sede" className={labelClass}>
                     Sede / Domicilio fiscale {fillMode === "seller" ? "*" : ""}
                   </Label>
@@ -2005,6 +2102,50 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   {form.formState.errors.clientData?.cellulare && (
                     <p className="text-sm text-red-600 mt-1">{form.formState.errors.clientData.cellulare.message}</p>
                   )}
+                </div>
+              </div>
+
+              {/* Dati facoltativi per la fatturazione / pagamenti */}
+              <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
+                <h4 className="text-sm font-semibold text-slate-800 mb-1">Dati per fatturazione e pagamenti (facoltativi)</h4>
+                <p className="text-xs text-slate-500 mb-4">
+                  Se compilati compaiono nella tabella dati del contratto. Non bloccano l'invio né la firma.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <Label htmlFor="procacciatore_pec" className={labelClass}>PEC</Label>
+                    <Input
+                      id="procacciatore_pec"
+                      type="email"
+                      placeholder="nome@pec.it"
+                      {...form.register("clientData.procacciatore_pec")}
+                      disabled={createContractMutation.isPending}
+                      className={inputClass}
+                      data-testid="input-procacciatore-pec"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="procacciatore_sdi" className={labelClass}>Codice SDI</Label>
+                    <Input
+                      id="procacciatore_sdi"
+                      placeholder="Es. M5UXCR1"
+                      {...form.register("clientData.procacciatore_sdi")}
+                      disabled={createContractMutation.isPending}
+                      className={inputClass}
+                      data-testid="input-procacciatore-sdi"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="procacciatore_iban" className={labelClass}>IBAN per le provvigioni</Label>
+                    <Input
+                      id="procacciatore_iban"
+                      placeholder="Es. IT60X0542811101000000123456"
+                      {...form.register("clientData.procacciatore_iban")}
+                      disabled={createContractMutation.isPending}
+                      className={inputClass}
+                      data-testid="input-procacciatore-iban"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
