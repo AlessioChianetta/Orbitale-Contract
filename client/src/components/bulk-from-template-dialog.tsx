@@ -16,6 +16,7 @@ type Template = {
   id: number;
   name: string;
   category?: string;
+  isActive?: boolean;
   sections?: unknown;
   predefinedBonuses?: Array<{ description?: string; value?: string | number; type?: "percentage" | "fixed" }>;
 };
@@ -195,13 +196,17 @@ export default function BulkFromTemplateDialog({ open, onOpenChange, onCreated }
             <Label>Scegli il template</Label>
             {tplLoading ? (
               <div className="flex items-center text-sm text-slate-500"><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Caricamento…</div>
-            ) : templates.length === 0 ? (
-              <div className="text-sm text-slate-500">Nessun template disponibile. Creane uno nella sezione Admin.</div>
+            ) : templates.filter((t) => t.isActive !== false).length === 0 ? (
+              <div className="text-sm text-slate-500">
+                {templates.length === 0
+                  ? "Nessun template disponibile. Creane uno nella sezione Admin."
+                  : "Tutti i template sono archiviati. Riattivane uno dalla sezione Admin."}
+              </div>
             ) : (
               <Select value={templateId ? String(templateId) : ""} onValueChange={(v) => setTemplateId(Number(v))}>
                 <SelectTrigger data-testid="bulk-template-select"><SelectValue placeholder="Seleziona un template" /></SelectTrigger>
                 <SelectContent>
-                  {templates.map((t) => (
+                  {templates.filter((t) => t.isActive !== false).map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>{t.name}{t.category ? ` — ${t.category}` : ""}</SelectItem>
                   ))}
                 </SelectContent>

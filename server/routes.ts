@@ -68,6 +68,29 @@ async function ensureContentEditorSchema(): Promise<void> {
   return contentEditorSchemaReady;
 }
 
+// ============================================================================
+// Template category schema — adds contract_templates.category on startup
+// (stesso pattern di ensureContentEditorSchema: idempotente, sicuro anche
+// sul deploy VPS dove la colonna viene creata al primo avvio dopo il pull)
+// ============================================================================
+let templateCategorySchemaReady: Promise<void> | null = null;
+async function ensureTemplateCategorySchema(): Promise<void> {
+  if (!templateCategorySchemaReady) {
+    templateCategorySchemaReady = (async () => {
+      await pool.query(
+        `ALTER TABLE contract_templates
+           ADD COLUMN IF NOT EXISTS category TEXT`
+      );
+      console.log("[TEMPLATE_CATEGORY] Schema ready (contract_templates.category).");
+    })().catch((e) => {
+      console.error("[TEMPLATE_CATEGORY] Failed to ensure schema, will retry:", e);
+      templateCategorySchemaReady = null;
+      throw e;
+    });
+  }
+  return templateCategorySchemaReady;
+}
+
 let presenceSchemaReady: Promise<void> | null = null;
 async function ensurePresenceSchema(): Promise<void> {
   if (!presenceSchemaReady) {
@@ -301,6 +324,9 @@ export function registerRoutes(app: Express): Server {
   // is guaranteed to exist before any request can reference it.
   ensureContentEditorSchema().catch((e) =>
     console.error("[CONTENT_EDITOR] Startup schema migration failed:", e)
+  );
+  ensureTemplateCategorySchema().catch((e) =>
+    console.error("[TEMPLATE_CATEGORY] Startup schema migration failed:", e)
   );
 
   app.get("/api/templates", requireAuth, async (req, res) => {

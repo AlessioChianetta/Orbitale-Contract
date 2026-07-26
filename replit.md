@@ -1,5 +1,13 @@
 # Turbo Contract
 
+## Recent changes (Categorie template e mappatura utilizzo)
+- Aggiunta colonna `contract_templates.category` (TEXT nullable) via migration idempotente all'avvio (`ensureTemplateCategorySchema` in server/routes.ts — stesso pattern di content_manually_edited, sicura anche su VPS dopo git pull) + file `migrations/0007_add_template_category.sql` per riferimento.
+- Validazione categoria in `insertContractTemplateSchema`: trim, max 60 caratteri, stringa vuota normalizzata a `null`.
+- `GET /api/templates` ora include per ogni template `usage: { totalContracts, activeContracts, lastContractAt }` (aggregato per company via join venditori; i contratti orfani di template cancellati non rompono il conteggio).
+- Dashboard admin: lista raggruppata per categoria (categorie operative prima, Test/Archivio poi, senza categoria in fondo), filtro per categoria, "Ordina per utilizzo", badge "Mai usato", conteggio contratti + data ultimo contratto per riga, assegnazione categoria inline (popover con suggerimenti Clienti/Team/Test-Archivio + categorie personalizzate), azione Archivia/Riattiva (toggle `isActive` con conferma).
+- I template disattivati (isActive=false) non compaiono più nei picker dei venditori (contract-form, bulk-from-template-dialog); un template archiviato già selezionato in una bozza resta visibile in quella bozza.
+- Backfill categorie eseguito su entrambe le company: template Orbitale clienti → "Clienti"; "prova" e duplicati "Sistema Orbitale — Modulare" → "Test/Archivio". Il seed orbitale ora assegna category "Clienti".
+
 ## Recent changes (Task #2 — Mittente email professionale)
 - Email transazionali ora inviate via **nodemailer** sul **server SMTP del provider del cliente** (Aruba/Register/IONOS/ecc.), non più via Gmail né via Resend.
 - Credenziali SMTP per-tenant: aggiunte colonne `company_settings.smtp_host/smtp_port/smtp_user/smtp_pass/smtp_secure/email_from_address/email_from_name` (tutte nullable).

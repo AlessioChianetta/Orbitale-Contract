@@ -19,6 +19,7 @@ export const contractTemplates = pgTable("contract_templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  category: text("category"), // Categoria assegnata dall'admin (es. "Clienti", "Team", "Test/Archivio")
   content: text("content").notNull(), // HTML content with placeholders
   customContent: text("custom_content"), // Custom content before bonuses
   paymentText: text("payment_text"), // Payment terms text
@@ -276,6 +277,18 @@ export const insertContractTemplateSchema = createInsertSchema(contractTemplates
 }).extend({
   paymentText: z.string().optional(),
   sections: modularSectionsArraySchema.optional().default([]),
+  // Categoria libera ma bounded: stringa vuota normalizzata a null così
+  // "rimuovi categoria" via PUT {category: ""} funziona senza casi speciali.
+  category: z
+    .string()
+    .trim()
+    .max(60, "La categoria non può superare 60 caratteri")
+    .nullable()
+    .optional()
+    .transform((v) => (v === "" ? null : v)),
+  // Flag di archiviazione: boolean rigoroso, mai null via API. La colonna è
+  // nullable in DB, ma un NULL renderebbe ambigui i filtri isActive dei picker.
+  isActive: z.boolean().optional(),
 });
 
 export const insertContractSchema = createInsertSchema(contracts).omit({

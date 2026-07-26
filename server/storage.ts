@@ -25,6 +25,17 @@ import { contracts as contractsTable, contractTemplates as contractTemplatesTabl
 
 const PostgresSessionStore = connectPg(session);
 
+// Statistiche di utilizzo per template, calcolate dai contratti della company.
+// I contratti "orfani" (templateId di template cancellati) semplicemente non
+// matchano nessun template della lista: il conteggio non si rompe.
+export type TemplateUsage = {
+  totalContracts: number;
+  activeContracts: number; // non archiviati
+  lastContractAt: Date | null;
+};
+
+export type ContractTemplateWithUsage = ContractTemplate & { usage: TemplateUsage };
+
 export interface IStorage {
   // User methods
   getUser(id: number): Promise<User | undefined>;
@@ -37,7 +48,7 @@ export interface IStorage {
   getUsersByCompanyAndEmail(companyId: number, email: string): Promise<User | undefined>;
 
   // Template methods
-  getTemplates(companyId: number): Promise<ContractTemplate[]>;
+  getTemplates(companyId: number): Promise<ContractTemplateWithUsage[]>;
   getTemplate(id: number, companyId: number): Promise<ContractTemplate | undefined>;
   createTemplate(template: InsertContractTemplate): Promise<ContractTemplate>;
   updateTemplate(id: number, template: Partial<InsertContractTemplate>): Promise<ContractTemplate>;
@@ -177,6 +188,7 @@ export class DatabaseStorage implements IStorage {
         await tx.insert(contractTemplates).values({
           name: ORBITAL_TEMPLATE_NAME,
           description: ORBITAL_TEMPLATE_DESCRIPTION,
+          category: "Clienti",
           content: getOrbitalContractEmptyHtml(),
           sections: getOrbitalServicePackages(),
           createdBy: adminUser.id,
@@ -189,7 +201,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getTemplates(companyId: number): Promise<ContractTemplate[]> {
+  async getTemplates(companyId: number): Promise<ContractTemplateWithUsage[]> {
     try {
         // Idempotent seed of the Sistema Orbitale modular template
         await this.ensureOrbitalTemplate(companyId);
@@ -200,6 +212,7 @@ export class DatabaseStorage implements IStorage {
             id: contractTemplates.id,
             name: contractTemplates.name,
             description: contractTemplates.description,
+            category: contractTemplates.category,
             content: contractTemplates.content,
             customContent: contractTemplates.customContent,
             paymentText: contractTemplates.paymentText,
@@ -215,9 +228,39 @@ export class DatabaseStorage implements IStorage {
           .innerJoin(users, eq(contractTemplates.createdBy, users.id))
           .where(eq(users.companyId, companyId))
           .orderBy(desc(contractTemplates.createdAt));
-        
-        console.log("Storage: Found", templates.length, "templates for company", companyId);
-        return templates;
+
+        // Conteggi di utilizzo per template (scope: contratti dei venditori
+        // della stessa company). Query aggregata separata: i contratti che
+        // puntano a template cancellati restano fuori dalla mappa senza errori.
+        const usageRows = await db
+          .select({
+            templateId: contracts.templateId,
+            totalContracts: sql<number>`count(*)::int`,
+            activeContracts: sql<number>`(count(*) filter (where ${contracts.isArchived} = false))::int`,
+            lastContractAt: sql<Date | null>`max(${contracts.createdAt})`,
+          })
+          .from(contracts)
+          .innerJoin(users, eq(contracts.sellerId, users.id))
+          .where(eq(users.companyId, companyId))
+          .groupBy(contracts.templateId);
+
+        const usageMap = new Map<number, TemplateUsage>();
+        for (const row of usageRows) {
+          if (row.templateId == null) continue;
+          usageMap.set(row.templateId, {
+            totalContracts: row.totalContracts,
+            activeContracts: row.activeContracts,
+            lastContractAt: row.lastContractAt ? new Date(row.lastContractAt) : null,
+          });
+        }
+
+        const withUsage: ContractTemplateWithUsage[] = templates.map((t) => ({
+          ...t,
+          usage: usageMap.get(t.id) ?? { totalContracts: 0, activeContracts: 0, lastContractAt: null },
+        }));
+
+        console.log("Storage: Found", withUsage.length, "templates for company", companyId);
+        return withUsage;
     } catch (error) {
       console.error("Storage error in getTemplates:", error);
       throw error;
@@ -231,6 +274,7 @@ export class DatabaseStorage implements IStorage {
           id: contractTemplates.id,
           name: contractTemplates.name,
           description: contractTemplates.description,
+          category: contractTemplates.category,
           content: contractTemplates.content,
           customContent: contractTemplates.customContent,
           paymentText: contractTemplates.paymentText,

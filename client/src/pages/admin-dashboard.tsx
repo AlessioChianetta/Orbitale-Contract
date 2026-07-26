@@ -36,11 +36,19 @@ import {
   Layers,
   Gift,
   ChevronRight,
+  Tag,
+  Archive,
+  ArchiveRestore,
+  Check,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import TemplateEditor from "@/components/template-editor";
 import { Redirect, Link } from "wouter";
+
+// Suggerimenti predefiniti; l'admin può crearne di nuove dal popover categoria
+const PRESET_CATEGORIES = ["Clienti", "Team", "Test/Archivio"];
 
 export default function AdminDashboard() {
   const { user, logoutMutation } = useAuth();
@@ -50,7 +58,10 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortBy, setSortBy] = useState("name");
+  const [categoryPopoverId, setCategoryPopoverId] = useState<number | null>(null);
+  const [categoryDraft, setCategoryDraft] = useState("");
 
   if (user && user.role !== "admin") {
     return <Redirect to="/seller" />;
@@ -85,6 +96,53 @@ export default function AdminDashboard() {
     },
   });
 
+  const updateTemplateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
+      await apiRequest("PUT", `/api/templates/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile aggiornare il template",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSetCategory = (id: number, category: string | null) => {
+    updateTemplateMutation.mutate(
+      { id, data: { category } },
+      {
+        onSuccess: () => {
+          toast({ title: category ? `Categoria "${category}" assegnata` : "Categoria rimossa" });
+        },
+      },
+    );
+    setCategoryPopoverId(null);
+    setCategoryDraft("");
+  };
+
+  const handleToggleArchive = (template: any) => {
+    const activating = !template.isActive;
+    const total = template.usage?.totalContracts || 0;
+    const msg = activating
+      ? `Riattivare il template "${template.name}"? Tornerà selezionabile per i nuovi contratti.`
+      : `Archiviare il template "${template.name}"?\n\nNon sarà più proponibile per nuovi contratti; ${total > 0 ? `i ${total} contratti esistenti` : "i contratti esistenti"} non vengono toccati. Potrai riattivarlo in qualsiasi momento.`;
+    if (!confirm(msg)) return;
+    updateTemplateMutation.mutate(
+      { id: template.id, data: { isActive: activating } },
+      {
+        onSuccess: () => {
+          toast({ title: activating ? "Template riattivato" : "Template archiviato" });
+        },
+      },
+    );
+  };
+
   const handleEditTemplate = (template: any) => {
     setEditingTemplate(template);
     setShowTemplateEditor(true);
@@ -101,6 +159,29 @@ export default function AdminDashboard() {
     setEditingTemplate(null);
   };
 
+  // Categorie disponibili: suggerimenti predefiniti + quelle già in uso
+  const existingCategories = Array.from(
+    new Set((templates as any[]).map((t: any) => t.category).filter(Boolean)),
+  ) as string[];
+  const categoryOptions = Array.from(new Set([...PRESET_CATEGORIES, ...existingCategories]));
+
+  // Ordine dei gruppi: categorie operative prima, Test/Archivio poi, senza categoria in fondo
+  const categoryRank = (c: string | null | undefined) => {
+    if (!c) return 3;
+    if (c === "Test/Archivio") return 2;
+    return 1;
+  };
+
+  const baseSort = (a: any, b: any) => {
+    if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
+    if (sortBy === "date") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (sortBy === "usage") return (b.usage?.totalContracts || 0) - (a.usage?.totalContracts || 0);
+    return 0;
+  };
+
+  // Con "Tutte le categorie" la lista è raggruppata per categoria
+  const groupByCategory = categoryFilter === "all";
+
   const filteredTemplates = (templates as any[])
     .filter((t: any) => {
       const matchesSearch = t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -108,12 +189,19 @@ export default function AdminDashboard() {
       const matchesStatus = statusFilter === "all" || 
         (statusFilter === "active" && t.isActive) || 
         (statusFilter === "inactive" && !t.isActive);
-      return matchesSearch && matchesStatus;
+      const matchesCategory =
+        categoryFilter === "all" ||
+        (categoryFilter === "none" ? !t.category : t.category === categoryFilter);
+      return matchesSearch && matchesStatus && matchesCategory;
     })
     .sort((a: any, b: any) => {
-      if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
-      if (sortBy === "date") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      return 0;
+      if (groupByCategory) {
+        const diff =
+          categoryRank(a.category) - categoryRank(b.category) ||
+          (a.category || "").localeCompare(b.category || "");
+        if (diff !== 0) return diff;
+      }
+      return baseSort(a, b);
     });
 
   if (statsLoading || templatesLoading) {
@@ -307,6 +395,21 @@ export default function AdminDashboard() {
                 </select>
               </div>
               <div className="relative">
+                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="appearance-none pl-10 pr-8 py-2.5 text-sm bg-white border border-black/[0.06] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/20 focus:border-[#4F46E5]/30 transition-all duration-200 cursor-pointer text-slate-600"
+                  data-testid="select-category-filter"
+                >
+                  <option value="all">Tutte le categorie</option>
+                  {categoryOptions.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                  <option value="none">Senza categoria</option>
+                </select>
+              </div>
+              <div className="relative">
                 <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                 <select
                   value={sortBy}
@@ -315,6 +418,7 @@ export default function AdminDashboard() {
                 >
                   <option value="name">Ordina per nome</option>
                   <option value="date">Ordina per data</option>
+                  <option value="usage">Ordina per utilizzo</option>
                 </select>
               </div>
             </div>
@@ -348,16 +452,34 @@ export default function AdminDashboard() {
                   </p>
                 </div>
 
-                {filteredTemplates.map((template: any) => {
+                {filteredTemplates.map((template: any, idx: number) => {
                   const sectionsCount = Array.isArray(template.sections) ? template.sections.length : 0;
                   const bonusesCount = Array.isArray(template.predefinedBonuses) ? template.predefinedBonuses.length : 0;
                   const dateLabel = new Date(template.createdAt).toLocaleDateString('it-IT', {
                     day: '2-digit', month: 'short', year: 'numeric'
                   });
+                  const usage = template.usage || { totalContracts: 0, activeContracts: 0, lastContractAt: null };
+                  const lastContractLabel = usage.lastContractAt
+                    ? new Date(usage.lastContractAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : null;
+                  const prevCategory = idx > 0 ? (filteredTemplates[idx - 1].category ?? null) : undefined;
+                  const showGroupHeader = groupByCategory && (idx === 0 || prevCategory !== (template.category ?? null));
+                  const groupSize = filteredTemplates.filter((t: any) => (t.category ?? null) === (template.category ?? null)).length;
 
                   return (
+                    <div key={template.id}>
+                      {showGroupHeader && (
+                        <div className={`flex items-center gap-2 px-1 pb-1.5 ${idx === 0 ? "" : "pt-4"}`}>
+                          <Tag className="h-3.5 w-3.5 text-slate-400" />
+                          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            {template.category || "Senza categoria"}
+                          </span>
+                          <span className="text-[11px] text-slate-400 bg-slate-100 rounded-full px-1.5 py-0.5">
+                            {groupSize}
+                          </span>
+                        </div>
+                      )}
                     <div
-                      key={template.id}
                       role="button"
                       tabIndex={0}
                       aria-label={`Modifica template ${template.name}`}
@@ -403,6 +525,90 @@ export default function AdminDashboard() {
                               Inattivo
                             </span>
                           )}
+                          {usage.totalContracts === 0 && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 rounded-full uppercase tracking-wide"
+                              title="Nessun contratto è mai stato generato da questo template"
+                              data-testid={`badge-never-used-${template.id}`}
+                            >
+                              Mai usato
+                            </span>
+                          )}
+                          <Popover
+                            open={categoryPopoverId === template.id}
+                            onOpenChange={(open) => {
+                              setCategoryPopoverId(open ? template.id : null);
+                              if (!open) setCategoryDraft("");
+                            }}
+                          >
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Assegna categoria"
+                                aria-label={`Categoria di ${template.name}`}
+                                data-testid={`button-category-${template.id}`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wide border transition-colors ${
+                                  template.category
+                                    ? "bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100"
+                                    : "bg-white text-slate-400 border-dashed border-slate-300 hover:text-slate-600 hover:border-slate-400"
+                                }`}
+                              >
+                                <Tag className="h-3 w-3" />
+                                {template.category || "Categoria"}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="w-60 p-2"
+                              align="start"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <p className="text-xs font-medium text-slate-500 px-1 pb-2">Categoria del template</p>
+                              <div className="space-y-0.5">
+                                {categoryOptions.map((cat) => (
+                                  <button
+                                    key={cat}
+                                    type="button"
+                                    onClick={() => handleSetCategory(template.id, cat)}
+                                    className={`w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg hover:bg-slate-50 transition-colors ${
+                                      template.category === cat ? "text-indigo-700 font-medium" : "text-slate-700"
+                                    }`}
+                                  >
+                                    {cat}
+                                    {template.category === cat && <Check className="h-3.5 w-3.5" />}
+                                  </button>
+                                ))}
+                              </div>
+                              <form
+                                className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100"
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const v = categoryDraft.trim();
+                                  if (v) handleSetCategory(template.id, v);
+                                }}
+                              >
+                                <Input
+                                  value={categoryDraft}
+                                  onChange={(e) => setCategoryDraft(e.target.value)}
+                                  placeholder="Nuova categoria…"
+                                  maxLength={60}
+                                  className="h-8 text-sm"
+                                />
+                                <Button type="submit" size="sm" className="h-8 px-2.5" disabled={!categoryDraft.trim()}>
+                                  Ok
+                                </Button>
+                              </form>
+                              {template.category && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetCategory(template.id, null)}
+                                  className="w-full mt-1.5 px-2 py-1.5 text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors text-left"
+                                >
+                                  Rimuovi categoria
+                                </button>
+                              )}
+                            </PopoverContent>
+                          </Popover>
                         </div>
 
                         <p className="text-[13px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
@@ -416,6 +622,22 @@ export default function AdminDashboard() {
                             <Calendar className="h-3 w-3" />
                             {dateLabel}
                           </span>
+                          <span
+                            className={`inline-flex items-center gap-1 ${usage.totalContracts > 0 ? "text-slate-500 font-medium" : ""}`}
+                            title="Contratti generati da questo template (attivi = non archiviati)"
+                            data-testid={`text-usage-${template.id}`}
+                          >
+                            <BarChart3 className="h-3 w-3" />
+                            {usage.totalContracts > 0
+                              ? `${usage.totalContracts} ${usage.totalContracts === 1 ? "contratto" : "contratti"} · ${usage.activeContracts} attivi`
+                              : "0 contratti"}
+                          </span>
+                          {lastContractLabel && (
+                            <span className="inline-flex items-center gap-1" title="Data dell'ultimo contratto generato">
+                              <Clock className="h-3 w-3" />
+                              ultimo: {lastContractLabel}
+                            </span>
+                          )}
                           {sectionsCount > 0 && (
                             <span className="inline-flex items-center gap-1" title="Pacchetti / moduli opzionali">
                               <Layers className="h-3 w-3" />
@@ -444,6 +666,17 @@ export default function AdminDashboard() {
                         </button>
                         <button
                           type="button"
+                          onClick={(e) => { e.stopPropagation(); handleToggleArchive(template); }}
+                          disabled={updateTemplateMutation.isPending}
+                          title={template.isActive ? "Archivia (disattiva)" : "Riattiva"}
+                          aria-label={`${template.isActive ? "Archivia" : "Riattiva"} ${template.name}`}
+                          data-testid={`button-archive-${template.id}`}
+                          className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 transition-all duration-200 disabled:opacity-50"
+                        >
+                          {template.isActive ? <Archive className="h-4 w-4" /> : <ArchiveRestore className="h-4 w-4" />}
+                        </button>
+                        <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(template.id, template.name); }}
                           disabled={deleteTemplateMutation.isPending}
                           title="Elimina"
@@ -454,6 +687,7 @@ export default function AdminDashboard() {
                         </button>
                         <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all duration-200 ml-1" />
                       </div>
+                    </div>
                     </div>
                   );
                 })}

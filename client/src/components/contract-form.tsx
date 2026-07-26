@@ -1699,12 +1699,19 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     <SelectValue placeholder="Seleziona un template di contratto" />
                   </SelectTrigger>
                   <SelectContent>
-                    {templates.length === 0 ? (
+                    {(templates as any[]).filter((template: any) => template.isActive !== false || template.id === selectedTemplateId).length === 0 ? (
                       <div className="p-2 text-sm text-gray-500">
-                        Nessun template disponibile
+                        {(templates as any[]).length > 0
+                          ? "Tutti i template sono archiviati: riattivane uno dalla dashboard admin"
+                          : "Nessun template disponibile"}
                       </div>
                     ) : (
-                      templates.map((template: any) => (
+                      (templates as any[])
+                        // I template archiviati (isActive=false) non sono più
+                        // proponibili, ma restano visibili se già selezionati
+                        // in una bozza esistente.
+                        .filter((template: any) => template.isActive !== false || template.id === selectedTemplateId)
+                        .map((template: any) => (
                         <SelectItem key={template.id} value={template.id.toString()}>
                           <div className="flex items-center">
                             <FileText className="h-4 w-4 mr-2 text-gray-600" />
