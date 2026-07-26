@@ -9,4 +9,4 @@ description: npm run check (tsc) fails on pre-existing errors; how to judge regr
 
 **Why:** The dev/build pipeline (tsx + vite/esbuild) never runs tsc, so the app runs fine despite the failing check.
 
-**How to apply:** Never treat a failing full `tsc` as caused by current work. Judge regressions by filtering tsc output to the files actually touched and comparing against this known-error set. Quick JSX syntax validation: `npx esbuild <file> --loader:.tsx=tsx --jsx=automatic --outfile=/dev/null`.
+**How to apply:** Never treat a failing full `tsc` as caused by current work. Judge regressions by filtering tsc output to the files actually touched and comparing against this known-error set. Quick JSX syntax validation: `npx esbuild <file> --loader:.tsx=tsx --jsx=automatic --outfile=/dev/null`. Note: `npx tsx -e "…"` compiles as CJS — no top-level await; wrap in `async function main()` + `main()`. One-off DB/storage scripts run fine with `npx tsx` from repo root (tsconfig paths resolved).

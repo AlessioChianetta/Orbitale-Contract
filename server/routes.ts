@@ -5,7 +5,8 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, insertContractPresetSchema, type InsertCoFillSession, type User } from "@shared/schema";
-import { resolveSelectedSections, renderSectionsHtml, parseSelectedIds, SECTIONS_MARKER } from "@shared/sections";
+import { resolveSelectedSections, renderSectionsHtml, parseSelectedIds, parseSections, SECTIONS_MARKER } from "@shared/sections";
+import { isOrbitalPackagesTemplate } from "@shared/orbital-packages";
 import { getMissingClientFields, getClientType, SYNCED_FIELD_KEYS } from "@shared/client-fields";
 // @ts-ignore - no shipped types
 import cookie from "cookie";
@@ -1085,6 +1086,27 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  /**
+   * Contratti creati coi vecchi moduli v1 del contratto Orbitale: gli id
+   * salvati (es. `pkg_setter_ai`) non esistono più nel template v2 a
+   * pacchetti cumulativi. Rigenerare/salvare con quegli id produrrebbe in
+   * silenzio un contratto SOLO BASE (downgrade dei servizi pattuiti).
+   * Meglio un errore esplicito: il venditore riapre il contratto e sceglie
+   * il pacchetto corretto nello step Servizi.
+   * Ritorna gli id non riconosciuti (vuoto = nessun problema).
+   */
+  function findLegacyOrbitalSectionIds(
+    template: { sections: unknown },
+    storedIds: unknown,
+  ): string[] {
+    const secs = parseSections(template.sections);
+    if (!isOrbitalPackagesTemplate(secs)) return [];
+    const ids = parseSelectedIds(storedIds);
+    if (!ids || ids.length === 0) return [];
+    const known = new Set(secs.map((s) => s.id));
+    return ids.filter((id) => !known.has(id));
+  }
+
   app.post("/api/contracts/:id/regenerate-content", requireAdmin, async (req, res) => {
     try {
       const contractId = parseInt(req.params.id);
@@ -1102,6 +1124,19 @@ export function registerRoutes(app: Express): Server {
 
       const template = await storage.getTemplate(contract.templateId, req.user.companyId);
       if (!template) return res.status(400).json({ message: "Template not found" });
+
+      // Blocco esplicito: id sezioni v1 non più presenti nel template v2.
+      const legacyIds = findLegacyOrbitalSectionIds(template, contract.selectedSectionIds);
+      if (legacyIds.length > 0) {
+        return res.status(409).json({
+          message:
+            "Questo contratto era stato creato con i vecchi moduli del contratto Orbitale. " +
+            "Rigenerarlo ora lo ridurrebbe al solo pacchetto BASE. " +
+            "Apri il contratto in modifica e scegli il pacchetto corretto nello step Servizi, poi riprova.",
+          code: "ORBITAL_LEGACY_SECTIONS",
+          legacySectionIds: legacyIds,
+        });
+      }
 
       const previousContent = contract.generatedContent || "";
       const newContent = await generateContractContent(
@@ -1408,6 +1443,27 @@ export function registerRoutes(app: Express): Server {
       const template = await storage.getTemplate(req.body.templateId, req.user.companyId);
       if (!template) {
         return res.status(400).json({ message: "Template not found" });
+      }
+
+      // Contratto creato coi vecchi moduli v1 dell'Orbitale: il salvataggio
+      // rigenererebbe il documento sul template v2 con id sconosciuti →
+      // downgrade silenzioso al solo BASE. Blocco esplicito: il venditore
+      // deve scegliere il pacchetto nello step Servizi (che riscrive gli id).
+      // Se il contenuto è stato modificato a mano non si rigenera nulla,
+      // quindi il salvataggio resta permesso.
+      if (!existingContract.contentManuallyEdited) {
+        const effectiveIds =
+          req.body.selectedSectionIds ?? existingContract.selectedSectionIds ?? null;
+        const legacyIds = findLegacyOrbitalSectionIds(template, effectiveIds);
+        if (legacyIds.length > 0) {
+          return res.status(400).json({
+            message:
+              "Questo contratto era stato creato con i vecchi moduli del contratto Orbitale. " +
+              "Scegli il pacchetto nello step Servizi prima di salvare.",
+            code: "ORBITAL_LEGACY_SECTIONS",
+            legacySectionIds: legacyIds,
+          });
+        }
       }
 
       const generatedContent = existingContract.contentManuallyEdited

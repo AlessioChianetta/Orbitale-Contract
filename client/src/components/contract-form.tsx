@@ -25,6 +25,14 @@ import SendConfirmationGate, { type SendGateEmailData, type SendGatePreviewData 
 import { REQUIRED_CLIENT_FIELDS, SYNCED_FIELD_KEYS, getRequiredClientFields, getClientType, type RequiredClientField, type ClientType } from "@/lib/required-client-fields";
 import { validatePartitaIva, validateCodiceFiscale, detectVATorCF, validateItalianMobile, looksLikeAddress, ITALIAN_PROVINCES } from "@/lib/validation-utils";
 import { resolveSelectedSections, defaultSelectedIds, parseSections, type ModularSection } from "@shared/sections";
+import {
+  ORBITAL_PACKAGES,
+  ORBITAL_FAQ_SECTION_ID,
+  isOrbitalPackagesTemplate,
+  orbitalPackageNumFromSelection,
+  orbitalPackageByNum,
+  orbitalSectionIdsForPackage,
+} from "@shared/orbital-packages";
 import SectionPreviewDialog from "./section-preview-dialog";
 import ContractRecapPanel, { type ContractRecapData } from "./contract-recap-panel";
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
@@ -1185,6 +1193,32 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     }
   }, [watchedTemplateId, isEditing, form]);
 
+  // Per i template orbitali a pacchetti cumulativi: appena selezionato il
+  // template (solo in creazione), allinea livello di accesso e prezzi di
+  // listino al pacchetto corrente (BASE di default) se i campi sono ancora
+  // vuoti. Valori già impostati (es. da un preset) non vengono toccati.
+  useEffect(() => {
+    if (isEditing) return;
+    const sections = getTemplateSections(selectedTemplate);
+    if (!isOrbitalPackagesTemplate(sections)) return;
+    const rawIds = form.getValues("selectedSectionIds");
+    const ids = Array.isArray(rawIds) ? rawIds : defaultSelectedIds(sections);
+    const pkg = orbitalPackageByNum(orbitalPackageNumFromSelection(ids) ?? 1);
+    if (!pkg) return;
+    if (!form.getValues("accessLevel")) {
+      form.setValue("accessLevel", pkg.accessLabel, { shouldDirty: false });
+    }
+    const monthly = form.getValues("monthlyFee");
+    if (monthly == null || Number.isNaN(Number(monthly)) || Number(monthly) === 0) {
+      form.setValue("monthlyFee", pkg.listino.monthlyFee, { shouldDirty: false });
+    }
+    const activation = form.getValues("activationFee");
+    if (activation == null || Number.isNaN(Number(activation)) || Number(activation) === 0) {
+      form.setValue("activationFee", pkg.listino.activationFee, { shouldDirty: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplate?.id, isEditing]);
+
   // Co-fill WebSocket: connect when seller has an active token, mirror data
   // ====================================================================
   useEffect(() => {
@@ -2291,13 +2325,36 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         className={`${inputClass} h-11`}
                       >
                         <option value="">Seleziona livello…</option>
-                        <option value="Livello 1 — Free">Livello 1 — Free</option>
-                        <option value="Livello 2 — Starter">Livello 2 — Starter</option>
-                        <option value="Livello 3 — Professional">Livello 3 — Professional</option>
-                        <option value="Livello 4 — Setter AI + Hunter">Livello 4 — Setter AI + Hunter</option>
-                        <option value="Livello 5 — Enterprise">Livello 5 — Enterprise</option>
-                        <option value="Livello 6 — Enterprise + Consulenza">Livello 6 — Enterprise + Consulenza</option>
+                        {(() => {
+                          // Template orbitale v2: i 5 pacchetti cumulativi.
+                          // Altri template: i livelli storici. Un valore già
+                          // salvato ma fuori lista (es. contratti vecchi) viene
+                          // aggiunto in coda per non perderlo alla modifica.
+                          const options = isOrbitalPackagesTemplate(getTemplateSections(selectedTemplate))
+                            ? ORBITAL_PACKAGES.map((pkg) => pkg.accessLabel)
+                            : [
+                                "Livello 1 — Free",
+                                "Livello 2 — Starter",
+                                "Livello 3 — Professional",
+                                "Livello 4 — Setter AI + Hunter",
+                                "Livello 5 — Enterprise",
+                                "Livello 6 — Enterprise + Consulenza",
+                              ];
+                          const current = form.watch("accessLevel");
+                          const all =
+                            current && !options.includes(current) ? [...options, current] : options;
+                          return all.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ));
+                        })()}
                       </select>
+                      {isOrbitalPackagesTemplate(getTemplateSections(selectedTemplate)) && (
+                        <p className="text-xs text-slate-400 mt-1.5">
+                          Si aggiorna da solo scegliendo il pacchetto al passo Servizi.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="monthlyFee" className={labelClass}>
@@ -2737,9 +2794,176 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   Servizi Inclusi
                 </h3>
                 <p className="text-sm text-slate-500 mb-6">
-                  Seleziona le sezioni che vuoi includere in questo contratto. Le sezioni obbligatorie sono sempre incluse.
+                  {isOrbitalPackagesTemplate(getTemplateSections(selectedTemplate))
+                    ? "Scegli il pacchetto del contratto: ogni pacchetto include automaticamente tutto quanto previsto dai pacchetti precedenti. Le FAQ si possono aggiungere a qualsiasi pacchetto."
+                    : "Seleziona le sezioni che vuoi includere in questo contratto. Le sezioni obbligatorie sono sempre incluse."}
                 </p>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {isOrbitalPackagesTemplate(getTemplateSections(selectedTemplate)) ? (
+                  (() => {
+                    // ── Template orbitale a pacchetti cumulativi ──────────────
+                    // Al posto della checklist libera: 5 pacchetti in scelta
+                    // esclusiva (il più alto include i precedenti) + FAQ opzionale.
+                    const orbitalSections = getTemplateSections(selectedTemplate);
+                    const rawIds = form.watch("selectedSectionIds");
+                    const currentIds: string[] = Array.isArray(rawIds)
+                      ? rawIds
+                      : defaultSelectedIds(orbitalSections);
+                    const currentNum = orbitalPackageNumFromSelection(currentIds) ?? 1;
+                    const faqOn = currentIds.includes(ORBITAL_FAQ_SECTION_ID);
+                    const faqSection = orbitalSections.find((s) => s.id === ORBITAL_FAQ_SECTION_ID);
+                    const applyPackage = (packageNum: number, includeFaq: boolean) => {
+                      form.setValue(
+                        "selectedSectionIds",
+                        orbitalSectionIdsForPackage(orbitalSections, packageNum, includeFaq),
+                        { shouldDirty: true },
+                      );
+                      const pkg = orbitalPackageByNum(packageNum);
+                      if (!pkg) return;
+                      // Livello di accesso sempre allineato al pacchetto scelto.
+                      form.setValue("accessLevel", pkg.accessLabel, { shouldDirty: true });
+                      // Prezzi: precompila da listino solo se il campo è vuoto o
+                      // se contiene ancora il listino del pacchetto precedente
+                      // (cioè non è stato personalizzato dal venditore).
+                      const prevPkg = orbitalPackageByNum(orbitalPackageNumFromSelection(currentIds));
+                      const monthly = form.getValues("monthlyFee");
+                      if (
+                        monthly == null ||
+                        Number.isNaN(Number(monthly)) ||
+                        Number(monthly) === 0 ||
+                        (prevPkg && Number(monthly) === prevPkg.listino.monthlyFee)
+                      ) {
+                        form.setValue("monthlyFee", pkg.listino.monthlyFee, { shouldDirty: true });
+                      }
+                      const activation = form.getValues("activationFee");
+                      if (
+                        activation == null ||
+                        Number.isNaN(Number(activation)) ||
+                        Number(activation) === 0 ||
+                        (prevPkg && Number(activation) === prevPkg.listino.activationFee)
+                      ) {
+                        form.setValue("activationFee", pkg.listino.activationFee, { shouldDirty: true });
+                      }
+                    };
+                    return (
+                      <div className="space-y-3">
+                        {ORBITAL_PACKAGES.filter((pkg) =>
+                          orbitalSections.some((s) => s.id === pkg.sectionId),
+                        ).map((pkg) => {
+                          const sec = orbitalSections.find((s) => s.id === pkg.sectionId);
+                          const isCurrent = pkg.num === currentNum;
+                          const isIncluded = pkg.num < currentNum;
+                          return (
+                            <label
+                              key={pkg.sectionId}
+                              className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition ${
+                                isCurrent
+                                  ? "border-sky-400 bg-sky-50/60"
+                                  : isIncluded
+                                  ? "border-sky-200 bg-sky-50/30"
+                                  : "border-gray-200 bg-white hover:bg-gray-50"
+                              }`}
+                              data-testid={`orbital-package-${pkg.sectionId}`}
+                            >
+                              <input
+                                type="radio"
+                                name="orbital-package-choice"
+                                className="mt-1 h-4 w-4 border-gray-300 text-sky-600 focus:ring-sky-500"
+                                checked={isCurrent}
+                                disabled={createContractMutation.isPending}
+                                onChange={() => applyPackage(pkg.num, faqOn)}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium text-slate-800 text-sm">
+                                    {sec?.title ?? `PACCHETTO ${pkg.num} — ${pkg.key} (Livello ${pkg.level})`}
+                                  </span>
+                                  {isIncluded && (
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-700 bg-sky-100 px-2 py-0.5 rounded">
+                                      Incluso
+                                    </span>
+                                  )}
+                                </div>
+                                {sec?.description && (
+                                  <p className="text-xs text-slate-500 mt-1">{sec.description}</p>
+                                )}
+                                <p className="text-xs text-slate-400 mt-1">
+                                  Listino: {pkg.listino.monthlyFee} €/mese · attivazione {pkg.listino.activationFee} € · {pkg.listino.monthlyCredits.toLocaleString("it-IT")} crediti/mese
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setPreviewSectionId(pkg.sectionId);
+                                }}
+                                className="shrink-0 p-1.5 -m-1 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                                title="Anteprima contenuto del pacchetto"
+                                data-testid={`contract-section-preview-${pkg.sectionId}`}
+                                aria-label={`Anteprima ${sec?.title ?? pkg.key}`}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                            </label>
+                          );
+                        })}
+                        {faqSection && (
+                          <label
+                            className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition ${
+                              faqOn
+                                ? "border-sky-400 bg-sky-50/60"
+                                : "border-gray-200 bg-white hover:bg-gray-50"
+                            }`}
+                            data-testid="orbital-faq-toggle"
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                              checked={faqOn}
+                              disabled={createContractMutation.isPending}
+                              onChange={(e) =>
+                                form.setValue(
+                                  "selectedSectionIds",
+                                  orbitalSectionIdsForPackage(orbitalSections, currentNum, e.target.checked),
+                                  { shouldDirty: true },
+                                )
+                              }
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-slate-800 text-sm">{faqSection.title}</span>
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-gray-100 px-2 py-0.5 rounded">
+                                  Facoltativa
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {faqSection.description || "Sezione facoltativa, aggiungibile a qualsiasi pacchetto."}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setPreviewSectionId(ORBITAL_FAQ_SECTION_ID);
+                              }}
+                              className="shrink-0 p-1.5 -m-1 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                              title="Anteprima contenuto delle FAQ"
+                              data-testid={`contract-section-preview-${ORBITAL_FAQ_SECTION_ID}`}
+                              aria-label={`Anteprima ${faqSection.title}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                          </label>
+                        )}
+                        <p className="text-xs text-slate-400">
+                          Livello di accesso e prezzi di listino si compilano da soli (restano modificabili al passo Condizioni per accordi dedicati).
+                        </p>
+                      </div>
+                    );
+                  })()
+                ) : (
                 <div className="space-y-3">
                   {getTemplateSections(selectedTemplate).map((sec) => {
                     const selectedIds: string[] = form.watch("selectedSectionIds") ?? [];
@@ -2807,6 +3031,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     );
                   })}
                 </div>
+                )}
                 <div className="rounded-xl border border-sky-100 bg-gradient-to-br from-sky-50/70 to-white p-5 max-h-[520px] overflow-y-auto">
                   <div className="flex items-center gap-2 mb-3">
                     <Gift className="h-4 w-4 text-sky-600" />
@@ -3292,15 +3517,23 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
           open={!!sec}
           isSelected={isSelected}
           onClose={() => setPreviewSectionId(null)}
-          onToggle={(id, nextSelected) => {
-            const current: string[] = Array.isArray(form.getValues("selectedSectionIds"))
-              ? [...(form.getValues("selectedSectionIds") as string[])]
-              : allSecs.filter((s) => s.required || s.defaultEnabled).map((s) => s.id);
-            const next = nextSelected
-              ? Array.from(new Set([...current, id]))
-              : current.filter((x) => x !== id);
-            form.setValue("selectedSectionIds", next, { shouldDirty: true });
-          }}
+          onToggle={
+            // Template orbitale a pacchetti: l'anteprima è in sola lettura.
+            // Aggiungere/rimuovere dal dialog scavalcherebbe la scelta del
+            // pacchetto (livello di accesso e prezzi resterebbero disallineati):
+            // la selezione passa SOLO dalle card radio + toggle FAQ dello step 3.
+            isOrbitalPackagesTemplate(allSecs)
+              ? undefined
+              : (id, nextSelected) => {
+                  const current: string[] = Array.isArray(form.getValues("selectedSectionIds"))
+                    ? [...(form.getValues("selectedSectionIds") as string[])]
+                    : allSecs.filter((s) => s.required || s.defaultEnabled).map((s) => s.id);
+                  const next = nextSelected
+                    ? Array.from(new Set([...current, id]))
+                    : current.filter((x) => x !== id);
+                  form.setValue("selectedSectionIds", next, { shouldDirty: true });
+                }
+          }
         />
       );
     })()}

@@ -11,13 +11,18 @@ import {
   type ContractPreset, type InsertContractPreset
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, inArray, sql } from "drizzle-orm";
+import { eq, desc, and, gte, inArray, sql, or, like } from "drizzle-orm";
 import {
   getOrbitalContractEmptyHtml,
   getOrbitalServicePackages,
   ORBITAL_TEMPLATE_NAME,
   ORBITAL_TEMPLATE_DESCRIPTION,
+  ORBITAL_LEGACY_TEMPLATE_NAMES,
+  ORBITAL_TEMPLATE_MARKER_PREFIX,
+  ORBITAL_TEMPLATE_V2_MARKER,
 } from "@shared/orbital-template";
+import { parseSections } from "@shared/sections";
+import { isOrbitalPackagesTemplate } from "@shared/orbital-packages";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -162,42 +167,127 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Template methods
+  /**
+   * Seed + sincronizzazione idempotente del template "Sistema Orbitale".
+   *
+   * - Nessun candidato in azienda (riconosciuto per nome storico o marker nel
+   *   contenuto): seed del contratto v2 (5 pacchetti cumulativi + FAQ).
+   * - Candidati presenti: si individua quello "in uso" (più contratti
+   *   agganciati; a parità di conteggio l'id più basso) e lo si porta al
+   *   contratto v2 UNA SOLA VOLTA (guardia: marker v2 nel contenuto). Nome,
+   *   categoria, bonus e stato attivo/archiviato non vengono toccati, così
+   *   rinomine e modifiche manuali successive alla sincronizzazione restano.
+   * - Gli altri candidati senza contratti vengono disattivati (duplicati
+   *   creati dal vecchio seed dopo la rinomina del template principale).
+   *
+   * Gira a ogni getTemplates; dopo la prima sincronizzazione è un no-op.
+   * Stessa logica su dev e VPS: nessuna migrazione manuale richiesta.
+   */
   async ensureOrbitalTemplate(companyId: number): Promise<void> {
     try {
-      // Concurrency-safe: serialize the read-then-insert against duplicate seeds
-      // for the same company by acquiring a transaction-scoped advisory lock.
-      // Key namespace 4242 + companyId is arbitrary but stable.
+      // Concurrency-safe: advisory lock transazionale per company
+      // (namespace 4242, arbitrario ma stabile).
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(4242, ${companyId})`);
 
-        const [adminUser] = await tx
-          .select({ id: users.id })
-          .from(users)
-          .where(and(eq(users.companyId, companyId), eq(users.role, "admin")))
-          .limit(1);
-        if (!adminUser) return;
-
-        const existing = await tx
-          .select({ id: contractTemplates.id })
+        const candidates = await tx
+          .select({
+            id: contractTemplates.id,
+            name: contractTemplates.name,
+            content: contractTemplates.content,
+            sections: contractTemplates.sections,
+            isActive: contractTemplates.isActive,
+          })
           .from(contractTemplates)
           .innerJoin(users, eq(contractTemplates.createdBy, users.id))
-          .where(and(eq(users.companyId, companyId), eq(contractTemplates.name, ORBITAL_TEMPLATE_NAME)))
-          .limit(1);
-        if (existing.length > 0) return;
+          .where(
+            and(
+              eq(users.companyId, companyId),
+              or(
+                inArray(contractTemplates.name, ORBITAL_LEGACY_TEMPLATE_NAMES),
+                like(contractTemplates.content, `%${ORBITAL_TEMPLATE_MARKER_PREFIX}%`),
+                // Fingerprint sulle sezioni: riconosce i template orbitali
+                // anche se rinominati con nomi non storici (es. sul VPS) e
+                // senza marker nel contenuto — v1 e v2.
+                sql`${contractTemplates.sections}::text LIKE '%pkg_setter_ai%'`,
+                sql`${contractTemplates.sections}::text LIKE '%pkg-1-base%'`,
+              ),
+            ),
+          );
 
-        await tx.insert(contractTemplates).values({
-          name: ORBITAL_TEMPLATE_NAME,
-          description: ORBITAL_TEMPLATE_DESCRIPTION,
-          category: "Clienti",
-          content: getOrbitalContractEmptyHtml(),
-          sections: getOrbitalServicePackages(),
-          createdBy: adminUser.id,
-          updatedAt: new Date(),
-        });
-        console.log(`Storage: Seeded "${ORBITAL_TEMPLATE_NAME}" template for company ${companyId}`);
+        if (candidates.length === 0) {
+          const [adminUser] = await tx
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.companyId, companyId), eq(users.role, "admin")))
+            .limit(1);
+          if (!adminUser) return;
+
+          await tx.insert(contractTemplates).values({
+            name: ORBITAL_TEMPLATE_NAME,
+            description: ORBITAL_TEMPLATE_DESCRIPTION,
+            category: "Clienti",
+            content: getOrbitalContractEmptyHtml(),
+            sections: getOrbitalServicePackages(),
+            createdBy: adminUser.id,
+            updatedAt: new Date(),
+          });
+          console.log(`Storage: Seeded "${ORBITAL_TEMPLATE_NAME}" v2 template for company ${companyId}`);
+          return;
+        }
+
+        // Quale candidato è "in uso"? Quello con più contratti agganciati.
+        const candidateIds = candidates.map((c) => c.id);
+        const usage = await tx
+          .select({
+            templateId: contracts.templateId,
+            total: sql<number>`count(*)::int`,
+          })
+          .from(contracts)
+          .where(inArray(contracts.templateId, candidateIds))
+          .groupBy(contracts.templateId);
+        const usageMap = new Map(usage.map((u) => [u.templateId, u.total]));
+
+        const primary = [...candidates].sort((a, b) => {
+          const diff = (usageMap.get(b.id) ?? 0) - (usageMap.get(a.id) ?? 0);
+          return diff !== 0 ? diff : a.id - b.id;
+        })[0];
+
+        // Sync una sola volta (guardia: marker v2 nel contenuto). Se il
+        // marker manca MA le sezioni sono già quelle v2, significa che
+        // l'admin ha modificato il contenuto a mano rimuovendo il marker:
+        // le sue modifiche si rispettano, nessuna sovrascrittura.
+        const primaryAlreadyV2 = isOrbitalPackagesTemplate(parseSections(primary.sections));
+        if (!(primary.content ?? "").includes(ORBITAL_TEMPLATE_V2_MARKER) && !primaryAlreadyV2) {
+          await tx
+            .update(contractTemplates)
+            .set({
+              content: getOrbitalContractEmptyHtml(),
+              sections: getOrbitalServicePackages(),
+              description: ORBITAL_TEMPLATE_DESCRIPTION,
+              updatedAt: new Date(),
+            })
+            .where(eq(contractTemplates.id, primary.id));
+          console.log(
+            `Storage: Synced Orbitale template #${primary.id} to v2 (5 pacchetti cumulativi) for company ${companyId}`,
+          );
+        }
+
+        for (const candidate of candidates) {
+          if (candidate.id === primary.id) continue;
+          if ((usageMap.get(candidate.id) ?? 0) === 0 && candidate.isActive !== false) {
+            await tx
+              .update(contractTemplates)
+              .set({ isActive: false, updatedAt: new Date() })
+              .where(eq(contractTemplates.id, candidate.id));
+            console.log(
+              `Storage: Deactivated unused duplicate Orbitale template #${candidate.id} for company ${companyId}`,
+            );
+          }
+        }
       });
     } catch (err) {
-      console.error("Storage: Failed to seed Orbitale template:", err);
+      console.error("Storage: Failed to ensure Orbitale template:", err);
     }
   }
 

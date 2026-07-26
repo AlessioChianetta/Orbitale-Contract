@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { expandOrbitalCumulativeSelection } from "./orbital-packages";
 
 export const modularSectionSchema = z.object({
   id: z.string().min(1),
@@ -42,7 +43,11 @@ export function resolveSelectedSections(
   if (ids === null) {
     return sections.filter((s) => s.defaultEnabled || s.required);
   }
-  const idSet = new Set(ids);
+  // Per i template orbitali a pacchetti la selezione è cumulativa: il
+  // pacchetto più alto selezionato implica tutti i precedenti (l'espansione
+  // è un no-op per gli altri template). Passando da qui vale ovunque:
+  // anteprima nel form, generazione server, PDF e rigenerazioni.
+  const idSet = new Set(expandOrbitalCumulativeSelection(sections, ids));
   return sections.filter((s) => s.required || idSet.has(s.id));
 }
 
