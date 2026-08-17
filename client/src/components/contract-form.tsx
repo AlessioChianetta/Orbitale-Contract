@@ -11,7 +11,7 @@ import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar, Send, Gift, Check, Info, AlertTriangle, Eye, Sparkles, BookmarkPlus, Layers } from "lucide-react";
+import { File, Save, X, User, Building, Euro, Plus, FileText, Calculator, Users, CheckCircle, XCircle, Loader2, MapPin, Phone, Mail, Calendar, Send, Gift, Check, Info, AlertTriangle, Eye, Download, Sparkles, BookmarkPlus, Layers } from "lucide-react";
 import type { ContractPreset } from "@shared/schema";
 import type { LucideIcon } from "lucide-react";
 import type { FieldErrors, FieldPath } from "react-hook-form";
@@ -472,7 +472,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   // Preview modal state
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewDownloading, setPreviewDownloading] = useState(false);
   const [previewData, setPreviewData] = useState<{ template: any; companySettings: any; generatedContent: string } | null>(null);
+  const [previewPayload, setPreviewPayload] = useState<Record<string, any> | null>(null);
 
   // Anteprima singolo modulo (icona occhio nella checklist sezioni)
   const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
@@ -1077,6 +1079,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       };
       const res = await apiRequest("POST", "/api/contracts/preview", payload);
       const data = await res.json();
+      setPreviewPayload(payload);
       setPreviewData(data);
       setPreviewOpen(true);
     } catch (error: any) {
@@ -1087,6 +1090,43 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       });
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  const handleDownloadPreview = async () => {
+    if (!previewPayload || !previewData) {
+      toast({
+        title: "Genera prima l'anteprima",
+        description: "Apri l'anteprima del contratto prima di scaricare il PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPreviewDownloading(true);
+    try {
+      const res = await apiRequest("POST", "/api/contracts/preview-pdf", previewPayload);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "anteprima-contratto.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast({
+        title: "PDF scaricato",
+        description: "Il PDF corrisponde all'anteprima appena generata.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Impossibile scaricare il PDF",
+        description: error?.message || "Riprova tra qualche istante.",
+        variant: "destructive",
+      });
+    } finally {
+      setPreviewDownloading(false);
     }
   };
 
@@ -3783,20 +3823,37 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   )}
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleOpenPreview}
-                  disabled={previewLoading || isSubmitting}
-                  className="h-12 w-full sm:w-auto rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300"
-                  data-testid="button-preview-contract"
-                >
-                  {previewLoading ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Caricamento anteprima…</>
-                  ) : (
-                    <><Eye className="h-4 w-4 mr-2" />Anteprima contratto</>
-                  )}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleOpenPreview}
+                    disabled={previewLoading || previewDownloading || isSubmitting}
+                    className="h-12 w-full sm:w-auto rounded-xl border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300"
+                    data-testid="button-preview-contract"
+                  >
+                    {previewLoading ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Caricamento anteprima…</>
+                    ) : (
+                      <><Eye className="h-4 w-4 mr-2" />Anteprima contratto</>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDownloadPreview}
+                    disabled={!previewData || previewLoading || previewDownloading || isSubmitting}
+                    className="h-12 w-full sm:w-auto rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50"
+                    data-testid="button-download-preview-pdf"
+                    title={previewData ? "Scarica il PDF dell'anteprima" : "Genera prima l'anteprima"}
+                  >
+                    {previewDownloading ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Preparazione PDF…</>
+                    ) : (
+                      <><Download className="h-4 w-4 mr-2" />Scarica PDF anteprima</>
+                    )}
+                  </Button>
+                </div>
                 <p className="text-xs text-slate-500 -mt-3">
                   Visualizza il documento esattamente come lo vedrà il cliente, prima di inviarlo.
                 </p>

@@ -485,6 +485,107 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Genera e scarica il PDF dell'anteprima senza creare o modificare un
+  // contratto. Il payload viene validato e rielaborato lato server, così il
+  // PDF usa lo stesso template/contenuto della preview e non dati HTML
+  // arbitrari inviati dal browser.
+  app.post("/api/contracts/preview-pdf", requireAuth, async (req, res) => {
+    let temporaryPdfPath: string | null = null;
+    try {
+      const input = previewContractSchema.parse(req.body);
+      const template = await storage.getTemplate(input.templateId, req.user.companyId);
+      if (!template) {
+        return res.status(404).json({ message: "Template non trovato" });
+      }
+
+      const generatedContent = await generateContractContent(
+        template.content,
+        input.clientData,
+        template,
+        input.autoRenewal,
+        input.renewalDuration,
+        input.totalValue ?? undefined,
+        input.isPercentagePartnership,
+        input.partnershipPercentage ?? undefined,
+        input.contractStartDate,
+        input.contractEndDate,
+        input.selectedSectionIds ?? null,
+        {
+          accessLevel: input.accessLevel ?? null,
+          monthlyFee: input.monthlyFee ?? null,
+          activationFee: input.activationFee ?? null,
+        },
+        req.user.companyId,
+      );
+
+      const unresolved = filterProcacciatoreSelfFillUnresolved(
+        findUnresolvedPlaceholders(generatedContent),
+        template,
+        input.fillMode,
+      );
+      if (unresolved.length > 0) {
+        return res.status(400).json({
+          message: "Il contratto contiene variabili non compilate.",
+          code: "UNRESOLVED_PLACEHOLDERS",
+          missing: unresolved,
+        });
+      }
+
+      const companySettings = await storage.getCompanySettings(req.user.companyId);
+      const previewContract = {
+        id: 0,
+        templateName: template.name || "Contratto",
+        generatedContent,
+        clientData: input.clientData,
+        totalValue: input.totalValue ?? null,
+        template: { ...template, content: generatedContent },
+        status: "draft",
+        createdAt: new Date(),
+        contractStartDate: input.contractStartDate,
+        contractEndDate: input.contractEndDate,
+        autoRenewal: input.autoRenewal,
+        renewalDuration: input.renewalDuration,
+        isPercentagePartnership: input.isPercentagePartnership,
+        partnershipPercentage: input.partnershipPercentage,
+        selectedSectionIds: input.selectedSectionIds,
+      };
+
+      temporaryPdfPath = await generatePDF(
+        0,
+        generatedContent,
+        undefined,
+        previewContract,
+        companySettings,
+      );
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="anteprima-contratto.pdf"',
+      );
+      res.sendFile(temporaryPdfPath, (error) => {
+        if (error && !res.headersSent) {
+          res.status(500).json({ message: "Impossibile scaricare il PDF dell'anteprima" });
+        }
+        if (temporaryPdfPath) {
+          fs.promises.unlink(temporaryPdfPath).catch(() => undefined);
+        }
+      });
+    } catch (error: any) {
+      if (temporaryPdfPath) {
+        await fs.promises.unlink(temporaryPdfPath).catch(() => undefined);
+      }
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: "Dati anteprima non validi",
+          errors: error.errors,
+        });
+      }
+      console.error("Preview PDF error:", error);
+      res.status(500).json({ message: "Impossibile generare il PDF dell'anteprima" });
+    }
+  });
+
   // --------------------------------------------------------------
   // Anteprima dell'EMAIL che il cliente riceverà al momento dell'invio.
   // Restituisce subject, mittente, destinatario, link di firma e l'HTML
