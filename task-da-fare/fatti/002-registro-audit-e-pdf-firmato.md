@@ -1,6 +1,6 @@
 # 002 — Registro audit e PDF firmato: dati veritieri e impaginazione
 
-**Stato:** IN CORSO — parti A, B, C e test automatici fatti il 16/10/2026 (vedi §6). Restano: prova end-to-end, verifica sul VPS, PDF reale con "WhatsApp" da analizzare.
+**Stato:** FATTA il 16/10/2026 (codice, test automatici, PDF e pagina cliente unificati). Le verifiche rimaste (prova end-to-end, aggiornamento del VPS, PDF reale con "WhatsApp") sono passate nella task 001, Fase D.
 **Priorità:** alta: il PDF firmato è il documento legale che arriva al cliente. Va fatta prima della consegna alla prima cliente (task 001).
 **Segnalazione del proprietario:** nel PDF inviato via email "è tutto sfasato e colorato, con dati non veritieri (es. firma via email ma risulta WhatsApp)".
 

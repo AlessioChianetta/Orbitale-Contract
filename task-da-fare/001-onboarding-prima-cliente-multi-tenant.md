@@ -1,7 +1,7 @@
 # 001 — Onboarding della prima cliente (multi-tenant reale)
 
 **Cliente:** evigliano.counseling@gmail.com (studio di counseling)
-**Stato:** da fare (analisi completata il 16/10/2026)
+**Stato:** da fare (analisi completata il 16/10/2026, rivista lo stesso giorno: vedi §2b)
 **Obiettivo:** la cliente entra con il suo account admin, trova il SUO contratto (preparato una tantum dal proprietario in HTML), crea gli account per sé e per i dipendenti, e chiunque di loro compila e invia il contratto al cliente finale, che lo firma con OTP. Tutto deve essere isolato dai dati del proprietario, con mittente email e SMS della cliente e senza errori in fase di invio.
 
 **Fuori scope (fase successiva):** accesso automatico dall'app esterna in cui questa è incorporata (SSO / login automatico). Vedi sezione 7.
@@ -31,8 +31,8 @@ La base multi-tenant esiste ed è in buona parte corretta:
 6. **Eliminazione utenti.** Eliminare un dipendente con contratti li rende "orfani" (spariscono dalla dashboard e, per il punto 5, prendono i dati del proprietario). Eliminare un admin che ha creato template genera un errore 500 (chiave esterna). Sostituire con **disattivazione** dell'utente (login bloccato, contratti visibili all'admin) o riassegnazione dei contratti.
 
 ### Importanti — il contratto della cliente
-7. **Clausola di autorinnovo sempre stampata.** Documento web e PDF mostrano "CLAUSOLA DI AUTORINNOVO" (rinnovo tacito di N mesi) per ogni contratto cliente, anche con autorinnovo disattivato. Va mostrata solo se attivo e/o resa configurabile per template.
-8. **Wizard.** Decisione del proprietario: il contratto della cliente usa le stesse impostazioni standard (prezzo, durata, rate, bonus, autorinnovo) — nessun "modulo semplice" per ora. Clienti finali sia privati sia aziende: verificare che il percorso "privato" (tipo_cliente) funzioni end-to-end, senza campi aziendali obbligatori.
+7. **Clausola di autorinnovo sempre stampata.** Documento web e PDF mostrano "CLAUSOLA DI AUTORINNOVO" (rinnovo tacito di N mesi) per ogni contratto cliente, anche con autorinnovo disattivato. Va mostrata solo se attivo (il campo `autoRenewal` del contratto esiste già ma il documento lo ignora). Dalla task 002 pagina e PDF escono da `shared/contract-document.ts`: la correzione si fa una volta sola lì.
+8. **Wizard.** Decisione del proprietario: il contratto della cliente usa le stesse impostazioni standard (prezzo, durata, rate, bonus, autorinnovo) — nessun "modulo semplice" per ora. Clienti finali sia privati sia aziende: verificare che il percorso "privato" (tipo_cliente) funzioni end-to-end, senza campi aziendali obbligatori. **Il documento oggi NON gestisce il privato: vedi §2b punto 17.**
 9. **Blocchi fissi del documento** (bonus, piano pagamenti, validità, dichiarazioni) vanno verificati sul contratto di counseling e resi condizionali dove non servono.
 
 ### Robustezza invio (obiettivo "nessun bug sull'invio")
@@ -46,6 +46,31 @@ La base multi-tenant esiste ed è in buona parte corretta:
 15. **`scripts/post-merge.sh` esegue `npm run db:push -- --force`** su quel database. Le colonne `contracts.first_opened_at`, `last_activity_at`, `total_presence_ms` non sono in `shared/schema.ts`: un push forzato le cancellerebbe. Rimuovere il push forzato dallo script (o aggiungere le colonne allo schema).
 16b. Il generatore PDF, se mancano le impostazioni azienda, usa dati di riserva del proprietario ("ALE srl, Capo D'Orlando"): va eliminato il fallback e generato un errore esplicito. **RISOLTO in task 002.**
 16. Nel repository git sono presenti dump del database (`DATABASE/*.sql`) e `cookies.txt` con dati personali dei clienti: da rimuovere dal tracciamento.
+
+## 2b. Revisione del 16/10/2026 — cosa mancava
+
+Ricontrollando codice e flusso dopo la task 002 sono emersi questi punti, non presenti nell'analisi iniziale.
+
+### Bloccanti per il contratto di counseling
+17. **Cliente privato stampato come azienda.** Il form permette "privato", ma il documento (pagina e PDF) mostra sempre la tabella aziendale: Società, PEC, codice univoco, REA, "in persona del suo legale rappresentante". I clienti di una counselor sono quasi tutti persone fisiche. Serve una variante "Dati del cliente" per il privato (nome e cognome, codice fiscale, nato a / il, residenza, email, cellulare), scelta da `tipo_cliente`.
+18. **Numero contratto globale.** "Contratto n. 103" è il numero interno del database, condiviso tra tutte le aziende: il primo contratto della cliente uscirebbe con un numero alto e lascerebbe intuire quanti contratti fanno le altre aziende. Serve una numerazione per azienda (es. 2026-0001), usata in pagina, PDF ed email.
+19. **Blocco "Modello di partnership" con testo fisso da ristorante** ("vendite di cibo e bevande", "catering e delivery"). Compare solo se si attiva la partnership a percentuale, ma per altre aziende è sbagliato: va tolto il testo fisso o reso testo del template.
+20. **Informativa privacy assente.** Il cliente deve spuntare "Accetto l'informativa sulla privacy", ma l'informativa non viene mostrata da nessuna parte. Titolare del trattamento è l'azienda della cliente: serve un testo (o link) per azienda nelle Impostazioni, visibile sulla pagina di firma e citato nel registro delle operazioni. Il consenso "comunicazioni commerciali" va reso attivabile/disattivabile per azienda.
+
+### Importanti
+21. **Marchio del proprietario visto dai clienti finali.** La scheda del browser sulla pagina di firma si chiama "TurboContract" e il nome di riserva delle email è "Turbo Contract". Il dominio dei link resta quello del proprietario (punto 12, accettato); un dominio personalizzato per azienda è un lavoro futuro.
+22. **Editor template con strumenti del proprietario.** I pulsanti "Sistema Orbitale — Completo / Modulare" e la libreria relativa sono visibili a tutte le aziende.
+23. **Nessuna notifica di firma all'operatore.** Quando il cliente firma, l'email con il PDF parte solo al cliente; la counselor e i dipendenti lo scoprono solo aprendo la dashboard.
+24. **Password dimenticata.** Oltre al cambio password (punto 13) manca il recupero: un utente bloccato deve chiamare il proprietario.
+25. **Gmail come mittente.** L'indirizzo della cliente è Gmail: per l'SMTP servono la verifica in due passaggi e una "password per le app"; Gmail invia al massimo circa 500 email al giorno e il mittente deve essere quell'indirizzo. Da sapere prima della configurazione.
+
+### Da migliorare (non bloccanti)
+26. **Pagina di firma:** i riquadri dei passaggi (arancioni/grigi, "Firma Richiesta nel Documento") hanno ancora la vecchia grafica; vanno allineati allo stile del documento.
+27. **Creazione aziende.** Oggi ogni nuova azienda richiede uno script sul VPS. Per la prima cliente va bene; dalla seconda conviene un pannello del proprietario ("crea azienda + primo admin").
+28. **File riservati nel repository:** confermato il 16/10/2026 che `DATABASE/*.sql` e `cookies.txt` sono ancora tracciati da git (punto 16).
+
+### Ordine consigliato
+Fase A (sicurezza) → punti 17, 18, 20 (documento e privacy) → Fase C (account, SMTP) → punti 21–25 → Fase D (test e prova reale) → consegna. I punti 26–27 dopo la consegna.
 
 ## 3. Lavori da fare
 
@@ -61,21 +86,29 @@ La base multi-tenant esiste ed è in buona parte corretta:
 ### Fase B — Contratto della cliente
 - [ ] Il proprietario fornisce l'HTML del contratto di counseling con i placeholder `{{...}}`.
 - [ ] Template caricato nell'azienda della cliente (categoria "Clienti").
-- [ ] Modalità "modulo semplice" per template: il wizard chiede solo i campi usati dal template; niente pacchetti/bonus/rate se non servono.
-- [ ] Autorinnovo e blocchi fissi del documento condizionali (web + PDF allineati).
+- [ ] Documento per cliente **privato** (punto 17).
+- [ ] Autorinnovo solo se attivo; blocco "partnership" senza testo del ristorante (punti 7, 9, 19). Tutto in `shared/contract-document.ts`.
+- [ ] Numerazione dei contratti per azienda (punto 18).
+- [ ] Informativa privacy dell'azienda sulla pagina di firma; consenso marketing attivabile per azienda (punto 20).
+- [ ] Nascondere gli strumenti "Sistema Orbitale" dell'editor template fuori dall'azienda del proprietario (punto 22).
 
 ### Fase C — Account e configurazione
 - [ ] Creare l'azienda della cliente con i suoi dati fiscali (ragione sociale, indirizzo, CF/P.IVA, PEC, codice univoco, logo).
 - [ ] Creare l'admin `evigliano.counseling@gmail.com` (password temporanea + cambio password al primo accesso).
 - [ ] Predisporre la configurazione SMTP dell'azienda (casella da definire insieme al proprietario: la sezione Impostazioni Azienda → Configurazione Email è già pronta) e verificare con l'email di prova.
 - [ ] Canale OTP: **email** (decisione del proprietario). Twilio non usato per questa azienda.
-- [ ] Pagina "Cambia password" per tutti gli utenti.
+- [ ] Pagina "Cambia password" per tutti gli utenti e "Password dimenticata" via email (punto 24).
+- [ ] Email all'operatore (e all'admin) quando un cliente firma (punto 23).
+- [ ] Titolo della scheda del browser sulla pagina di firma = nome dell'azienda, non "TurboContract" (punto 21).
+- [ ] Se la cliente usa Gmail come mittente: verifica in due passaggi attiva + "password per le app"; limite di circa 500 email al giorno (punto 25).
 
 ### Fase D — Test
 - [ ] Test automatici di isolamento: un utente dell'azienda B non può leggere, modificare, eliminare, archiviare o scaricare template/contratti/PDF/impostazioni dell'azienda A (e viceversa); il dipendente vede solo i propri contratti.
 - [ ] Test del flusso di invio con SMTP e Twilio simulati: creazione → anteprima → invio email (mittente = azienda giusta) → apertura link → OTP (email e SMS) → firma → PDF → notifica firmato; nessun WhatsApp dal numero del proprietario.
 - [ ] Test con modalità "il cliente compila i propri dati".
 - [ ] Prova reale end-to-end con una casella email di test prima della consegna alla cliente.
+- [ ] Contratto di prova con cliente **privato** e con cliente **azienda**: pagina e PDF corretti.
+- [ ] Ereditato dalla task 002: aggiornare il VPS (`git pull`, `npm install`, riavvio) e controllare nginx; analizzare il PDF reale con "WhatsApp" segnalato dal proprietario insieme a `git log -1 --oneline` del VPS.
 - [ ] Tutti i test girano su aziende/utenti di prova dedicati e si ripuliscono da soli (il DB è quello reale).
 
 ## 4. Criteri di accettazione
