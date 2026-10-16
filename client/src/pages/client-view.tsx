@@ -200,15 +200,14 @@ function SignatureArea({
       <div
         onClick={handleClick}
         className={`
-          border-2 border-dashed border-gray-400 bg-gray-50 p-4 rounded-lg text-center min-h-[80px] flex items-center justify-center cursor-pointer transition-all
-          ${!disabled && !signed ? 'hover:border-blue-500 hover:bg-blue-50' : ''}
-          ${signed ? 'border-green-500 bg-green-50' : ''}
+          border border-dashed border-[#d2d2d7] bg-[#f5f5f7] p-4 rounded-lg text-center min-h-[84px] flex items-center justify-center cursor-pointer transition-colors
+          ${!disabled && !signed ? 'hover:border-[#86868b]' : ''}
+          ${signed ? 'border-solid bg-white' : ''}
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
         {signed ? (
-          <div className="text-green-700">
-            <CheckCircle className="h-6 w-6 mx-auto mb-3" />
+          <div className="text-[#1d1d1f]">
             {signatureDataUrl ? (
               <img src={signatureDataUrl} alt="Firma" className="max-h-20 mx-auto mb-3" style={{minHeight: '60px'}} />
             ) : (
@@ -216,11 +215,11 @@ function SignatureArea({
                 {signatureText}
               </div>
             )}
-            <div className="text-sm font-medium">✅ Firmato digitalmente</div>
+            <div className="text-xs font-medium text-[#6e6e73]">Firma apposta</div>
           </div>
         ) : (
-          <div className="text-gray-600">
-            <PenTool className="h-6 w-6 mx-auto mb-2" />
+          <div className="text-[#424245]">
+            <PenTool className="h-5 w-5 mx-auto mb-2 text-[#86868b]" />
             <div className="font-medium">Clicca qui per firmare</div>
             <div className="text-sm">Area firma digitale</div>
           </div>
@@ -1139,35 +1138,8 @@ export default function ClientView() {
   const clientName = clientData.cliente_nome || clientData.nome || clientData.procacciatore_nome || "Cliente";
   const clientEmail = clientData.email || "";
 
-  // Combine predefined bonuses from template with manual bonuses
-  let combinedBonusList = [];
-
-  // Add predefined bonuses from template
-  if (contract.template?.predefinedBonuses && Array.isArray(contract.template.predefinedBonuses)) {
-    combinedBonusList = contract.template.predefinedBonuses.map((bonus: any) => ({
-      bonus_descrizione: bonus.description + (bonus.value ? ` (${bonus.value}${bonus.type === 'percentage' ? '%' : '€'})` : '')
-    }));
-  }
-
-  // Add manual bonuses from client data
-  if (clientData.bonus_list && Array.isArray(clientData.bonus_list)) {
-    combinedBonusList = [...combinedBonusList, ...clientData.bonus_list];
-  }
-
-  const bonusList = combinedBonusList;
-
-  // Priorità: usa rata_list se presente (rate personalizzate), altrimenti payment_plan (calcolo automatico)
-  const usingCustomInstallments = clientData.rata_list && Array.isArray(clientData.rata_list) && clientData.rata_list.length > 0;
-  const rawPaymentData = usingCustomInstallments ? clientData.rata_list : (clientData.payment_plan || []);
-
-  // Normalizza il formato delle rate per la visualizzazione
-  const paymentPlan = rawPaymentData.map((payment: any, index: number) => {
-    return {
-      rata_numero: index + 1,
-      rata_importo: payment.rata_importo || payment.amount || '0.00',
-      rata_scadenza: payment.rata_scadenza || payment.date || ''
-    };
-  });
+  // Piano pagamenti e bonus: li ricava shared/contract-document.ts con le
+  // stesse regole del PDF (nessun calcolo duplicato qui).
 
   const getStatusConfig = (status: string) => {
     const configs = {
@@ -1226,6 +1198,7 @@ export default function ClientView() {
           ?? contract.template?.content,
       }}
       contract={{
+        id: (contract as { id?: number }).id,
         createdAt: contract.createdAt,
         signedAt: contract.signedAt,
         status: contract.status,
@@ -1235,9 +1208,11 @@ export default function ClientView() {
         contractStartDate: contract.contractStartDate,
         contractEndDate: contract.contractEndDate,
       }}
-      paymentPlan={paymentPlan}
-      bonusList={bonusList}
-      usingCustomInstallments={usingCustomInstallments}
+      signatureValue={
+        (contract as { status?: string }).status === "signed"
+          ? ((contract as { signatures?: Record<string, string> | null }).signatures?.marketing ?? null)
+          : null
+      }
       beforeDocumentContent={
         isClientFillPending ? (
           <Card className="border border-indigo-200 bg-indigo-50 shadow-sm mb-6">
@@ -1431,13 +1406,9 @@ export default function ClientView() {
                     </div>
                     <div>
                       <div className="text-xl sm:text-2xl font-bold text-gray-800">Processo di Firma Elettronica</div>
-                      <div className="text-sm font-normal text-gray-600">Sicuro e conforme agli standard europei • Seguire i 3 passaggi</div>
+                      <div className="text-sm font-normal text-gray-600">Segui i 3 passaggi</div>
                     </div>
                   </div>
-                  <Badge className="bg-white text-gray-700 border-2 border-gray-300 px-3 py-2 text-sm font-medium">
-                    <Shield className="mr-2 h-4 w-4" />
-                    eIDAS Compliant
-                  </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-6 sm:pt-8 px-4 sm:px-8 bg-white rounded-b-lg">
@@ -1677,7 +1648,7 @@ export default function ClientView() {
                   <div className="flex items-center justify-center text-xs text-gray-500 space-x-2">
                     <Shield className="h-4 w-4" />
                     <span>
-                      La firma elettronica è legalmente valida e conforme agli standard eIDAS
+                      Ogni passaggio viene registrato nel registro delle operazioni allegato al contratto firmato
                     </span>
                   </div>
                 </div>

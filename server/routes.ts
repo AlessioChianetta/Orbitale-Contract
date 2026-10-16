@@ -2430,6 +2430,19 @@ export function registerRoutes(app: Express): Server {
           exposedGeneratedContent = null;
         }
       }
+      // Pagina cliente e PDF devono essere identici: esponiamo sempre i campi
+      // del template che compaiono nel documento (titolo, contenuto
+      // personalizzato, condizioni di pagamento, bonus), come nel PDF.
+      if (!publicTemplate && contractTemplate) {
+        publicTemplate = {
+          id: contractTemplate.id,
+          name: contractTemplate.name,
+          recipientType: recipientTypeForContract,
+          customContent: (contractTemplate as any).customContent ?? null,
+          paymentText: (contractTemplate as any).paymentText ?? null,
+          predefinedBonuses: (contractTemplate as any).predefinedBonuses ?? null,
+        };
+      }
 
       const safeContract = {
         id: contract.id,
@@ -2462,6 +2475,7 @@ export function registerRoutes(app: Express): Server {
         postalCode: contractCompanySettings.postalCode,
         taxId: contractCompanySettings.taxId,
         vatId: contractCompanySettings.vatId,
+        uniqueCode: (contractCompanySettings as any).uniqueCode,
         pec: contractCompanySettings.pec,
         contractTitle: contractCompanySettings.contractTitle,
         logoUrl: contractCompanySettings.logoUrl,

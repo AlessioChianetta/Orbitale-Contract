@@ -8,3 +8,4 @@
 - [Workspace DB vs live DB](live-db-and-post-merge.md) — live site (VPS) uses a separate DB; prod changes via scripts on VPS; post-merge db:push --force drops columns.
 - [Task files](task-files-convention.md) — owner wants plans as task-da-fare/NNN-slug.md, in Italian.
 - [Signed PDF invariants](signed-pdf-invariants.md) — registry frozen at signature, no unrecorded/legal claims, signed = immutable, tenant creds only, no emoji.
+- [PDF = client page](pdf-client-view-parity.md) — owner rule: signing page and PDF must be identical (one renderer); never diverge, never ask.
