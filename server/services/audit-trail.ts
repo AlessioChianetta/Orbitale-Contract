@@ -306,23 +306,27 @@ export function renderAuditDetails(row: AuditRow, allLogs: AuditLogLike[], ctx: 
 }
 
 const AUDIT_CSS = `
-  .at { page-break-before: always; font-size: 9pt; color: #111; line-height: 1.45; }
-  .at h1 { font-size: 14pt; font-weight: 700; margin: 0 0 2px 0; letter-spacing: 0.02em; }
-  .at .at-sub { font-size: 9pt; color: #444; margin: 0 0 14px 0; }
+  .at { page-break-before: always; font-size: 8.6pt; color: #1d1d1f; line-height: 1.5; }
+  .at .at-eyebrow { font-size: 7.5pt; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #86868b; margin: 0 0 6px 0; }
+  .at h1 { font-size: 18pt; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 4px 0; }
+  .at .at-sub { font-size: 9pt; color: #6e6e73; margin: 0 0 18px 0; }
   .at table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .at td, .at th { border: 0.6pt solid #999; padding: 5px 7px; vertical-align: top; text-align: left;
+  .at td, .at th { border-bottom: 0.75pt solid #e8e8ed; padding: 7px 10px 7px 0; vertical-align: top; text-align: left;
                    overflow-wrap: anywhere; word-break: break-word; }
-  .at th { background: #eee; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
-  .at .at-info td { border: 0.6pt solid #bbb; }
-  .at .at-info td.at-k2 { width: 30%; color: #444; }
-  .at .at-events { margin-top: 14px; }
+  .at th { font-size: 7pt; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: #86868b;
+           border-bottom: 0.75pt solid #d2d2d7; padding-top: 0; }
+  .at .at-info { background: #f5f5f7; border-radius: 10px; }
+  .at .at-info td { padding: 7px 14px; }
+  .at .at-info tr:last-child td { border-bottom: none; }
+  .at .at-info td.at-k2 { width: 30%; color: #6e6e73; }
+  .at .at-events { margin-top: 18px; }
   .at .at-events thead { display: table-header-group; }
   .at .at-events tr { page-break-inside: avoid; }
   .at .at-line { margin: 0; }
-  .at .at-k { color: #444; }
+  .at .at-k { color: #6e6e73; }
   .at .at-op { font-weight: 600; }
-  .at .at-hash { font-family: 'DejaVu Sans Mono', 'Courier New', monospace; font-size: 8pt; }
-  .at .at-note { margin-top: 14px; border: 0.6pt solid #999; padding: 8px 10px; font-size: 8.5pt; color: #222;
+  .at .at-hash { font-family: 'DejaVu Sans Mono', 'Courier New', monospace; font-size: 7.6pt; }
+  .at .at-note { margin-top: 18px; border-top: 0.75pt solid #d2d2d7; padding-top: 10px; font-size: 7.8pt; color: #6e6e73;
                  page-break-inside: avoid; }
   .at .at-note p { margin: 0 0 4px 0; }
 `;
@@ -374,7 +378,8 @@ export function renderAuditTrailHtml(logs: AuditLogLike[], ctx: AuditTrailContex
   return `
     <style>${AUDIT_CSS}</style>
     <section class="at">
-      <h1>REGISTRO DELLE OPERAZIONI</h1>
+      <p class="at-eyebrow">Allegato</p>
+      <h1>Registro delle operazioni</h1>
       <p class="at-sub">Eventi registrati dal sistema di firma${signedLog ? " fino al momento della firma" : ""}.</p>
       <table class="at-info">${infoHtml}</table>
       <table class="at-events">

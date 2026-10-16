@@ -28,9 +28,9 @@ async function main() {
   ];
   const contract = {
     id: 999999, templateName: "Contratto di prova", generatedContent: "<p>Corpo del contratto di prova.</p>",
-    clientData: { cliente_nome: "Mario Rossi", email, cellulare: "3331234567" },
+    clientData: { cliente_nome: "Mario Rossi", email, cellulare: "3331234567", payment_plan: [{ amount: "500,00", date: "2026-11-01" }, { amount: "500,00", date: "2026-12-01" }] },
     template: { name: "Contratto di prova", content: "<p>Corpo del contratto di prova.</p>" },
-    status: "signed", signatures: {}, signedAt: t(21), createdAt: t(0), renewalDuration: 12, autoRenewal: false,
+    status: "signed", signatures: { marketing: "Mario Rossi" }, signedAt: t(21), createdAt: t(0), renewalDuration: 12, autoRenewal: false,
   };
   const company = { companyName: "Studio Prova", address: "Via Roma 1", city: "Roma", postalCode: "00100", taxId: "IT000", pec: "studio@pec.it" };
 
@@ -42,7 +42,7 @@ async function main() {
 
   const text = execFileSync("pdftotext", ["-layout", OUT, "-"]).toString();
   const problems: string[] = [];
-  const must = ["REGISTRO DELLE OPERAZIONI", "via email", "Aperto 6 volte", "b".repeat(64), "16/10/2026"];
+  const must = ["Registro delle operazioni", "via email", "Aperto 6 volte", "b".repeat(64), "16/10/2026"];
   const mustNot = [/whatsapp/i, /\bSMS\b/, /Telefono verificato/i, /Turbo Contract/i, /Archiviato/, /ALE srl/i, /\{"/];
   for (const m of must) if (!text.includes(m)) problems.push(`manca: ${m}`);
   for (const r of mustNot) if (r.test(text)) problems.push(`non dovrebbe esserci: ${r}`);
