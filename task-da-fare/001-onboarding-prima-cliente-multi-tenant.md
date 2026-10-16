@@ -32,7 +32,7 @@ La base multi-tenant esiste ed è in buona parte corretta:
 
 ### Importanti — il contratto della cliente
 7. **Clausola di autorinnovo sempre stampata.** Documento web e PDF mostrano "CLAUSOLA DI AUTORINNOVO" (rinnovo tacito di N mesi) per ogni contratto cliente, anche con autorinnovo disattivato. Va mostrata solo se attivo e/o resa configurabile per template.
-8. **Il wizard è costruito sul business del proprietario.** Step "Pacchetti & Bonus", "Prezzo & Durata", campi obbligatori P.IVA/società/sede/referente. Per la cliente serve un percorso semplice, guidato dal template: solo i campi che il suo HTML usa (es. cliente privato: nome, CF, residenza, email, cellulare + eventuali campi specifici come tariffa a seduta). Proposta: impostazione per template "modulo semplice" che nasconde pacchetti/bonus/rate e chiede solo i placeholder presenti nel contenuto.
+8. **Wizard.** Decisione del proprietario: il contratto della cliente usa le stesse impostazioni standard (prezzo, durata, rate, bonus, autorinnovo) — nessun "modulo semplice" per ora. Clienti finali sia privati sia aziende: verificare che il percorso "privato" (tipo_cliente) funzioni end-to-end, senza campi aziendali obbligatori.
 9. **Blocchi fissi del documento** (bonus, piano pagamenti, validità, dichiarazioni) vanno verificati sul contratto di counseling e resi condizionali dove non servono.
 
 ### Robustezza invio (obiettivo "nessun bug sull'invio")
@@ -42,8 +42,9 @@ La base multi-tenant esiste ed è in buona parte corretta:
 13. Manca un modo per l'utente di cambiare la propria password (c'è solo creazione/eliminazione da parte dell'admin).
 
 ### Ambiente — rischi operativi (da sapere)
-14. **Il workspace Replit è collegato al database reale (Supabase)** con i contratti veri (63 firmati). Ogni test fatto qui tocca dati veri: i test automatici devono usare aziende/utenti di prova dedicati e SMTP/Twilio simulati, oppure un DB separato.
+14. Il sito pubblicato usa un database **separato** (confermato dal proprietario). Il DB collegato a Replit è comunque un Supabase con dati storici realistici: i test automatici usano aziende/utenti di prova dedicati, SMTP/Twilio simulati e si ripuliscono da soli. L'account della cliente va creato sul DB di produzione (script idempotente da lanciare sul VPS, non a mano qui).
 15. **`scripts/post-merge.sh` esegue `npm run db:push -- --force`** su quel database. Le colonne `contracts.first_opened_at`, `last_activity_at`, `total_presence_ms` non sono in `shared/schema.ts`: un push forzato le cancellerebbe. Rimuovere il push forzato dallo script (o aggiungere le colonne allo schema).
+16b. Il generatore PDF, se mancano le impostazioni azienda, usa dati di riserva del proprietario ("ALE srl, Capo D'Orlando"): va eliminato il fallback e generato un errore esplicito.
 16. Nel repository git sono presenti dump del database (`DATABASE/*.sql`) e `cookies.txt` con dati personali dei clienti: da rimuovere dal tracciamento.
 
 ## 3. Lavori da fare
@@ -66,8 +67,8 @@ La base multi-tenant esiste ed è in buona parte corretta:
 ### Fase C — Account e configurazione
 - [ ] Creare l'azienda della cliente con i suoi dati fiscali (ragione sociale, indirizzo, CF/P.IVA, PEC, codice univoco, logo).
 - [ ] Creare l'admin `evigliano.counseling@gmail.com` (password temporanea + cambio password al primo accesso).
-- [ ] Configurare l'SMTP dell'azienda (scelta da confermare, vedi domande) e inviare l'email di prova.
-- [ ] Configurare il canale OTP (email oppure Twilio con le credenziali scelte).
+- [ ] Predisporre la configurazione SMTP dell'azienda (casella da definire insieme al proprietario: la sezione Impostazioni Azienda → Configurazione Email è già pronta) e verificare con l'email di prova.
+- [ ] Canale OTP: **email** (decisione del proprietario). Twilio non usato per questa azienda.
 - [ ] Pagina "Cambia password" per tutti gli utenti.
 
 ### Fase D — Test
@@ -83,11 +84,13 @@ La base multi-tenant esiste ed è in buona parte corretta:
 - Nessun messaggio (email, SMS, WhatsApp) parte con identità o credenziali del proprietario.
 - Suite di test verde.
 
-## 5. Domande aperte
-- Email: SMTP della cliente (es. Gmail con password per le app) o SMTP del proprietario con il nome della cliente come mittente?
-- OTP: solo email, oppure SMS Twilio? Con quale account Twilio (proprietario o cliente)?
-- Contratto: i clienti della counselor sono privati o aziende? Servono prezzo, rate, durata, autorinnovo?
-- Il database collegato a Replit è lo stesso del sito pubblicato?
+## 5. Decisioni prese (16/10/2026)
+- Email: casella da definire più avanti, intanto si predispone tutto.
+- OTP di firma: via email.
+- Clienti finali: sia privati sia aziende.
+- Contratto: basato sulle impostazioni standard già esistenti; l'HTML arriverà dal proprietario.
+- Database: quello del sito pubblicato è separato da quello di Replit.
+- Correzioni a registro audit e PDF firmato: vedi task 002 (da fare prima della consegna).
 
 ## 6. Note tecniche
 - Schema DB: niente `drizzle db:push`; modifiche con SQL idempotente all'avvio (stesso schema di `ensureTemplateCategorySchema`) + allineamento manuale di `shared/schema.ts`.

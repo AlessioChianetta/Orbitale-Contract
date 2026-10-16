@@ -1,12 +1,12 @@
 ---
-name: Workspace DB is the live database
-description: The Replit workspace DATABASE_URL points at the real Supabase DB; post-merge db:push --force would drop unmapped columns.
+name: Workspace DB vs live DB
+description: The Replit workspace DB is a Supabase separate from the live site; still holds realistic data. post-merge db:push --force would drop unmapped columns.
 ---
 
-The workspace DATABASE_URL (and .env) points at a Supabase Postgres holding real contracts/clients (verified Oct 2026: 60+ signed contracts). BASE_URL is the owner's public domain, so emails sent from dev carry live links.
+The owner confirmed (Oct 2026) the published site (VPS, deployed via git pull) uses a DIFFERENT database from the workspace. The workspace DATABASE_URL is still a Supabase with realistic historical contracts, and BASE_URL is the owner's public domain (emails sent from dev carry live-domain links).
 
 `scripts/post-merge.sh` runs `npm run db:push -- --force`. Columns `contracts.first_opened_at/last_activity_at/total_presence_ms` exist in DB but not in shared/schema.ts → a forced push would drop them.
 
-**Why:** any test, seed or schema change from the workspace hits production data and real recipients.
+**Why:** test sends from the workspace reach real inboxes; production data changes (e.g. creating a tenant) must be done on the VPS, not here.
 
-**How to apply:** tests must use dedicated throwaway companies/users with mocked SMTP/Twilio and clean up after themselves; never send real emails/SMS to client addresses; remove or neutralise the forced push before any task merge.
+**How to apply:** tests use throwaway companies/users with mocked SMTP/Twilio and clean up; deliver prod data changes as idempotent scripts the owner runs on the VPS; neutralise the forced push before any task merge. The VPS may run an older code version than the workspace — ask before assuming a bug still exists.
