@@ -5,6 +5,7 @@ Aggiornato al: **16/10/2026**. Chi lavora su una task aggiorna questa tabella e 
 | Task | Titolo | Stato | Prossimo passo |
 |------|--------|-------|----------------|
 | 001 | Onboarding prima cliente (multi-azienda) | Da fare: analisi rivista il 16/10/2026 (12 punti nuovi, §2b) | Fase A (sicurezza), poi documento per cliente privato, numerazione per azienda, informativa privacy |
+| 003 | Registro attività e log del sistema | Da fare: analisi del 16/10/2026 | Fase 1 subito: togliere il codice di verifica e gli altri dati riservati dai log |
 
 ## Task completate (in `task-da-fare/fatti/`)
 | Task | Titolo | Chiusa il |
