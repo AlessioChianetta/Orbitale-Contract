@@ -1,10 +1,11 @@
 import puppeteer, { Browser } from 'puppeteer';
 import fs from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { execSync } from 'child_process';
 import path from 'path';
 import { AuditLog } from '@shared/schema';
 import { formatDateItalian } from '@shared/procacciatore-fields';
+import { renderAuditTrailHtml } from './audit-trail';
 
 // Singleton Puppeteer browser: launch once, reuse across PDF generations.
 // Auto-resets if the underlying process dies or disconnects.
@@ -72,6 +73,26 @@ async function getBrowser(): Promise<Browser> {
     throw err;
   });
   return browserLaunchPromise;
+}
+
+// Font Inter incorporato nel PDF (base64): niente download da Google Fonts a
+// runtime, quindi lo stesso carattere su ogni server e anche offline.
+let embeddedFontCss: string | null = null;
+function getEmbeddedFontCss(): string {
+  if (embeddedFontCss !== null) return embeddedFontCss;
+  const dir = path.join(process.cwd(), 'node_modules', '@fontsource', 'inter', 'files');
+  const faces: string[] = [];
+  for (const weight of [400, 500, 600, 700]) {
+    const file = path.join(dir, `inter-latin-${weight}-normal.woff2`);
+    if (!existsSync(file)) continue;
+    const b64 = readFileSync(file).toString('base64');
+    faces.push(`@font-face { font-family: 'Inter'; font-style: normal; font-weight: ${weight}; src: url(data:font/woff2;base64,${b64}) format('woff2'); }`);
+  }
+  if (faces.length === 0) {
+    console.warn('[PDF] Font Inter non trovato in node_modules/@fontsource/inter: uso il font di sistema.');
+  }
+  embeddedFontCss = faces.join('\n');
+  return embeddedFontCss;
 }
 
 export async function closePdfBrowser(): Promise<void> {
@@ -169,9 +190,18 @@ export async function generatePDF(
   try {
     page = await browser.newPage();
 
-    // Use the new client-view identical layout
-    const fullHtml = contractData ? 
-      generateClientViewIdenticalHtml(contractData, companySettings) + (auditLogs ? generateAuditTrailHtml(auditLogs, contractData) : '') :
+    if (contractData && !companySettings) {
+      // Mai stampare dati aziendali di riserva su un documento legale.
+      throw new Error(`Impostazioni azienda mancanti: impossibile generare il PDF del contratto ${contractId}.`);
+    }
+    const operatorNames = auditLogs && auditLogs.length ? await resolveOperatorNames(auditLogs) : {};
+    // Un unico documento HTML valido: il registro va dentro il <body>.
+    const fullHtml = contractData ?
+      generateClientViewIdenticalHtml(
+        contractData,
+        companySettings,
+        auditLogs && auditLogs.length ? generateAuditTrailHtml(auditLogs, contractData, operatorNames) : ''
+      ) :
       `
         <!DOCTYPE html>
         <html>
@@ -188,7 +218,7 @@ export async function generatePDF(
         </head>
         <body>
           ${htmlContent}
-          ${auditLogs ? generateAuditTrailHtml(auditLogs) : ''}
+          ${auditLogs && auditLogs.length ? generateAuditTrailHtml(auditLogs, { id: contractId }, operatorNames) : ''}
         </body>
         </html>
       `;
@@ -229,7 +259,7 @@ export async function generatePDF(
   }
 }
 
-function generateClientViewIdenticalHtml(contractData: any, companySettings?: any): string {
+function generateClientViewIdenticalHtml(contractData: any, companySettings: any, appendixHtml = ''): string {
   const client = contractData.clientData || {};
 
   // Contratto "procacciatore d'affari": la tabella anagrafica mostra i dati
@@ -238,17 +268,12 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
     contractData.template?.recipientType === "procacciatore" ||
     (!!client.procacciatore_nome && !client.societa && !client.cliente_nome);
 
-  const company = companySettings || {
-    companyName: 'ALE srl',
-    address: 'ale, 11',
-    city: 'Capo D orlando',
-    postalCode: '98071',
-    taxId: '00000000000',
-    vatId: '00000000000',
-    uniqueCode: 'xxxxxxx',
-    pec: 'Ale@casellapec.com',
-    contractTitle: 'Contratto '
-  };
+  const company = companySettings || {};
+  const companyAddressLine = [
+    company.address,
+    company.postalCode ? `Cap ${company.postalCode}` : '',
+    company.city,
+  ].filter(Boolean).join(' ');
 
   let combinedBonusList = [];
 
@@ -315,7 +340,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       <meta charset="utf-8">
       <title>Contratto ${contractData.id}</title>
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        ${getEmbeddedFontCss()}
 
         * {
           margin: 0;
@@ -585,11 +610,11 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
           </div>`
         }
         <div class="company-info">
-          <div class="company-name">${company.companyName || 'ALE srl'}</div>
-          <div>${company.address || ', 39'} Cap ${company.postalCode || '20143'} ${company.city || 'Capo dorlando'}</div>
-          <div>C.F. e P.I. ${company.taxId || '0000000000'}</div>
-          <div>Codice univoco: ${company.uniqueCode || 'M5UXCR1'}</div>
-          <div>Pec: ${company.pec || 'ALE@casellapec.com'}</div>
+          <div class="company-name">${company.companyName || ''}</div>
+          ${companyAddressLine ? `<div>${companyAddressLine}</div>` : ''}
+          ${company.taxId ? `<div>C.F. e P.I. ${company.taxId}</div>` : ''}
+          ${company.uniqueCode ? `<div>Codice univoco: ${company.uniqueCode}</div>` : ''}
+          ${company.pec ? `<div>Pec: ${company.pec}</div>` : ''}
         </div>
       </div>
 
@@ -837,7 +862,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       </div>
 
       <div style="margin-top: 32px; page-break-inside: avoid;">
-        <p style="margin-bottom: 16px; font-size: 10pt; color: #374151;">Data ${formatShortDateItalian(new Date())} &nbsp;&nbsp; <strong>${isProcacciatore ? 'Firma Procacciatore' : 'Firma Cliente/Committente'}</strong></p>
+        <p style="margin-bottom: 16px; font-size: 10pt; color: #374151;">Data ${formatShortDateItalian(contractData.signedAt || new Date())} &nbsp;&nbsp; <strong>${isProcacciatore ? 'Firma Procacciatore' : 'Firma Cliente/Committente'}</strong></p>
         <div class="signature-area">
           ${(contractData.status === 'signed' || contractData.status === 'completed') && contractData.signatures?.marketing ? 
             (contractData.signatures.marketing.startsWith('data:image') ? 
@@ -845,7 +870,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
               `<div class="signature-text">${contractData.signatures.marketing}</div>`
             ) :
             `<div class="signature-placeholder">
-              <div>✒️ ${isProcacciatore ? 'Firma del procacciatore' : 'Firma del cliente'}</div>
+              <div>${isProcacciatore ? 'Firma del procacciatore' : 'Firma del cliente'}</div>
               <div style="font-size: 12px; margin-top: 4px;">Area firma digitale</div>
             </div>`
           }
@@ -854,7 +879,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
 
       ${contractData.regenerationNotice ? `
       <div style="background-color: #fffbeb; border: 2px solid #f59e0b; border-radius: 8px; padding: 14px 18px; margin: 32px 0 0 0; page-break-inside: avoid;">
-        <p style="margin: 0 0 4px 0; font-size: 11pt; font-weight: 700; color: #92400e;">⚠ DOCUMENTO RIGENERATO</p>
+        <p style="margin: 0 0 4px 0; font-size: 11pt; font-weight: 700; color: #92400e;">DOCUMENTO RIGENERATO</p>
         <p style="margin: 0; font-size: 9.5pt; color: #78350f; line-height: 1.5;">
           Documento rigenerato il <strong>${formatDateSafe(contractData.regenerationNotice.regeneratedAt)}</strong>${contractData.regenerationNotice.originalSignedAt ? ` — firme originali apposte il <strong>${formatDateSafe(contractData.regenerationNotice.originalSignedAt)}</strong>` : ''}.${contractData.regenerationNotice.reason ? ` Motivo: ${contractData.regenerationNotice.reason}.` : ''}
           Il presente PDF sostituisce la versione originale con contenuto aggiornato; le firme e il consenso OTP restano quelli apposti nella data di firma originale.
@@ -862,544 +887,45 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings?: an
       </div>
       ` : ''}
 
+      ${appendixHtml}
+
     </body>
     </html>
   `;
 }
 
-function getStatusBadge(status?: string): { label: string; color: string } {
-  switch (status) {
-    case 'draft':     return { label: 'BOZZA',              color: '#6b7280' };
-    case 'sent':      return { label: 'INVIATO',            color: '#3b82f6' };
-    case 'viewed':    return { label: 'VISUALIZZATO',       color: '#8b5cf6' };
-    case 'signed':    return { label: '✓ FIRMATO',          color: '#10b981' };
-    case 'completed': return { label: '✓ FIRMATO E COMPLETATO', color: '#059669' };
-    default:          return { label: (status || 'SCONOSCIUTO').toUpperCase(), color: '#64748b' };
+
+/** Nomi degli operatori citati nei log (es. chi ha inviato il contratto). */
+async function resolveOperatorNames(auditLogs: AuditLog[]): Promise<Record<number, string>> {
+  const ids = new Set<number>();
+  for (const l of auditLogs) {
+    const m = (l.metadata as Record<string, any>) || {};
+    for (const k of ['sentBy', 'regeneratedBy', 'editedBy']) {
+      const n = typeof m[k] === 'number' ? m[k] : parseInt(String(m[k] ?? ''), 10);
+      if (Number.isFinite(n)) ids.add(n);
+    }
   }
+  if (ids.size === 0) return {};
+  const names: Record<number, string> = {};
+  try {
+    const { storage } = await import('../storage');
+    for (const id of Array.from(ids)) {
+      const u: any = await storage.getUser(id).catch(() => undefined);
+      if (u) names[id] = u.fullName ? `${u.fullName}${u.email ? ` (${u.email})` : ''}` : (u.email || u.username || '');
+    }
+  } catch (err) {
+    console.warn('[PDF] Impossibile risolvere i nomi degli operatori per il registro:', (err as any)?.message || err);
+  }
+  return names;
 }
 
-function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any): string {
-  if (!auditLogs || auditLogs.length === 0) {
-    return '';
-  }
-
-  const contractId = auditLogs[0]?.contractId || contractData?.id || 'unknown';
-  const now = new Date();
-  const currentDate = formatShortDateItalian(now);
-  const currentTime = new Intl.DateTimeFormat('it-IT', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false, timeZone: 'Europe/Rome'
-  }).format(now);
-  const docType = contractData?.template?.name || contractData?.templateName || 'Contratto';
-  const badge = getStatusBadge(contractData?.status);
-
-  return `
-    <div style="page-break-before: always; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #ffffff;">
-
-      <!-- Professional Header -->
-      <div style="background: #3b82f6; color: white; padding: 30px 40px; margin: 0 0 30px 0; position: relative;">
-        <div style="max-width: 100%; margin: 0 auto;">
-          <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em;">REGISTRO AUDIT DIGITALE</h1>
-          <p style="margin: 12px 0 0 0; font-size: 16px; opacity: 0.95;">Tracciabilità completa delle operazioni di firma digitale</p>
-          <div style="position: absolute; top: 30px; right: 40px; background: rgba(255,255,255,0.2); padding: 10px 16px; border-radius: 8px;">
-            <div style="font-size: 12px; font-weight: 500; margin-bottom: 4px;">ID DOCUMENTO</div>
-            <div style="font-size: 20px; font-weight: 700;">#${contractId}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Document Info Section -->
-      <div style="background: #f8fafb; border: 1px solid #e5e7eb; padding: 24px; margin: 0 0 30px 0; border-radius: 8px; page-break-inside: avoid;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-          <div>
-            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em;">TIPOLOGIA DOCUMENTO</div>
-            <div style="font-size: 14px; font-weight: 600; color: #111827;">${docType}</div>
-          </div>
-          <div>
-            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em;">STATO FINALE</div>
-            <div style="display: inline-block; background: ${badge.color}; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;">
-              ${badge.label}
-            </div>
-          </div>
-          <div>
-            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em;">NOME FILE FINALE</div>
-            <div style="font-size: 14px; font-weight: 600; color: #111827; font-family: 'Courier New', monospace;">contract_${contractId}_signed.pdf</div>
-          </div>
-          <div>
-            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em;">GENERATO IL</div>
-            <div style="font-size: 14px; font-weight: 600; color: #111827;">${currentDate} alle ${currentTime}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Timeline Table -->
-      <!-- NB: niente overflow:hidden sul contenitore e page-break-inside:avoid
-           sulle singole righe: il registro può superare una pagina e le righe
-           non devono essere tagliate a metà dal cambio pagina. -->
-      <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <div style="background: #f8fafb; padding: 20px 24px; border-bottom: 2px solid #e5e7eb;">
-          <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: #111827;">Cronologia delle Operazioni</h3>
-          <p style="margin: 6px 0 0 0; font-size: 13px; color: #6b7280;">Registro completo di tutte le azioni eseguite sul documento</p>
-        </div>
-
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-          <thead style="display: table-header-group;">
-            <tr style="background: #f3f4f6;">
-              <th style="padding: 16px 24px; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">OPERAZIONE</th>
-              <th style="padding: 16px 24px; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">DATA E ORA</th>
-              <th style="padding: 16px 24px; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">DETTAGLI OPERAZIONE</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${auditLogs.map((log, index) => `
-              <tr style="border-bottom: ${index < auditLogs.length - 1 ? '1px solid #f3f4f6' : 'none'}; page-break-inside: avoid;">
-                <td style="padding: 20px 24px; vertical-align: top;">
-                  <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="width: 10px; height: 10px; border-radius: 50%; background: ${getActionColor(log.action)}; flex-shrink: 0;"></div>
-                    <span style="font-weight: 600; color: #111827; font-size: 13px;">${getActionLabel(log.action)}</span>
-                  </div>
-                </td>
-                <td style="padding: 20px 24px; vertical-align: top; color: #6b7280; font-family: 'Courier New', monospace; font-size: 11px; white-space: nowrap;">
-                  ${formatTimestamp(log.timestamp)}
-                </td>
-                <td style="padding: 20px 24px; vertical-align: top; line-height: 1.6; color: #374151; word-break: break-word;">
-                  ${generateAuditDetails(log, auditLogs)}
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Footer Security Notice -->
-      <div style="margin-top: 40px; padding: 24px; background: #fef3c7; border: 2px solid #fbbf24; border-radius: 8px; page-break-inside: avoid;">
-        <div style="display: flex; align-items: flex-start; gap: 12px;">
-          <div style="width: 24px; height: 24px; background: #f59e0b; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; flex-shrink: 0; margin-top: 2px;">!</div>
-          <div style="flex: 1;">
-            <h4 style="margin: 0 0 8px 0; color: #92400e; font-size: 16px; font-weight: 600;">AVVISO DI SICUREZZA E VALIDITÀ LEGALE</h4>
-            <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.6;">
-              Questo registro audit è stato generato automaticamente dal sistema Turbo Contract e documenta l'integrità del processo di firma elettronica. 
-              Ogni operazione è stata registrata con data e ora nel fuso orario Europe/Rome (CET/CEST), indirizzo IP del dispositivo e metadati di sicurezza. 
-              La manomissione di questo documento è tecnicamente rilevabile.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// Etichette in italiano per OGNI azione registrata nel sistema (stessa
-// nomenclatura della timeline nel gestionale venditore). Le azioni non
-// mappate NON mostrano mai la chiave tecnica grezza: etichetta neutra.
-function getActionLabel(action: string): string {
-  switch(action) {
-    case 'created': return 'Contratto creato';
-    case 'updated': return 'Contratto aggiornato';
-    case 'sent': return 'Inviato al firmatario';
-    case 'updated_and_sent': return 'Aggiornato e reinviato';
-    case 'viewed': return 'Documento visualizzato';
-    case 'client_data_updated': return 'Compilazione dati in corso';
-    case 'client_data_completed': return 'Dati anagrafici completati';
-    case 'otp_sent': return 'Codice OTP inviato';
-    case 'otp_failed': return 'Tentativo OTP non riuscito';
-    case 'signed': return 'Firmato';
-    case 'completed': return 'Completato';
-    case 'archived': return 'Archiviato';
-    case 'unarchived': return 'Ripristinato dall\u2019archivio';
-    case 'duplicated': return 'Duplicato';
-    case 'content_regenerated': return 'Contenuto rigenerato';
-    case 'content_manually_edited': return 'Documento modificato manualmente';
-    case 'co_fill_draft_created': return 'Link di compilazione generato';
-    case 'co_fill_link_emailed': return 'Link di compilazione inviato';
-    case 'co_fill_link_email_failed': return 'Invio link non riuscito';
-    case 'email_failed': return 'Notifica email non recapitata';
-    case 'incident_review': return 'Verifica tecnica interna';
-    default: return 'Operazione di sistema';
-  }
-}
-
-function getActionColor(action: string): string {
-  switch(action) {
-    case 'created': return '#6366f1'; // Indigo
-    case 'updated': return '#6366f1'; // Indigo
-    case 'sent': return '#3b82f6'; // Blue
-    case 'updated_and_sent': return '#3b82f6'; // Blue
-    case 'viewed': return '#8b5cf6'; // Purple
-    case 'client_data_updated': return '#0ea5e9'; // Sky
-    case 'client_data_completed': return '#06b6d4'; // Cyan
-    case 'otp_sent': return '#f59e0b'; // Orange
-    case 'otp_failed': return '#ef4444'; // Red
-    case 'signed': return '#10b981'; // Green
-    case 'completed': return '#059669'; // Emerald
-    case 'archived': return '#64748b'; // Gray
-    case 'unarchived': return '#64748b'; // Gray
-    case 'duplicated': return '#64748b'; // Gray
-    case 'content_regenerated': return '#a855f7'; // Violet
-    case 'content_manually_edited': return '#a855f7'; // Violet
-    case 'co_fill_draft_created': return '#3b82f6'; // Blue
-    case 'co_fill_link_emailed': return '#3b82f6'; // Blue
-    case 'co_fill_link_email_failed': return '#ef4444'; // Red
-    case 'email_failed': return '#ef4444'; // Red
-    case 'incident_review': return '#64748b'; // Gray
-    default: return '#64748b'; // Gray
-  }
-}
-
-function formatTimestamp(timestamp: Date | string): string {
-  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
-  if (isNaN(date.getTime())) return '';
-  // Use Europe/Rome so CET/CEST is applied correctly year-round (no manual offset).
-  const datePart = new Intl.DateTimeFormat('it-IT', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    timeZone: 'Europe/Rome'
-  }).format(date);
-  const timePart = new Intl.DateTimeFormat('it-IT', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false, timeZone: 'Europe/Rome'
-  }).format(date);
-  return `${datePart} ${timePart} (Europe/Rome)`;
-}
-
-function generateAuditDetails(log: AuditLog, allLogs: AuditLog[] = []): string {
-  const metadata = log.metadata as Record<string, any> || {};
-  const ipAddress = log.ipAddress || 'IP non disponibile';
-
-  // Parse user agent to get browser name
-  let browserName = 'Browser non rilevato';
-  if (log.userAgent) {
-    if (log.userAgent.includes('Chrome') && !log.userAgent.includes('Edg')) {
-      browserName = 'Chrome';
-    } else if (log.userAgent.includes('Firefox')) {
-      browserName = 'Firefox';
-    } else if (log.userAgent.includes('Safari') && !log.userAgent.includes('Chrome')) {
-      browserName = 'Safari';
-    } else if (log.userAgent.includes('Edg')) {
-      browserName = 'Edge';
-    } else if (log.userAgent.includes('Opera')) {
-      browserName = 'Opera';
-    }
-  }
-
-  switch (log.action) {
-    case 'sent': {
-      const sentToEmail = metadata.sentToEmail || 'Email non specificata';
-      const sentBy = metadata.sentBy ? `Utente ID: ${metadata.sentBy}` : 'Sistema';
-      return `
-        <div style="font-weight: 500;">📧 Contratto inviato via email</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Destinatario:</strong> ${sentToEmail}<br>
-          <strong>Mittente:</strong> ${sentBy}<br>
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'viewed': {
-      const accessMethod = metadata.accessMethod === 'email_link' ? 'Accesso via link email' : 'Accesso diretto via codice contratto';
-      return `
-        <div style="font-weight: 500;">👁️ Documento visualizzato dal cliente</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Metodo:</strong> ${accessMethod}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'otp_sent': {
-      // Canale REALE di invio: prima twilioVerify (sempre veritiero anche sui
-      // log storici), poi il campo method, altrimenti canale sconosciuto.
-      const looksEmail = (v: any) => typeof v === 'string' && v.includes('@');
-      let channel: 'sms' | 'email' | null = null;
-      if (typeof metadata.twilioVerify === 'boolean') {
-        channel = metadata.twilioVerify ? 'sms' : 'email';
-      } else if (metadata.method === 'email') {
-        // Il campo `method` storico è affidabile SOLO quando dice "email":
-        // l'era col bug marcava "sms" anche per invii realmente via email
-        // (deduceva il canale dalla presenza del telefono), mentre nessun
-        // percorso di codice ha mai marcato "email" un invio via SMS.
-        // Con method="sms" senza twilioVerify il canale resta sconosciuto.
-        channel = 'email';
-      }
-      // Recapito di destinazione: i log nuovi hanno `sentTo` (fonte di
-      // verità); per i log storici si ricostruisce SOLO se non ambiguo,
-      // altrimenti si dichiara che il recapito non è stato registrato.
-      // Mai spacciare un telefono per destinatario di un OTP via email.
-      let sentTo: string | null = (typeof metadata.sentTo === 'string' && metadata.sentTo.trim()) ? metadata.sentTo : null;
-      if (!sentTo) {
-        if (channel === 'sms') {
-          const phone = (metadata.actualPhoneNumber && metadata.actualPhoneNumber !== 'N/A')
-            ? metadata.actualPhoneNumber
-            : (!looksEmail(metadata.contact) ? metadata.contact : null);
-          sentTo = phone || null;
-        } else if (channel === 'email') {
-          sentTo = looksEmail(metadata.contact) ? metadata.contact : null;
-        }
-      }
-      const header = channel === 'sms'
-        ? '📱 Codice OTP inviato via SMS'
-        : channel === 'email'
-          ? '📧 Codice OTP inviato via Email'
-          : '🔐 Codice OTP inviato';
-      const sistema = channel === 'sms'
-        ? 'Twilio Verify (SMS)'
-        : channel === 'email'
-          ? 'Invio email con codice di verifica'
-          : 'Sistema OTP';
-      const recapitoLabel = channel === 'sms' ? 'Inviato al numero' : channel === 'email' ? 'Inviato all\u2019indirizzo' : 'Recapito';
-      return `
-        <div style="font-weight: 500;">${header}</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>${recapitoLabel}:</strong> ${sentTo || 'non registrato nei log'}<br>
-          ${metadata.modifiedPhone ? `<strong>Numero modificato dal firmatario:</strong> ${metadata.modifiedPhone}<br>` : ''}
-          <strong>Sistema:</strong> ${sistema}<br>
-          <strong>Indirizzo IP:</strong> ${ipAddress}
-        </div>
-      `;
-    }
-    case 'signed': {
-      const looksEmail = (v: any) => typeof v === 'string' && v.includes('@');
-      const signerEmail = metadata.emailUsedForSigning || metadata.emailFromContract || 'Email non disponibile';
-      const signatureMethod = metadata.signatureMethod || 'Metodo non specificato';
-      const signaturesCount = metadata.signatures ? Object.keys(metadata.signatures).length : 0;
-
-      // Determina il canale OTP usando, in ordine:
-      // 1) flag twilioVerify dell'ultimo log "otp_sent" (ground truth del
-      //    canale di consegna: true=SMS via Twilio, false=email — il codice
-      //    non ha mai avuto un canale SMS alternativo a Twilio). Vince anche
-      //    sul valore congelato nella firma, perché nei record storici
-      //    otpMethod poteva restare "sms" pur con invio reale via email.
-      // 2) il valore congelato in metadata.otpMethod della firma stessa
-      //    (corretto nei record recenti, dove coincide comunque con 1)
-      // 3) campo method dell'ultimo "otp_sent" (canonico solo post-fix)
-      // 4) canale sconosciuto => etichette neutre (NON assumere SMS).
-      let otpKind: 'sms' | 'email' | null = null;
-      if (signatureMethod === 'otp_verification') {
-        let lastOtpMeta: any = null;
-        if (Array.isArray(allLogs)) {
-          const lastOtpSent = [...allLogs]
-            .filter((l: any) => l.action === 'otp_sent')
-            .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-          lastOtpMeta = lastOtpSent?.metadata || null;
-        }
-        if (lastOtpMeta && typeof lastOtpMeta.twilioVerify === 'boolean') {
-          otpKind = lastOtpMeta.twilioVerify ? 'sms' : 'email';
-        }
-        if (!otpKind) {
-          const fromSigned = (metadata.otpMethod || '').toString().toLowerCase();
-          if (fromSigned === 'sms' || fromSigned === 'email') {
-            otpKind = fromSigned as 'sms' | 'email';
-          }
-        }
-        if (!otpKind && lastOtpMeta) {
-          // `method` storico affidabile solo quando dice "email" (vedi
-          // caso otp_sent): con "sms" senza twilioVerify il canale resta
-          // sconosciuto e le etichette restano neutre.
-          const m = (lastOtpMeta.method || '').toString().toLowerCase();
-          if (m === 'email') otpKind = 'email';
-        }
-      }
-      const authLabel = signatureMethod === 'otp_verification'
-        ? (otpKind === 'sms' ? 'Verifica OTP via SMS' : otpKind === 'email' ? 'Verifica OTP via Email' : 'Verifica OTP')
-        : signatureMethod;
-
-      // Contatto VERIFICATO coerente con il canale: i log nuovi hanno
-      // metadata.verifiedContact (fonte di verità scritta dal server al
-      // momento della firma). Per i log storici si ricostruisce senza mai
-      // inventare: per l'OTP via email il vecchio campo phoneNumber NON è il
-      // contatto verificato — in quel caso vale l'email di firma.
-      let verifiedContact: string | null =
-        (typeof metadata.verifiedContact === 'string' && metadata.verifiedContact.trim()) ? metadata.verifiedContact : null;
-      if (!verifiedContact) {
-        const cu = metadata.contactUsedForOTP;
-        if (otpKind === 'email') {
-          verifiedContact = looksEmail(cu) ? cu : (looksEmail(signerEmail) ? signerEmail : null);
-        } else if (otpKind === 'sms') {
-          verifiedContact = (typeof cu === 'string' && cu.trim() && !cu.includes('@'))
-            ? cu
-            : (metadata.phoneNumber && metadata.phoneNumber !== 'Telefono non disponibile' ? metadata.phoneNumber : null);
-        }
-      }
-      const verifiedLabel = otpKind === 'sms'
-        ? 'Contatto verificato (numero SMS)'
-        : otpKind === 'email'
-          ? 'Contatto verificato (indirizzo email)'
-          : 'Contatto verificato';
-
-      return `
-        <div style="font-weight: 500;">✅ Contratto firmato digitalmente</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Email firmatario:</strong> ${signerEmail}<br>
-          <strong>${verifiedLabel}:</strong> ${verifiedContact || 'non registrato nei log'}<br>
-          <strong>Metodo autenticazione:</strong> ${authLabel}<br>
-          <strong>Numero firme:</strong> ${signaturesCount} firma/e elettronica/e<br>
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'completed': {
-      return `
-        <div style="font-weight: 500;">🎯 Processo di firma completato</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Stato finale:</strong> Documento completamente firmato e sigillato<br>
-          <strong>Sistema:</strong> PDF finale generato con audit trail integrato
-        </div>
-      `;
-    }
-    case 'created': {
-      return `
-        <div style="font-weight: 500;">📝 Contratto creato nel gestionale</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'updated': {
-      return `
-        <div style="font-weight: 500;">✏️ Dettagli del contratto aggiornati dal venditore</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'updated_and_sent': {
-      const dest = metadata.sentToEmail || metadata.email || null;
-      return `
-        <div style="font-weight: 500;">📧 Contratto aggiornato e reinviato al firmatario</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          ${dest ? `<strong>Destinatario:</strong> ${dest}<br>` : ''}
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'client_data_updated': {
-      return `
-        <div style="font-weight: 500;">⌨️ Il firmatario sta compilando i propri dati</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'client_data_completed': {
-      return `
-        <div style="font-weight: 500;">✅ Il firmatario ha completato i propri dati anagrafici</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'otp_failed': {
-      return `
-        <div style="font-weight: 500;">⚠️ Tentativo di verifica OTP non riuscito</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          Codice errato o scaduto: la firma non è avvenuta con questo tentativo.<br>
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'content_regenerated': {
-      return `
-        <div style="font-weight: 500;">🔄 Contenuto del contratto rigenerato dal template</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'content_manually_edited': {
-      return `
-        <div style="font-weight: 500;">🖊️ Testo del documento modificato manualmente dal venditore</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}<br>
-          <strong>Browser:</strong> ${browserName}
-        </div>
-      `;
-    }
-    case 'archived': {
-      return `
-        <div style="font-weight: 500;">📦 Contratto archiviato</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}
-        </div>
-      `;
-    }
-    case 'unarchived': {
-      return `
-        <div style="font-weight: 500;">♻️ Contratto ripristinato dall'archivio</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}
-        </div>
-      `;
-    }
-    case 'duplicated': {
-      return `
-        <div style="font-weight: 500;">📄 Contratto creato come duplicato di un contratto esistente</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}
-        </div>
-      `;
-    }
-    case 'co_fill_draft_created': {
-      return `
-        <div style="font-weight: 500;">🔗 Link di compilazione assistita generato</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}
-        </div>
-      `;
-    }
-    case 'co_fill_link_emailed': {
-      const dest = metadata.sentToEmail || metadata.email || null;
-      return `
-        <div style="font-weight: 500;">📧 Link di compilazione inviato via email</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          ${dest ? `<strong>Destinatario:</strong> ${dest}<br>` : ''}
-          <strong>Indirizzo IP:</strong> ${ipAddress}
-        </div>
-      `;
-    }
-    case 'co_fill_link_email_failed': {
-      return `
-        <div style="font-weight: 500;">⚠️ Invio del link di compilazione non riuscito</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          L'email non è stata recapitata: nessun accesso è avvenuto tramite questo invio.<br>
-          <strong>Indirizzo IP:</strong> ${ipAddress}
-        </div>
-      `;
-    }
-    case 'email_failed': {
-      return `
-        <div style="font-weight: 500;">⚠️ Una email di notifica non è stata recapitata</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          Problema tecnico del sistema di invio email. L'esito delle operazioni
-          registrate in questo documento non ne è influenzato.
-        </div>
-      `;
-    }
-    case 'incident_review': {
-      return `
-        <div style="font-weight: 500;">🛠️ Verifica tecnica interna registrata</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          Annotazione di controllo del sistema, senza effetti sul contenuto
-          o sulla validità del contratto.
-        </div>
-      `;
-    }
-    default: {
-      // Azione non mappata: dicitura neutra, MAI dump JSON dei metadati nel
-      // documento legale.
-      return `
-        <div style="font-weight: 500;">⚙️ Operazione registrata dal sistema</div>
-        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-          <strong>Indirizzo IP:</strong> ${ipAddress}
-        </div>
-      `;
-    }
-  }
+function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any, userNames: Record<number, string> = {}): string {
+  return renderAuditTrailHtml(auditLogs as any, {
+    contractId: contractData?.id ?? auditLogs[0]?.contractId ?? '',
+    docType: contractData?.template?.name || contractData?.templateName,
+    status: contractData?.status,
+    signedAt: contractData?.signedAt,
+    regenerationNotice: contractData?.regenerationNotice || null,
+    userNames,
+  });
 }

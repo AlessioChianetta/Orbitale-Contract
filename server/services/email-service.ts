@@ -205,7 +205,13 @@ export async function buildContractRequestEmail(opts: {
 
   const baseUrl = getBaseUrl();
   const signLink = `${baseUrl}/client/${opts.contractCode}?email=${encodeURIComponent(clientEmail)}`;
-  const html = renderContractRequestHtml({ clientName, contractUrl: signLink, contractCode: opts.contractCode, senderName: fromName });
+  const html = renderContractRequestHtml({
+    clientName,
+    contractUrl: signLink,
+    contractCode: opts.contractCode,
+    senderName: fromName,
+    otpChannel: (settings as any).otpMethod === "twilio" ? "sms" : "email",
+  });
   const subject = `Nuovo contratto da firmare — ${fromName}`;
   return {
     subject,
@@ -567,7 +573,6 @@ export async function sendContractSignedNotification(contract: Contract): Promis
     return;
   }
 
-  const html = renderSignedHtml({ clientName, senderName: fromName });
 
   const attachments: Array<{ filename: string; content: Buffer }> = [];
   if (contract.pdfPath) {
@@ -591,11 +596,18 @@ export async function sendContractSignedNotification(contract: Contract): Promis
     }
   }
 
+  const html = renderSignedHtml({
+    clientName,
+    senderName: fromName,
+    signedAt: contract.signedAt ?? null,
+    hasAttachment: attachments.length > 0,
+  });
+
   try {
     const info = await transporter.sendMail({
       from: buildFrom(fromName, fromAddress),
       to: clientEmail,
-      subject: `Contratto firmato con successo — ${fromName}`,
+      subject: `Contratto firmato — ${fromName}`,
       html,
       attachments: attachments.length ? attachments : undefined,
     });
@@ -609,13 +621,18 @@ export async function sendContractSignedNotification(contract: Contract): Promis
 
 // ---------- HTML templates ----------
 
-function renderContractRequestHtml(opts: {
+export function renderContractRequestHtml(opts: {
   clientName: string;
   contractUrl: string;
   contractCode: string;
   senderName: string;
+  /** canale con cui arriverà il codice di verifica (impostazione azienda) */
+  otpChannel: "sms" | "email";
 }): string {
-  const { clientName, contractUrl, contractCode, senderName } = opts;
+  const { clientName, contractUrl, contractCode, senderName, otpChannel } = opts;
+  const otpStep = otpChannel === "sms"
+    ? "Ricevere un codice di verifica via SMS sul tuo cellulare"
+    : "Ricevere un codice di verifica via email";
   return `
     <!DOCTYPE html>
     <html><head><style>
@@ -639,11 +656,11 @@ function renderContractRequestHtml(opts: {
             <a href="${contractUrl}" class="button">Visualizza e firma il contratto</a>
           </div>
           <p><strong>Codice contratto:</strong> ${escapeHtml(contractCode)}</p>
-          <p>Il processo di firma è completamente digitale e legalmente valido. Ti verrà richiesto di:</p>
+          <p>La firma è completamente digitale. Ti verrà richiesto di:</p>
           <ul>
-            <li>Visualizzare il documento completo</li>
-            <li>Confermare il tuo numero di telefono</li>
-            <li>Inserire il codice OTP ricevuto</li>
+            <li>Leggere il documento completo</li>
+            <li>${otpStep}</li>
+            <li>Inserire il codice ricevuto</li>
             <li>Apporre la firma elettronica</li>
           </ul>
           <p><em>Questo link è personale e sicuro. Non condividerlo con altre persone.</em></p>
@@ -690,8 +707,15 @@ function renderOtpHtml(otpCode: string, senderName: string): string {
   `;
 }
 
-function renderSignedHtml(opts: { clientName: string; senderName: string }): string {
+export function renderSignedHtml(opts: { clientName: string; senderName: string; signedAt: Date | string | null; hasAttachment: boolean }): string {
   const { clientName, senderName } = opts;
+  const signedAtDate = opts.signedAt ? new Date(opts.signedAt) : null;
+  const signedAtText = signedAtDate && !isNaN(signedAtDate.getTime())
+    ? new Intl.DateTimeFormat("it-IT", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Rome",
+      }).format(signedAtDate) + " (ora italiana)"
+    : null;
   return `
     <!DOCTYPE html>
     <html><head><style>
@@ -699,7 +723,6 @@ function renderSignedHtml(opts: { clientName: string; senderName: string }): str
       .container { max-width: 600px; margin: 0 auto; padding: 20px; }
       .header { background-color: #10B981; color: white; padding: 20px; text-align: center; }
       .content { padding: 20px; background-color: #f9f9f9; }
-      .success-icon { font-size: 48px; text-align: center; margin: 20px 0; }
     </style></head>
     <body>
       <div class="container">
@@ -708,17 +731,17 @@ function renderSignedHtml(opts: { clientName: string; senderName: string }): str
           <p>${escapeHtml(senderName)}</p>
         </div>
         <div class="content">
-          <div class="success-icon">✅</div>
-          <h2>Complimenti ${escapeHtml(clientName)}!</h2>
-          <p>Il tuo contratto è stato firmato con successo e tutte le procedure legali sono state completate.</p>
+          <h2>Gentile ${escapeHtml(clientName)},</h2>
+          <p>ti confermiamo che il contratto è stato firmato.</p>
           <p><strong>Dettagli della firma:</strong></p>
           <ul>
-            <li>Data e ora: ${new Date().toLocaleString("it-IT")}</li>
-            <li>Metodo: Firma elettronica avanzata</li>
-            <li>Conformità: Standard eIDAS</li>
+            ${signedAtText ? `<li>Data e ora: ${escapeHtml(signedAtText)}</li>` : ""}
+            <li>Metodo: firma elettronica con codice di verifica monouso (OTP)</li>
           </ul>
-          <p>Il documento firmato e sigillato digitalmente è allegato a questa email e sarà conservato in modo sicuro nei nostri archivi.</p>
-          <p><em>Grazie per aver utilizzato ${escapeHtml(senderName)}!</em></p>
+          ${opts.hasAttachment
+            ? `<p>In allegato trovi il PDF del contratto firmato, con in coda il registro delle operazioni. Conservalo per i tuoi archivi.</p>`
+            : `<p>La copia firmata in PDF ti verrà inviata separatamente.</p>`}
+          <p>${escapeHtml(senderName)}</p>
         </div>
       </div>
     </body></html>

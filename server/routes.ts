@@ -18,6 +18,7 @@ import cookie from "cookie";
 // @ts-ignore - no shipped types
 import signature from "cookie-signature";
 import { generatePDF } from "./services/pdf-generator-new";
+import { getClientIp } from "./services/client-ip";
 import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, sendOtpLockoutAlertEmail, getBaseUrl, buildContractRequestEmail } from "./services/email-service";
 import { hashContractPayload, hashBulkIds, signPreviewToken, verifyPreviewToken, type PreviewScope } from "./services/preview-token";
 import { generateOTP, sendOTP } from "./services/otp-service";
@@ -318,23 +319,9 @@ export function registerRoutes(app: Express): Server {
   };
 
   // Helper function to get real client IP
-  const getRealClientIP = (req: any): string => {
-    // Check X-Forwarded-For header first (most common)
-    const xForwardedFor = req.headers['x-forwarded-for'];
-    if (xForwardedFor) {
-      // X-Forwarded-For can contain multiple IPs, first one is the original client
-      const ips = xForwardedFor.split(',');
-      return ips[0].trim();
-    }
-
-    // Fallback to other headers
-    return req.headers['x-real-ip'] || 
-           req.headers['x-client-ip'] || 
-           req.connection?.remoteAddress || 
-           req.socket?.remoteAddress || 
-           req.ip || 
-           'IP non disponibile';
-  };
+  // IP del client per i log di audit: vedi services/client-ip.ts (non
+  // falsificabile dal browser, rispetta `trust proxy`).
+  const getRealClientIP = (req: any): string => getClientIp(req);
 
   // Template routes
   // Run content-editor column migration eagerly at startup so the column
@@ -1191,12 +1178,15 @@ export function registerRoutes(app: Express): Server {
     try {
       const schema = z.object({ ids: z.array(z.number().int().positive()).min(1).max(BULK_IDS_MAX) });
       const { ids } = schema.parse(req.body);
+      // I contratti firmati non si eliminano (con loro sparirebbe il registro
+      // di audit, cioè la prova della firma): vengono saltati.
       const deletedIds = await storage.deleteContracts(ids, req.user.companyId);
-      // Audit log entries for deleted contracts are also removed by the cascade,
-      // so we only return the count to the client.
+      const skipped = ids.length - deletedIds.length;
       res.json({
-        message: `${deletedIds.length} contratti eliminati definitivamente`,
+        message: `${deletedIds.length} contratti eliminati definitivamente` +
+          (skipped > 0 ? ` (${skipped} non eliminati: i contratti firmati si possono solo archiviare)` : ""),
         count: deletedIds.length,
+        skipped,
         ids: deletedIds,
       });
     } catch (error) {
@@ -1347,6 +1337,9 @@ export function registerRoutes(app: Express): Server {
           beforeLength: previousContent.length,
           afterLength: newContent.length,
           pdfRegenerated: regeneratedPdf,
+          // Il file PDF precedente NON viene cancellato: resta su disco come
+          // originale firmato; qui se ne conserva il riferimento.
+          previousPdfFile: contract.pdfPath ? path.basename(contract.pdfPath) : null,
           contractStatus: contract.status,
           signaturesPreserved: !!contract.signatures,
         },
@@ -1461,6 +1454,11 @@ export function registerRoutes(app: Express): Server {
       if (req.user.role === "seller" && contract.sellerId !== req.user.id) {
         return res.status(403).json({ message: "Access denied" });
       }
+      if ((contract.status as string) === "signed" || (contract.status as string) === "completed") {
+        // Il testo di un contratto firmato non si modifica: il firmatario ha
+        // accettato QUEL testo (impronta nel registro della firma).
+        return res.status(409).json({ message: "Il contratto è già firmato: il testo non può essere modificato." });
+      }
       const { content } = req.body;
       if (typeof content !== "string" || content.trim().length === 0) {
         return res.status(400).json({ message: "Contenuto non valido" });
@@ -1489,7 +1487,7 @@ export function registerRoutes(app: Express): Server {
       //    and for signed contracts which always need a fresh sealed PDF).
       let pdfRegenerated = false;
       let pdfError: string | null = null;
-      if (contract.pdfPath || contract.status === "signed") {
+      if (contract.pdfPath) {
         try {
           const auditLogsForPdf = await storage.getContractAuditLogs(contractId);
           const template = await storage.getTemplate(contract.templateId, req.user.companyId);
@@ -2265,19 +2263,25 @@ export function registerRoutes(app: Express): Server {
       // Get company settings for the specific company that owns this contract
       const contractCompanySettings = await storage.getCompanySettings(contract.companyId);
 
-      // Check if this IP has already viewed the contract recently (within 5 minutes)
+      // Registro "viewed": solo aperture del destinatario prima della firma.
+      //  - utenti loggati (admin/venditori che controllano il link) esclusi:
+      //    altrimenti il registro attribuisce al cliente le loro aperture;
+      //  - dopo la firma non si registra più (il registro è chiuso);
+      //  - al massimo una riga ogni 30 minuti per lo stesso IP.
       const currentIP = getRealClientIP(req);
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const isInternalUser = typeof (req as any).isAuthenticated === "function" && (req as any).isAuthenticated();
+      const alreadySigned = contract.status === "signed" || contract.status === "completed";
+      const viewThrottleSince = new Date(Date.now() - 30 * 60 * 1000);
+      let recentViewFromSameIP = true;
+      if (!isInternalUser && !alreadySigned) {
+        const recentLogs = await storage.getContractAuditLogs(contract.id);
+        recentViewFromSameIP = recentLogs.some(log =>
+          log.action === "viewed" &&
+          log.ipAddress === currentIP &&
+          log.timestamp > viewThrottleSince
+        );
+      }
 
-      // Get recent audit logs for this contract
-      const recentLogs = await storage.getContractAuditLogs(contract.id);
-      const recentViewFromSameIP = recentLogs.find(log => 
-        log.action === "viewed" && 
-        log.ipAddress === currentIP && 
-        log.timestamp > fiveMinutesAgo
-      );
-
-      // Log view action only if not already viewed from same IP recently
       if (!recentViewFromSameIP) {
         await storage.createAuditLog({
           contractId: contract.id,
@@ -3216,7 +3220,9 @@ export function registerRoutes(app: Express): Server {
           contactUsedForOTP: validOtp?.phoneNumber,
           otpMethod: resolvedOtpMethod,
           verifiedContact: verifiedContact,
-        },
+          // Impronta del testo contrattuale firmato (stampata nel registro).
+          contentSha256: crypto.createHash("sha256").update(contract.generatedContent || "", "utf8").digest("hex"),
+        } as Record<string, any>,
         timestamp: now,
       };
       const auditLogsForPdf = [...existingAuditLogs, signedAuditEntry];
@@ -3255,6 +3261,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(500).json({
           message: "Errore nella generazione del PDF firmato. Riprova tra qualche istante."
         });
+      }
+
+      // Impronta del file PDF originale: conservata solo nel DB (non può stare
+      // dentro il PDF stesso) per poter verificare in futuro il file inviato.
+      try {
+        const pdfBuffer = await fs.promises.readFile(finalPdfPath);
+        signedAuditEntry.metadata.pdfSha256 = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
+        signedAuditEntry.metadata.pdfFile = path.basename(finalPdfPath);
+      } catch (hashErr: any) {
+        console.error(`⚠️ Impossibile calcolare l'impronta del PDF del contratto ${contract.id}:`, hashErr?.message || hashErr);
       }
 
       // PDF is on disk — now commit the signed status atomically together with the PDF path.
@@ -3297,16 +3313,19 @@ export function registerRoutes(app: Express): Server {
           // Non bloccare il processo di firma se l'email fallisce
         }
 
-        // Invia messaggio di congratulazioni su WhatsApp
+        // Conferma su WhatsApp: SOLO se l'azienda del contratto ha configurato
+        // il proprio account Twilio con un mittente WhatsApp (mai le
+        // credenziali globali del server, che appartengono al proprietario).
         try {
           const clientPhone = clientData.cellulare || clientData.phone || clientData.telefono;
           const clientName = clientData.cliente_nome || clientData.nome || clientData.procacciatore_nome || 'Cliente';
+          const { isCompanyWhatsAppConfigured, sendCongratulationsWhatsApp } = await import('./services/twilio-service');
 
-          if (clientPhone) {
-            console.log('📱 Invio congratulazioni WhatsApp...');
-            const { sendCongratulationsWhatsApp } = await import('./services/twilio-service');
-            await sendCongratulationsWhatsApp(clientPhone, clientName, contract.contractCode);
-            console.log('✅ Congratulazioni WhatsApp inviate con successo!');
+          if (!isCompanyWhatsAppConfigured(pdfCompanySettings)) {
+            console.log('ℹ️ WhatsApp di conferma non configurato per questa azienda: nessun invio');
+          } else if (clientPhone) {
+            await sendCongratulationsWhatsApp(clientPhone, clientName, contract.contractCode, pdfCompanySettings!);
+            console.log('✅ Conferma WhatsApp inviata');
           } else {
             console.log('⚠️ Numero di telefono non trovato, salto invio WhatsApp');
           }
@@ -3427,6 +3446,19 @@ export function registerRoutes(app: Express): Server {
 
       const finalPdfPath = await generatePDF(contractId, contract.generatedContent, auditLogs, contractForPdf, pdfCompanySettings);
       await storage.updateContract(contractId, { pdfPath: finalPdfPath });
+      // Il PDF originale resta su disco; il registro nel nuovo PDF resta
+      // congelato alla firma (gli eventi successivi non vi compaiono).
+      await storage.createAuditLog({
+        contractId,
+        action: "pdf_regenerated",
+        userAgent: req.get("User-Agent"),
+        ipAddress: getRealClientIP(req),
+        metadata: {
+          regeneratedBy: req.user.id,
+          previousPdfFile: contract.pdfPath ? path.basename(contract.pdfPath) : null,
+          newPdfFile: path.basename(finalPdfPath),
+        },
+      });
 
       res.json({ message: "PDF rigenerato con successo", pdfPath: finalPdfPath });
     } catch (error: any) {

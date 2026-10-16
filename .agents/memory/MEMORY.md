@@ -7,3 +7,4 @@
 - [OTP channel truth](otp-audit-truth.md) — twilioVerify is the only ground truth; legacy method/otpMethod fields lie except when they say "email"; unknown channel renders neutral.
 - [Workspace DB vs live DB](live-db-and-post-merge.md) — live site (VPS) uses a separate DB; prod changes via scripts on VPS; post-merge db:push --force drops columns.
 - [Task files](task-files-convention.md) — owner wants plans as task-da-fare/NNN-slug.md, in Italian.
+- [Signed PDF invariants](signed-pdf-invariants.md) — registry frozen at signature, no unrecorded/legal claims, signed = immutable, tenant creds only, no emoji.

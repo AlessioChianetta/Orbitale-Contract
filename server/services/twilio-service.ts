@@ -207,41 +207,32 @@ export async function verifyOTPSMS(phoneNumber: string, code: string, companySet
 }
 
 // Funzione per inviare messaggi WhatsApp tramite Twilio
-export async function sendWhatsAppMessage(phoneNumber: string, message: string): Promise<void> {
-  console.log('[TWILIO] 📱 Tentativo di invio messaggio WhatsApp...');
-  console.log('[TWILIO] 📞 Numero destinatario:', phoneNumber);
+/** Credenziali WhatsApp dell'azienda (mai quelle globali del server). */
+export interface CompanyWhatsAppSettings {
+  companyName?: string | null;
+  twilioAccountSid?: string | null;
+  twilioAuthToken?: string | null;
+  twilioWhatsappFrom?: string | null;
+}
 
-  // Controlla se Twilio è configurato
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM; // es. "whatsapp:+14155238886"
+export function isCompanyWhatsAppConfigured(settings?: CompanyWhatsAppSettings | null): boolean {
+  return !!(settings?.twilioAccountSid?.trim() && settings?.twilioAuthToken?.trim() && settings?.twilioWhatsappFrom?.trim());
+}
 
-  if (!accountSid || !authToken || !whatsappFrom) {
-    console.error('[TWILIO] ❌ Credenziali WhatsApp mancanti!');
-    console.error('[TWILIO] 📋 Richieste: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM');
-    throw new Error('WhatsApp service not configured. Please check Twilio WhatsApp credentials.');
+export async function sendWhatsAppMessage(phoneNumber: string, message: string, settings: CompanyWhatsAppSettings): Promise<void> {
+  if (!isCompanyWhatsAppConfigured(settings)) {
+    throw new Error("WhatsApp non configurato per questa azienda (Account SID, Auth Token e mittente WhatsApp nelle impostazioni azienda).");
   }
-
+  const whatsappFrom = settings.twilioWhatsappFrom!.trim();
+  const from = whatsappFrom.startsWith("whatsapp:") ? whatsappFrom : `whatsapp:${whatsappFrom}`;
   try {
-    const client = twilio(accountSid, authToken);
+    const client = twilio(settings.twilioAccountSid!.trim(), settings.twilioAuthToken!.trim());
     const formattedPhone = formatPhoneNumberForWhatsApp(phoneNumber);
-    
-    console.log(`[TWILIO] 📤 Invio messaggio WhatsApp a: ${formattedPhone}`);
-    console.log(`[TWILIO] 📝 Messaggio: ${message.substring(0, 50)}...`);
-
-    const messageResponse = await client.messages.create({
-      body: message,
-      from: whatsappFrom,
-      to: formattedPhone
-    });
-
-    console.log(`[TWILIO] ✅ Messaggio WhatsApp inviato con successo!`);
-    console.log(`[TWILIO] 📊 Message SID: ${messageResponse.sid}`);
-    console.log(`[TWILIO] 📊 Status: ${messageResponse.status}`);
-    
+    const messageResponse = await client.messages.create({ body: message, from, to: formattedPhone });
+    console.log(`[TWILIO] ✅ Messaggio WhatsApp inviato (SID ${messageResponse.sid}, stato ${messageResponse.status})`);
   } catch (error: any) {
-    console.error('[TWILIO] ❌ Errore nell\'invio del messaggio WhatsApp:', error);
-    throw new Error(`Failed to send WhatsApp message: ${error.message}`);
+    console.error("[TWILIO] ❌ Errore nell'invio del messaggio WhatsApp:", error?.message || error);
+    throw new Error(`Failed to send WhatsApp message: ${error?.message || error}`);
   }
 }
 
@@ -268,27 +259,17 @@ function formatPhoneNumberForWhatsApp(phoneNumber: string): string {
 }
 
 // Funzione helper per inviare messaggio di congratulazioni WhatsApp
-export async function sendCongratulationsWhatsApp(phoneNumber: string, clientName: string, contractCode: string): Promise<void> {
-  console.log('[TWILIO] 🎉 Invio congratulazioni WhatsApp...');
-  console.log('[TWILIO] 📱 Numero:', phoneNumber);
-  console.log('[TWILIO] 👤 Cliente:', clientName);
+export function buildSignedWhatsAppMessage(clientName: string, contractCode: string, companyName?: string | null): string {
+  const from = companyName?.trim() ? ` con ${companyName.trim()}` : "";
+  return `Gentile ${clientName}, ti confermiamo che il contratto ${contractCode}${from} è stato firmato. ` +
+    `Riceverai la copia firmata all'indirizzo email indicato.\n\nMessaggio automatico: non rispondere a questo numero.`;
+}
 
-  const congratulationsMessage = `🎉 *Congratulazioni ${clientName}!*
-
-Il tuo contratto è stato firmato con successo! ✅
-
-📄 *Codice contratto:* ${contractCode}
-📧 Riceverai una copia del contratto firmato via email
-
-Grazie per aver scelto i nostri servizi! 🙏
-
-_Messaggio automatico - Non rispondere a questo numero_`;
-
-  try {
-    await sendWhatsAppMessage(phoneNumber, congratulationsMessage);
-    console.log('[TWILIO] ✅ Messaggio di congratulazioni WhatsApp inviato con successo!');
-  } catch (error) {
-    console.error('[TWILIO] ❌ Errore nell\'invio delle congratulazioni WhatsApp:', error);
-    throw error;
-  }
+export async function sendCongratulationsWhatsApp(
+  phoneNumber: string,
+  clientName: string,
+  contractCode: string,
+  settings: CompanyWhatsAppSettings,
+): Promise<void> {
+  await sendWhatsAppMessage(phoneNumber, buildSignedWhatsAppMessage(clientName, contractCode, settings.companyName), settings);
 }

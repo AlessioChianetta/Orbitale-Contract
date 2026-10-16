@@ -11,7 +11,7 @@ import {
   type ContractPreset, type InsertContractPreset
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, inArray, sql, or, like } from "drizzle-orm";
+import { eq, desc, and, gte, inArray, notInArray, sql, or, like } from "drizzle-orm";
 import {
   getOrbitalContractEmptyHtml,
   getOrbitalServicePackages,
@@ -577,7 +577,13 @@ export class DatabaseStorage implements IStorage {
       .select({ id: contracts.id })
       .from(contracts)
       .innerJoin(users, eq(contracts.sellerId, users.id))
-      .where(and(eq(users.companyId, companyId), inArray(contracts.id, ids)));
+      .where(and(
+        eq(users.companyId, companyId),
+        inArray(contracts.id, ids),
+        // I contratti firmati non si eliminano mai: con il contratto
+        // sparirebbero anche il registro di audit e la prova della firma.
+        notInArray(contracts.status, ["signed", "completed"] as any[]),
+      ));
     const eligibleIds = eligible.map(r => r.id);
     if (eligibleIds.length === 0) return [];
     // Delete dependent rows first to avoid FK violations

@@ -171,6 +171,8 @@ const EVENT_LABEL: Record<string, { label: string; emoji: string }> = {
   co_fill_draft_created: { label: "Link compilazione generato", emoji: "🔗" },
   co_fill_link_emailed: { label: "Link compilazione inviato via email", emoji: "📧" },
   co_fill_link_email_failed: { label: "Invio link fallito", emoji: "⚠️" },
+  pdf_regenerated: { label: "PDF rigenerato", emoji: "🔄" },
+  email_failed: { label: "Email non recapitata", emoji: "⚠️" },
 };
 
 function labelForEvent(action: string): { label: string; emoji: string } {
@@ -1013,9 +1015,11 @@ export default function SellerDashboard() {
                                 <Edit className="h-4 w-4 mr-2" /> Modifica
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem onClick={() => setDocEditorContract(contract)}>
-                              <FileEdit className="h-4 w-4 mr-2" /> Modifica documento
-                            </DropdownMenuItem>
+                            {contract.status !== "signed" && (
+                              <DropdownMenuItem onClick={() => setDocEditorContract(contract)}>
+                                <FileEdit className="h-4 w-4 mr-2" /> Modifica documento
+                              </DropdownMenuItem>
+                            )}
                             {(contract.status === "sent" || contract.status === "viewed") && (
                               <DropdownMenuItem onClick={() => copyContractLink(contract.contractCode)}>
                                 <Copy className="h-4 w-4 mr-2" /> Copia link

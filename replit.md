@@ -98,9 +98,12 @@ Turbo Contract is a comprehensive web application for creating, managing, and di
 
 ### Digital Signature Workflow
 - Secure client contract viewing without authentication
-- Two-factor authentication via SMS OTP
-- Complete audit trail with IP tracking and timestamps
-- Tamper-proof PDF generation with embedded audit logs
+- OTP verification via email (default) or SMS (Twilio Verify), per company setting
+- Audit trail with IP (`req.ip`, trust proxy) and timestamps; logged-in users' views are not logged as client views
+- Signed PDF = document + "Registro delle operazioni" (`server/services/audit-trail.ts`), frozen at signature, SHA-256 of signed text printed; PDF file hash stored in the `signed` audit row
+- Signed contracts: text cannot be edited, cannot be deleted (only archived)
+- Post-signature WhatsApp only with the company's own Twilio credentials (never the server's .env)
+- Tests: `npm test` (unit, no DB) and `npm run test:pdf` (real PDF with fake data, needs Chromium + poppler)
 
 ### External Services Integration
 - Email service for contract delivery (Nodemailer)

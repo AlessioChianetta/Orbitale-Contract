@@ -159,10 +159,13 @@ export default function ContractDocumentEditor({
         });
       }
     },
-    onError: () => {
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "";
       toast({
         title: "Errore",
-        description: "Impossibile salvare il documento.",
+        description: msg.startsWith("409")
+          ? "Il contratto è già firmato: il testo non può essere modificato."
+          : "Impossibile salvare il documento.",
         variant: "destructive",
       });
     },

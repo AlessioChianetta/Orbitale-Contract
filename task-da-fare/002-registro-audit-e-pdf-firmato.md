@@ -1,6 +1,6 @@
 # 002 — Registro audit e PDF firmato: dati veritieri e impaginazione
 
-**Stato:** da fare (analisi del 16/10/2026)
+**Stato:** IN CORSO — parti A, B, C e test automatici fatti il 16/10/2026 (vedi §6). Restano: prova end-to-end, verifica sul VPS, PDF reale con "WhatsApp" da analizzare.
 **Priorità:** alta: il PDF firmato è il documento legale che arriva al cliente. Va fatta prima della consegna alla prima cliente (task 001).
 **Segnalazione del proprietario:** nel PDF inviato via email "è tutto sfasato e colorato, con dati non veritieri (es. firma via email ma risulta WhatsApp)".
 
@@ -52,30 +52,74 @@
 ## 4. Lavori da fare
 
 ### A — Dati veritieri
-- [ ] Non registrare `viewed` per utenti autenticati (admin/venditore) né dopo la firma; tenere al massimo 1 visualizzazione per IP ogni 30 minuti.
-- [ ] Nel PDF mostrare solo gli eventi fino alla firma; le visualizzazioni consecutive dello stesso IP raggruppate ("Documento aperto 4 volte tra le 10:02 e le 10:40").
-- [ ] IP: `req.ip` con `trust proxy` configurato per il VPS; niente header inviati dal browser.
-- [ ] Alla firma salvare l'hash SHA-256 del contenuto firmato e del PDF (log `signed` + colonna sul contratto) e stamparlo nel registro; dicitura legale aggiornata di conseguenza.
-- [ ] Rigenerazioni dopo la firma: conservare il PDF originale, generare una copia separata e marcata, registro "congelato" alla firma.
-- [ ] Eliminazione contratti firmati: vietata, oppure solo archiviazione (i log restano).
-- [ ] Email "Contratto firmato": rimuovere "avanzata"/"eIDAS", data e ora della firma in Europe/Rome.
-- [ ] Email di richiesta firma: testo coerente con il canale OTP dell'azienda.
-- [ ] "Mittente": nome e email dell'utente, non l'id.
+- [x] Non registrare `viewed` per utenti autenticati (admin/venditore) né dopo la firma; tenere al massimo 1 visualizzazione per IP ogni 30 minuti.
+- [x] Nel PDF mostrare solo gli eventi fino alla firma; le visualizzazioni consecutive dello stesso IP raggruppate ("Documento aperto 4 volte tra le 10:02 e le 10:40").
+- [x] IP: `req.ip` con `trust proxy` configurato per il VPS; niente header inviati dal browser.
+- [x] Alla firma salvare l'hash SHA-256 del contenuto firmato e del PDF (log `signed` + colonna sul contratto) e stamparlo nel registro; dicitura legale aggiornata di conseguenza.
+- [x] Rigenerazioni dopo la firma: conservare il PDF originale, generare una copia separata e marcata, registro "congelato" alla firma.
+- [x] Eliminazione contratti firmati: vietata, oppure solo archiviazione (i log restano).
+- [x] Email "Contratto firmato": rimuovere "avanzata"/"eIDAS", data e ora della firma in Europe/Rome.
+- [x] Email di richiesta firma: testo coerente con il canale OTP dell'azienda.
+- [x] "Mittente": nome e email dell'utente, non l'id.
 
 ### B — WhatsApp
-- [ ] WhatsApp post-firma per-azienda e spento di default (coordinato con task 001, punto 3).
+- [x] WhatsApp post-firma per-azienda e spento di default (coordinato con task 001, punto 3).
 
 ### C — Impaginazione sobria
-- [ ] Registro in bianco/nero/grigio, senza emoji, tabella a larghezza fissa (Operazione · Data/ora · Dettagli), fuso orario indicato una volta nell'intestazione.
-- [ ] Font incorporato localmente (niente Google Fonts a runtime).
-- [ ] Un unico documento HTML valido (registro dentro `<body>`).
-- [ ] Nessun dato di riserva del proprietario: errore se mancano le impostazioni azienda.
+- [x] Registro in bianco/nero/grigio, senza emoji, tabella a larghezza fissa (Operazione · Data/ora · Dettagli), fuso orario indicato una volta nell'intestazione.
+- [x] Font incorporato localmente (niente Google Fonts a runtime).
+- [x] Un unico documento HTML valido (registro dentro `<body>`).
+- [x] Nessun dato di riserva del proprietario: errore se mancano le impostazioni azienda.
 
 ### D — Test
-- [ ] Test automatici sulla funzione del registro: OTP via email, OTP via SMS, log storici ambigui (canale "non registrato"), nessuna parola "WhatsApp"/"SMS" quando il canale è email, nessun JSON grezzo, nessuna emoji.
-- [ ] Generazione PDF di prova (dati finti) + controllo testo estratto (`pdftotext`) e immagine dell'ultima pagina.
+- [x] Test automatici sulla funzione del registro: OTP via email, OTP via SMS, log storici ambigui (canale "non registrato"), nessuna parola "WhatsApp"/"SMS" quando il canale è email, nessun JSON grezzo, nessuna emoji.
+- [x] Generazione PDF di prova (dati finti) + controllo testo estratto (`pdftotext`) e immagine dell'ultima pagina.
 - [ ] Prova end-to-end su DB di test: invio → apertura → OTP email → firma → email con PDF allegato.
 
 ## 5. Da chiedere al proprietario
 - Il PDF reale in cui compare "WhatsApp" (anche con dati oscurati).
 - La versione del codice sul VPS (`git log -1 --oneline`).
+
+## 6. Avanzamento (aggiornato al 16/10/2026)
+
+### Fatto
+- **Registro nel PDF riscritto** in `server/services/audit-trail.ts` (modulo puro, testabile). `pdf-generator-new.ts` lo inserisce dentro il `<body>` del documento.
+  - Bianco/nero/grigio, nessuna emoji, tabella a larghezza fissa (24% / 16% / 60%) con a capo forzato: niente più testo tagliato sul bordo.
+  - Stampa solo gli eventi **fino alla firma inclusa**. Le aperture consecutive dallo stesso IP diventano una riga ("Aperto N volte…").
+  - Canale OTP con le regole di `.agents/memory/otp-audit-truth.md`. Se un dato non c'è, scrive "non registrato".
+  - Chi ha inviato il contratto compare con nome ed email, non più "Utente ID".
+  - Rimossi il nome "Turbo Contract" e la frase falsa "manomissione tecnicamente rilevabile". Ora viene stampata l'impronta SHA-256 del testo firmato.
+- **Alla firma** (`POST /api/client/contracts/:code/sign`):
+  - il log `signed` contiene `contentSha256` (testo firmato), `pdfSha256` e `pdfFile` (file PDF originale; l'impronta del PDF sta solo nel DB);
+  - la data accanto alla firma nel PDF è quella della firma, non quella di generazione.
+- **Aperture del link**:
+  - non registrate se chi apre è loggato (admin/venditore) né dopo la firma;
+  - al massimo 1 riga ogni 30 minuti per IP.
+- **IP**: `server/services/client-ip.ts` usa `req.ip` (con `trust proxy` = 1 in `server/auth.ts`). Prima si leggeva X-Forwarded-For grezzo, che il browser può falsificare.
+- **Contratti firmati**:
+  - testo non modificabile: `PATCH /content` → 409 e voce "Modifica documento" nascosta;
+  - non eliminabili: `bulk-delete` li salta e lo dice nel messaggio;
+  - `regenerate-pdf` scrive il log `pdf_regenerated` con il file precedente, che resta su disco;
+  - `regenerate-content` salva `previousPdfFile`.
+- **PDF**:
+  - font Inter incorporato da `@fontsource/inter`, niente Google Fonts;
+  - nessun dato di riserva "ALE srl / Capo D'Orlando": se mancano le impostazioni azienda viene generato un errore esplicito;
+  - le righe dell'intestazione vuote vengono omesse.
+- **Email**:
+  - "Contratto firmato": tolti "Firma elettronica avanzata" ed "eIDAS"; data e ora della firma in ora italiana; la frase "in allegato" compare solo se il PDF è davvero allegato;
+  - "Richiesta firma": il testo segue il canale OTP dell'azienda (email o SMS).
+- **WhatsApp dopo la firma**: parte SOLO se l'azienda ha nelle sue impostazioni Account SID, Auth Token e "WhatsApp From". Le credenziali globali del `.env` non vengono più usate. Messaggio senza emoji, con il nome dell'azienda.
+- **Test**:
+  - `npm test`: 13 test unitari in `tests/audit-trail.test.ts`, senza DB;
+  - `npm run test:pdf`: genera un PDF vero con dati finti in `/tmp/pdf-audit-smoke.pdf` e lo controlla con `pdftotext`/`pdffonts`.
+  - Entrambi passano.
+
+### Da fare
+- [ ] Prova end-to-end su azienda di test (invio → apertura → OTP email → firma → email con PDF), con SMTP di test.
+- [ ] **VPS**:
+  - aggiornare il codice e lanciare `npm install` (nuova dipendenza `@fontsource/inter`);
+  - verificare che nginx passi `X-Forwarded-For` (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`). Se davanti a nginx c'è anche Cloudflare, `trust proxy` va portato a 2.
+- [ ] **VPS, solo se il proprietario vuole continuare a ricevere il WhatsApp di conferma**: inserire nelle impostazioni della sua azienda il mittente "WhatsApp From". Nota: nella UI i campi Twilio sono visibili solo con metodo OTP "twilio" (da rivedere in task 001).
+- [ ] Analizzare il PDF reale con "WhatsApp" segnalato dal proprietario e la versione del codice sul VPS (`git log -1 --oneline`).
+- [ ] Il corpo del contratto (prima parte del PDF) mantiene la grafica colorata della pagina cliente: se si vuole più sobrio va cambiato insieme alla pagina cliente, per tenerli identici.
+- [ ] La clausola di autorinnovo è sempre stampata: da sistemare nella task 001, insieme alla pagina cliente.

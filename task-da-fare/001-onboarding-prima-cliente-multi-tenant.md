@@ -25,7 +25,7 @@ La base multi-tenant esiste ed è in buona parte corretta:
 ### Bloccanti — sicurezza e isolamento
 1. **Modifica/eliminazione template senza controllo azienda.** `PUT /api/templates/:id` e `DELETE /api/templates/:id` agiscono su qualunque id: un admin della cliente potrebbe modificare o cancellare i template del proprietario (e viceversa). Va aggiunto il filtro azienda in rotta e in `storage.updateTemplate/deleteTemplate`.
 2. **I template del proprietario vengono creati in automatico in ogni azienda.** `getTemplates` lancia `ensureOrbitalTemplate` e `ensureProcacciatoreTemplate` per qualsiasi azienda: al primo accesso la cliente si troverebbe "Sistema Orbitale" e "Contratto Procacciatore" (contratti del proprietario). Va limitato all'azienda del proprietario (flag su `company_settings` o elenco esplicito).
-3. **WhatsApp dopo la firma inviato dal numero del proprietario.** `sendCongratulationsWhatsApp` usa sempre le credenziali Twilio globali (`.env`) con testo fisso: ogni cliente della counselor che firma riceverebbe un WhatsApp dal numero del proprietario. Va reso per-azienda e disattivato di default per le nuove aziende.
+3. **WhatsApp dopo la firma inviato dal numero del proprietario.** `sendCongratulationsWhatsApp` usa sempre le credenziali Twilio globali (`.env`) con testo fisso: ogni cliente della counselor che firma riceverebbe un WhatsApp dal numero del proprietario. Va reso per-azienda e disattivato di default per le nuove aziende. **RISOLTO in task 002**: ora parte solo con le credenziali Twilio dell'azienda stessa.
 4. **Registrazione pubblica aperta.** `/api/register` e la scheda "Registrati" permettono a chiunque di creare un'azienda. Le aziende le crea il proprietario: va disattivata (o protetta da un ruolo "super admin").
 5. **Ricaduta sui dati della prima azienda.** `storage.getCompanySettings(undefined)` restituisce la PRIMA azienda del DB. Se il venditore di un contratto viene eliminato, la firma e il PDF usano intestazione e impostazioni del proprietario. La funzione deve fallire in modo esplicito senza `companyId`.
 6. **Eliminazione utenti.** Eliminare un dipendente con contratti li rende "orfani" (spariscono dalla dashboard e, per il punto 5, prendono i dati del proprietario). Eliminare un admin che ha creato template genera un errore 500 (chiave esterna). Sostituire con **disattivazione** dell'utente (login bloccato, contratti visibili all'admin) o riassegnazione dei contratti.
@@ -44,7 +44,7 @@ La base multi-tenant esiste ed è in buona parte corretta:
 ### Ambiente — rischi operativi (da sapere)
 14. Il sito pubblicato usa un database **separato** (confermato dal proprietario). Il DB collegato a Replit è comunque un Supabase con dati storici realistici: i test automatici usano aziende/utenti di prova dedicati, SMTP/Twilio simulati e si ripuliscono da soli. L'account della cliente va creato sul DB di produzione (script idempotente da lanciare sul VPS, non a mano qui).
 15. **`scripts/post-merge.sh` esegue `npm run db:push -- --force`** su quel database. Le colonne `contracts.first_opened_at`, `last_activity_at`, `total_presence_ms` non sono in `shared/schema.ts`: un push forzato le cancellerebbe. Rimuovere il push forzato dallo script (o aggiungere le colonne allo schema).
-16b. Il generatore PDF, se mancano le impostazioni azienda, usa dati di riserva del proprietario ("ALE srl, Capo D'Orlando"): va eliminato il fallback e generato un errore esplicito.
+16b. Il generatore PDF, se mancano le impostazioni azienda, usa dati di riserva del proprietario ("ALE srl, Capo D'Orlando"): va eliminato il fallback e generato un errore esplicito. **RISOLTO in task 002.**
 16. Nel repository git sono presenti dump del database (`DATABASE/*.sql`) e `cookies.txt` con dati personali dei clienti: da rimuovere dal tracciamento.
 
 ## 3. Lavori da fare
@@ -52,7 +52,7 @@ La base multi-tenant esiste ed è in buona parte corretta:
 ### Fase A — Isolamento e sicurezza (bloccante)
 - [ ] Filtro azienda su update/delete template (rotta + storage).
 - [ ] Seed automatico Orbitale/Procacciatore solo per l'azienda del proprietario.
-- [ ] WhatsApp post-firma per-azienda, spento di default per le nuove aziende.
+- [x] WhatsApp post-firma per-azienda, spento di default per le nuove aziende (fatto in task 002). Resta da rendere visibili i campi WhatsApp nelle impostazioni anche con OTP via email.
 - [ ] Disattivare la registrazione pubblica.
 - [ ] `getCompanySettings` senza `companyId` → errore esplicito; nessuna ricaduta sulla prima azienda.
 - [ ] Utenti: disattivazione al posto dell'eliminazione (o riassegnazione contratti); messaggi chiari su username/email duplicati.
