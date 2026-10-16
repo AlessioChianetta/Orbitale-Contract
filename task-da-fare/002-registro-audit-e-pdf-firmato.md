@@ -111,7 +111,7 @@
 - **WhatsApp dopo la firma**: parte SOLO se l'azienda ha nelle sue impostazioni Account SID, Auth Token e "WhatsApp From". Le credenziali globali del `.env` non vengono più usate. Messaggio senza emoji, con il nome dell'azienda.
 - **Test**:
   - `npm test`: 13 test unitari in `tests/audit-trail.test.ts`, senza DB;
-  - `npm run test:pdf`: genera un PDF vero con dati finti in `/tmp/pdf-audit-smoke.pdf` e lo controlla con `pdftotext`/`pdffonts`.
+  - `npm run test:pdf`: genera un PDF vero con dati finti in `generated-artifacts/pdf-audit-smoke.pdf` e lo controlla con `pdftotext`/`pdffonts`.
   - Entrambi passano.
 
 ### Da fare

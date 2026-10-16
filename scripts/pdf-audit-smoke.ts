@@ -2,13 +2,16 @@
  * Prova del PDF firmato con dati finti (nessun accesso al database).
  * Genera un PDF con OTP via email, ne estrae il testo con `pdftotext` e
  * verifica che il registro sia veritiero. Uso: `npm run test:pdf`
- * (il PDF resta in /tmp/pdf-audit-smoke.pdf per controllarlo a occhio).
+ * Il PDF resta in generated-artifacts/pdf-audit-smoke.pdf (cartella esclusa
+ * da git e dalla pubblicazione) per controllarlo a occhio dal pannello file.
  */
 import fs from "fs";
+import path from "path";
 import { execFileSync } from "child_process";
 import { generatePDF, closePdfBrowser } from "../server/services/pdf-generator-new";
 
-const OUT = "/tmp/pdf-audit-smoke.pdf";
+const OUT_DIR = path.join(process.cwd(), "generated-artifacts");
+const OUT = path.join(OUT_DIR, "pdf-audit-smoke.pdf");
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 const t = (min: number) => new Date(Date.UTC(2026, 9, 16, 8, min, 0));
 
@@ -32,6 +35,7 @@ async function main() {
   const company = { companyName: "Studio Prova", address: "Via Roma 1", city: "Roma", postalCode: "00100", taxId: "IT000", pec: "studio@pec.it" };
 
   const p = await generatePDF(999999, contract.generatedContent, logs, contract, company);
+  fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.copyFileSync(p, OUT);
   fs.unlinkSync(p);
   await closePdfBrowser();
@@ -51,7 +55,7 @@ async function main() {
     console.error("PDF NON OK:\n - " + problems.join("\n - "));
     process.exit(1);
   }
-  console.log(`PDF OK (${OUT})`);
+  console.log(`PDF OK: aprilo da ${path.relative(process.cwd(), OUT)}`);
 }
 
 main().catch(async (e) => { console.error(e); await closePdfBrowser(); process.exit(1); });

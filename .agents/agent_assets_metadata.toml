@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "na4RzvuwywAWdcJVVYhJD"
+uri = "file://generated-artifacts/pdf-audit-smoke.pdf"
+type = "pdf"
+title = "PDF di prova firmato"
+description = "Contratto di prova con dati finti e registro delle operazioni in ultima pagina."
+logical_id = "2b7432cb-d8a3-4a95-b301-917b2ea99e24"
+content_hash = "sha256:524b5255b3ca25f56aa4d6bb086b2a2200f4ea842368d17e81bc01736402d15a"
+size = 106749
+mtime_ms = 1792182070098
+storage_uri = "gcs://replit-rams-assets-kira/rams/assets/repl:5ac9a40f-e9c7-4639-aaf4-53f9531a583f/2b7432cb-d8a3-4a95-b301-917b2ea99e24/fb81c23f-a4ba-4727-ae53-28e3088bfead"
+storage_version_token = "1792182074888847"
+content_type = "application/pdf"
