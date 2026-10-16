@@ -130,16 +130,42 @@ export async function generatePDF(
   contractData?: any,
   companySettings?: any
 ): Promise<string> {
+  const pdf = await renderPdf(contractId, htmlContent, auditLogs, contractData, companySettings);
+
+  const outputDir = path.join(process.cwd(), 'generated-pdfs');
+  await fs.mkdir(outputDir, { recursive: true });
+  const filePath = path.join(outputDir, `contract-${contractId}-${Date.now()}.pdf`);
+  await fs.writeFile(filePath, pdf);
+  return filePath;
+}
+
+/**
+ * PDF di ANTEPRIMA (contratto non ancora creato): stesso documento del PDF
+ * firmato, restituito in memoria e mai scritto su disco. Il piè di pagina
+ * dichiara che non è un contratto firmato.
+ */
+export async function generatePreviewPDF(contractData: any, companySettings: any): Promise<Buffer> {
+  return renderPdf(0, contractData.generatedContent || '', undefined, contractData, companySettings, true);
+}
+
+async function renderPdf(
+  contractId: number,
+  htmlContent: string,
+  auditLogs: AuditLog[] | undefined,
+  contractData: any,
+  companySettings: any,
+  isPreview = false,
+): Promise<Buffer> {
+  if (contractData && !companySettings) {
+    // Mai stampare dati aziendali di riserva su un documento legale.
+    throw new Error(`Impostazioni azienda mancanti: impossibile generare il PDF del contratto ${contractId}.`);
+  }
   const browser = await getBrowser();
   let page: Awaited<ReturnType<Browser['newPage']>> | undefined;
 
   try {
     page = await browser.newPage();
 
-    if (contractData && !companySettings) {
-      // Mai stampare dati aziendali di riserva su un documento legale.
-      throw new Error(`Impostazioni azienda mancanti: impossibile generare il PDF del contratto ${contractId}.`);
-    }
     const operatorNames = auditLogs && auditLogs.length ? await resolveOperatorNames(auditLogs) : {};
     // Un unico documento HTML valido: il registro va dentro il <body>.
     const fullHtml = contractData ?
@@ -175,18 +201,11 @@ export async function generatePDF(
     // Wait for fonts to load
     await page.evaluateHandle('document.fonts.ready');
 
-    // Ensure output directory exists
-    const outputDir = path.join(process.cwd(), 'generated-pdfs');
-    await fs.mkdir(outputDir, { recursive: true });
-
-    const fileName = `contract-${contractId}-${Date.now()}.pdf`;
-    const filePath = path.join(outputDir, fileName);
-
+    const contractLabel = isPreview ? 'Anteprima — documento non firmato' : `Contratto n. ${contractId}`;
     const footerLeft = contractData
-      ? [companySettings?.companyName, `Contratto n. ${contractId}`].filter(Boolean).join('  ·  ')
-      : `Contratto n. ${contractId}`;
-    await page.pdf({
-      path: filePath,
+      ? [companySettings?.companyName, contractLabel].filter(Boolean).join('  ·  ')
+      : contractLabel;
+    const pdf = await page.pdf({
       format: 'A4',
       margin: { top: '18mm', bottom: '20mm', left: '18mm', right: '18mm' },
       printBackground: true,
@@ -197,7 +216,7 @@ export async function generatePDF(
       scale: 1
     });
 
-    return filePath;
+    return Buffer.from(pdf);
   } finally {
     if (page) {
       try { await page.close(); } catch { /* noop */ }
@@ -238,7 +257,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings: any
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <title>Contratto ${escapeHtml(contractData.id)}</title>
+  <title>${contractData.id ? `Contratto ${escapeHtml(contractData.id)}` : 'Anteprima contratto'}</title>
   <style>
     ${getEmbeddedFontCss()}
     @page { size: A4; }

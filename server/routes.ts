@@ -17,7 +17,7 @@ import {
 import cookie from "cookie";
 // @ts-ignore - no shipped types
 import signature from "cookie-signature";
-import { generatePDF } from "./services/pdf-generator-new";
+import { generatePDF, generatePreviewPDF } from "./services/pdf-generator-new";
 import { getClientIp } from "./services/client-ip";
 import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, sendOtpLockoutAlertEmail, getBaseUrl, buildContractRequestEmail } from "./services/email-service";
 import { hashContractPayload, hashBulkIds, signPreviewToken, verifyPreviewToken, type PreviewScope } from "./services/preview-token";
@@ -390,44 +390,51 @@ export function registerRoutes(app: Express): Server {
     return input.contractId ? (`update-contract:${input.contractId}` as const) : "create-contract";
   }
 
-  app.post("/api/contracts/preview", requireAuth, async (req, res) => {
-    try {
-      const input = previewContractSchema.parse(req.body);
-      const template = await storage.getTemplate(input.templateId, req.user.companyId);
-      if (!template) {
-        return res.status(404).json({ message: "Template non trovato" });
-      }
-      const generatedContent = await generateContractContent(
-        template.content,
-        input.clientData,
-        template,
-        input.autoRenewal,
-        input.renewalDuration,
-        input.totalValue ?? undefined,
-        input.isPercentagePartnership,
-        input.partnershipPercentage ?? undefined,
-        input.contractStartDate,
-        input.contractEndDate,
-        input.selectedSectionIds ?? null,
-        {
-          accessLevel: input.accessLevel ?? null,
-          monthlyFee: input.monthlyFee ?? null,
-          activationFee: input.activationFee ?? null,
-        },
-        req.user.companyId,
-      );
+  // Pipeline unica delle anteprime: la usano /preview (documento a video) e
+  // /preview-pdf (PDF scaricabile), così i due non possono divergere.
+  type PreviewInput = z.infer<typeof previewContractSchema>;
+  type PreviewBuild =
+    | { ok: true; template: NonNullable<Awaited<ReturnType<typeof storage.getTemplate>>>; generatedContent: string }
+    | { ok: false; status: number; body: Record<string, unknown> };
+  async function buildContractPreview(input: PreviewInput, companyId: number): Promise<PreviewBuild> {
+    const template = await storage.getTemplate(input.templateId, companyId);
+    if (!template) {
+      return { ok: false, status: 404, body: { message: "Template non trovato" } };
+    }
+    const generatedContent = await generateContractContent(
+      template.content,
+      input.clientData,
+      template,
+      input.autoRenewal,
+      input.renewalDuration,
+      input.totalValue ?? undefined,
+      input.isPercentagePartnership,
+      input.partnershipPercentage ?? undefined,
+      input.contractStartDate,
+      input.contractEndDate,
+      input.selectedSectionIds ?? null,
+      {
+        accessLevel: input.accessLevel ?? null,
+        monthlyFee: input.monthlyFee ?? null,
+        activationFee: input.activationFee ?? null,
+      },
+      companyId,
+    );
 
-      // Rete di sicurezza: se il template contiene placeholder `{{...}}`
-      // ancora non risolti (es. il venditore non ha compilato livello /
-      // canone / attivazione), restituiamo errore strutturato che il
-      // wizard intercetta per portare l'utente al campo mancante.
-      const unresolved = filterProcacciatoreSelfFillUnresolved(
-        findUnresolvedPlaceholders(generatedContent),
-        template,
-        input.fillMode,
-      );
-      if (unresolved.length > 0) {
-        return res.status(400).json({
+    // Rete di sicurezza: se il template contiene placeholder `{{...}}`
+    // ancora non risolti (es. il venditore non ha compilato livello /
+    // canone / attivazione), restituiamo errore strutturato che il
+    // wizard intercetta per portare l'utente al campo mancante.
+    const unresolved = filterProcacciatoreSelfFillUnresolved(
+      findUnresolvedPlaceholders(generatedContent),
+      template,
+      input.fillMode,
+    );
+    if (unresolved.length > 0) {
+      return {
+        ok: false,
+        status: 400,
+        body: {
           message: "Il contratto contiene variabili non compilate.",
           code: "UNRESOLVED_PLACEHOLDERS",
           missing: unresolved,
@@ -436,8 +443,20 @@ export function registerRoutes(app: Express): Server {
             label: PLACEHOLDER_LABELS[k]?.label || k,
             hint: PLACEHOLDER_LABELS[k]?.hint,
           })),
-        });
+        },
+      };
+    }
+    return { ok: true, template, generatedContent };
+  }
+
+  app.post("/api/contracts/preview", requireAuth, async (req, res) => {
+    try {
+      const input = previewContractSchema.parse(req.body);
+      const built = await buildContractPreview(input, req.user.companyId);
+      if (!built.ok) {
+        return res.status(built.status).json(built.body);
       }
+      const { template, generatedContent } = built;
       const settings = await storage.getCompanySettings(req.user.companyId);
       const safeSettings = settings
         ? {
@@ -477,98 +496,53 @@ export function registerRoutes(app: Express): Server {
   // PDF usa lo stesso template/contenuto della preview e non dati HTML
   // arbitrari inviati dal browser.
   app.post("/api/contracts/preview-pdf", requireAuth, async (req, res) => {
-    let temporaryPdfPath: string | null = null;
     try {
       const input = previewContractSchema.parse(req.body);
-      const template = await storage.getTemplate(input.templateId, req.user.companyId);
-      if (!template) {
-        return res.status(404).json({ message: "Template non trovato" });
+      const built = await buildContractPreview(input, req.user.companyId);
+      if (!built.ok) {
+        return res.status(built.status).json(built.body);
       }
+      const { template, generatedContent } = built;
 
-      const generatedContent = await generateContractContent(
-        template.content,
-        input.clientData,
-        template,
-        input.autoRenewal,
-        input.renewalDuration,
-        input.totalValue ?? undefined,
-        input.isPercentagePartnership,
-        input.partnershipPercentage ?? undefined,
-        input.contractStartDate,
-        input.contractEndDate,
-        input.selectedSectionIds ?? null,
-        {
-          accessLevel: input.accessLevel ?? null,
-          monthlyFee: input.monthlyFee ?? null,
-          activationFee: input.activationFee ?? null,
-        },
-        req.user.companyId,
-      );
-
-      const unresolved = filterProcacciatoreSelfFillUnresolved(
-        findUnresolvedPlaceholders(generatedContent),
-        template,
-        input.fillMode,
-      );
-      if (unresolved.length > 0) {
+      const companySettings = await storage.getCompanySettings(req.user.companyId);
+      if (!companySettings) {
         return res.status(400).json({
-          message: "Il contratto contiene variabili non compilate.",
-          code: "UNRESOLVED_PLACEHOLDERS",
-          missing: unresolved,
+          message: "Dati dell'azienda mancanti: completa Impostazioni Azienda prima di scaricare il PDF.",
+          code: "COMPANY_SETTINGS_MISSING",
         });
       }
 
-      const companySettings = await storage.getCompanySettings(req.user.companyId);
-      const previewContract = {
-        id: 0,
-        templateName: template.name || "Contratto",
-        generatedContent,
-        clientData: input.clientData,
-        totalValue: input.totalValue ?? null,
-        template: { ...template, content: generatedContent },
-        status: "draft",
-        createdAt: new Date(),
-        contractStartDate: input.contractStartDate,
-        contractEndDate: input.contractEndDate,
-        autoRenewal: input.autoRenewal,
-        renewalDuration: input.renewalDuration,
-        isPercentagePartnership: input.isPercentagePartnership,
-        partnershipPercentage: input.partnershipPercentage,
-        selectedSectionIds: input.selectedSectionIds,
-      };
-
-      temporaryPdfPath = await generatePDF(
-        0,
-        generatedContent,
-        undefined,
-        previewContract,
+      // Stessi campi che il PDF firmato riceve per un contratto salvato,
+      // senza id: il documento non mostra un numero di contratto.
+      const pdf = await generatePreviewPDF(
+        {
+          id: null,
+          generatedContent,
+          clientData: input.clientData,
+          template: { ...template, content: generatedContent },
+          status: "draft",
+          createdAt: new Date(),
+          contractStartDate: input.contractStartDate,
+          contractEndDate: input.contractEndDate,
+          isPercentagePartnership: input.isPercentagePartnership,
+          partnershipPercentage: input.partnershipPercentage,
+          renewalDuration: input.renewalDuration,
+        },
         companySettings,
       );
 
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        'attachment; filename="anteprima-contratto.pdf"',
-      );
-      res.sendFile(temporaryPdfPath, (error) => {
-        if (error && !res.headersSent) {
-          res.status(500).json({ message: "Impossibile scaricare il PDF dell'anteprima" });
-        }
-        if (temporaryPdfPath) {
-          fs.promises.unlink(temporaryPdfPath).catch(() => undefined);
-        }
-      });
+      res.setHeader("Content-Disposition", 'attachment; filename="anteprima-contratto.pdf"');
+      res.setHeader("Cache-Control", "no-store");
+      res.send(pdf);
     } catch (error: any) {
-      if (temporaryPdfPath) {
-        await fs.promises.unlink(temporaryPdfPath).catch(() => undefined);
-      }
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           message: "Dati anteprima non validi",
           errors: error.errors,
         });
       }
-      console.error("Preview PDF error:", error);
+      console.error("Preview PDF error:", error?.message || error);
       res.status(500).json({ message: "Impossibile generare il PDF dell'anteprima" });
     }
   });

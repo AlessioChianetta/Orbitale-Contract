@@ -1058,25 +1058,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
 
     setPreviewLoading(true);
     try {
-      const payload = {
-        templateId,
-        clientData: cd,
-        totalValue: values.totalValue ? Math.round(values.totalValue * 100) : null,
-        isPercentagePartnership: !!values.isPercentagePartnership,
-        partnershipPercentage: values.partnershipPercentage ?? null,
-        autoRenewal: true,
-        renewalDuration: values.renewalDuration,
-        contractStartDate: values.contractStartDate,
-        contractEndDate: values.contractEndDate,
-        selectedSectionIds: Array.isArray(values.selectedSectionIds)
-          ? values.selectedSectionIds
-          : defaultSelectedIds(
-              getTemplateSections(selectedTemplate),
-            ),
-        accessLevel: values.accessLevel || null,
-        monthlyFee: values.monthlyFee ?? null,
-        activationFee: values.activationFee ?? null,
-      };
+      const payload = buildPreviewPayload();
       const res = await apiRequest("POST", "/api/contracts/preview", payload);
       const data = await res.json();
       setPreviewPayload(payload);
@@ -1093,11 +1075,36 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     }
   };
 
+  // Payload dell'anteprima: è lo stesso payload canonico usato per l'invio,
+  // così anteprima a video, PDF di anteprima e contratto inviato partono
+  // dagli stessi dati (righe vuote di rate e bonus già escluse).
+  // La casella di invio non entra nel documento: resta vuota, così cambiarla
+  // non invalida l'anteprima.
+  const buildPreviewPayload = () => {
+    const values = form.getValues();
+    return {
+      ...buildCanonicalSendPayload(values, ""),
+      templateId: values.templateId || selectedTemplateId,
+    };
+  };
+
   const handleDownloadPreview = async () => {
     if (!previewPayload || !previewData) {
       toast({
         title: "Genera prima l'anteprima",
         description: "Apri l'anteprima del contratto prima di scaricare il PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // Se i dati sono cambiati dopo l'anteprima il PDF non corrisponderebbe
+    // più al modulo: si chiede di rigenerarla invece di scaricare dati vecchi.
+    if (JSON.stringify(buildPreviewPayload()) !== JSON.stringify(previewPayload)) {
+      setPreviewPayload(null);
+      setPreviewData(null);
+      toast({
+        title: "Dati modificati dopo l'anteprima",
+        description: "Riapri l'anteprima del contratto, poi scarica il PDF.",
         variant: "destructive",
       });
       return;
@@ -1114,15 +1121,21 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast({
         title: "PDF scaricato",
         description: "Il PDF corrisponde all'anteprima appena generata.",
       });
     } catch (error: any) {
+      const raw = String(error?.message || "").replace(/^\d+:\s*/, "");
+      let description = raw || "Riprova tra qualche istante.";
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.message) description = parsed.message;
+      } catch {}
       toast({
         title: "Impossibile scaricare il PDF",
-        description: error?.message || "Riprova tra qualche istante.",
+        description,
         variant: "destructive",
       });
     } finally {
@@ -3998,31 +4011,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         </div>
       </DialogContent>
 
-      {previewOpen && previewData && (() => {
-        const values = form.getValues();
-        const cd: any = values.clientData || {};
-        const usingCustomInstallments = Array.isArray(cd.rata_list) && cd.rata_list.length > 0;
-        const rawPaymentData = usingCustomInstallments ? cd.rata_list : (cd.payment_plan || []);
-        const paymentPlan = rawPaymentData
-          .map((p: any, i: number) => ({
-            rata_numero: i + 1,
-            rata_importo: String(p.rata_importo ?? p.amount ?? "0.00"),
-            rata_scadenza: String(p.rata_scadenza ?? p.date ?? ""),
-          }))
-          .filter((p: any) => p.rata_importo && p.rata_importo !== "0.00" && p.rata_scadenza);
-
-        const predefined = Array.isArray(previewData.template?.predefinedBonuses)
-          ? previewData.template.predefinedBonuses.map((b: any) => ({
-              bonus_descrizione:
-                (b.description || "") +
-                (b.value ? ` (${b.value}${b.type === "percentage" ? "%" : "€"})` : ""),
-            }))
-          : [];
-        const manual = Array.isArray(cd.bonus_list)
-          ? cd.bonus_list.filter((b: any) => b?.bonus_descrizione)
-          : [];
-        const bonusList = [...predefined, ...manual];
-
+      {previewOpen && previewData && previewPayload && (() => {
+        // Stessi dati inviati al server per l'anteprima e per il PDF: rate e
+        // bonus vengono ricavati dal documento condiviso, come nella pagina
+        // del cliente e nel PDF.
+        const values: any = previewPayload;
         return (
           <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
             <DialogContent className="max-w-[1100px] w-[95vw] max-h-[95vh] p-0 rounded-[20px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] border-0 overflow-hidden bg-slate-50 flex flex-col">
@@ -4043,7 +4036,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   mode="preview"
                   hidePlaceholders
                   companySettings={previewData.companySettings || {}}
-                  clientData={cd}
+                  clientData={values.clientData || {}}
                   template={{
                     ...previewData.template,
                     // `generatedContent` è il documento finale risolto dal
@@ -4061,9 +4054,6 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     contractStartDate: values.contractStartDate,
                     contractEndDate: values.contractEndDate,
                   }}
-                  paymentPlan={paymentPlan}
-                  bonusList={bonusList}
-                  usingCustomInstallments={usingCustomInstallments}
                   /*
                    * Non passiamo `sections` qui: `generatedContent` è già
                    * stato processato dal server (marker sostituito o blocco
@@ -4083,6 +4073,20 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                   data-testid="button-close-preview"
                 >
                   Chiudi
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDownloadPreview}
+                  disabled={previewDownloading}
+                  className="h-11 rounded-xl border border-gray-200 text-slate-700 hover:bg-gray-50"
+                  data-testid="button-download-preview-pdf-modal"
+                >
+                  {previewDownloading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Preparazione PDF…</>
+                  ) : (
+                    <><Download className="h-4 w-4 mr-2" />Scarica PDF</>
+                  )}
                 </Button>
                 <Button
                   type="button"
