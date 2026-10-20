@@ -215,3 +215,31 @@ test("venditore: creato con password temporanea, non duplicato, mai in un'altra 
     /diversi/,
   );
 });
+
+test("--nuove-password: password temporanee nuove per admin e venditore già esistenti", async () => {
+  const sTag = `${tag}-np`;
+  const cfg = {
+    ...config({ company: { companyName: `${sTag} Studio` }, admin: { username: `${sTag}-admin`, email: `${sTag}@example.invalid` } }),
+    seller: { username: `${sTag}-seller`, email: `${sTag}+v@example.invalid`, fullName: "Titolare Prova" },
+  };
+  const first = await onboardCompany(cfg, { baseDir: dir });
+  companies.add(first.companyId);
+  await pool.query(`UPDATE public.users SET must_change_password = false WHERE company_id = $1`, [first.companyId]);
+
+  const dry = await onboardCompany(cfg, { baseDir: dir, dryRun: true, resetPasswords: true });
+  assert.equal(dry.temporaryPassword, null);
+  assert.equal(dry.seller?.temporaryPassword, null);
+  const { rows: [still] } = await pool.query(`SELECT password FROM public.users WHERE id = $1`, [first.adminId]);
+  assert.ok(await comparePasswords(first.temporaryPassword!, still.password), "la prova non cambia nulla");
+
+  const r = await onboardCompany(cfg, { baseDir: dir, resetPasswords: true });
+  assert.equal(r.adminCreated, false);
+  assert.ok(r.temporaryPassword && r.seller?.temporaryPassword);
+  const { rows } = await pool.query(`SELECT id, password, must_change_password FROM public.users WHERE id = ANY($1::int[]) ORDER BY id`, [[r.adminId, r.seller!.id]]);
+  const byId = new Map(rows.map((u: any) => [u.id, u]));
+  assert.ok(await comparePasswords(r.temporaryPassword!, byId.get(r.adminId).password));
+  assert.ok(!(await comparePasswords(first.temporaryPassword!, byId.get(r.adminId).password)), "la vecchia non vale più");
+  assert.ok(await comparePasswords(r.seller!.temporaryPassword!, byId.get(r.seller!.id).password));
+  assert.equal(byId.get(r.adminId).must_change_password, true);
+  assert.equal(byId.get(r.seller!.id).must_change_password, true);
+});

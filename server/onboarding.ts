@@ -131,9 +131,17 @@ function temporaryPassword(): string {
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
 }
 
+/** Nuova password temporanea (cambio obbligatorio al prossimo accesso). */
+async function resetToTemporaryPassword(db: { query: (q: string, v: unknown[]) => Promise<unknown> }, userId: number): Promise<string> {
+  const pw = temporaryPassword();
+  await db.query(`UPDATE public.users SET password = $2, must_change_password = true WHERE id = $1`, [userId, await hashPassword(pw)]);
+  return pw;
+}
+
 export async function onboardCompany(
   rawConfig: unknown,
-  opts: { baseDir: string; dryRun?: boolean } ,
+  /** resetPasswords: nuova password temporanea anche per admin/venditore già esistenti */
+  opts: { baseDir: string; dryRun?: boolean; resetPasswords?: boolean },
 ): Promise<OnboardingResult> {
   const cfg = onboardingConfigSchema.parse(rawConfig);
   const warnings: string[] = [];
@@ -238,6 +246,9 @@ export async function onboardCompany(
       if (existingAdmin[0].role !== "admin") {
         warnings.push(`L'account ${existingAdmin[0].email} esiste ma non è admin: ruolo lasciato invariato.`);
       }
+      if (opts.resetPasswords) {
+        tempPassword = await resetToTemporaryPassword(db, adminId);
+      }
     }
 
     // --- venditore (facoltativo)
@@ -263,7 +274,10 @@ export async function onboardCompany(
           // admin: non si cambia il ruolo di nascosto, ci si ferma.
           throw new Error(`L'account ${sc.email} / ${sc.username} esiste già come ${existing[0].role} di questa azienda: per il venditore usa email e username diversi (es. nome+venditore@...).`);
         }
-        seller = { id: existing[0].id, created: false, username: existing[0].username, temporaryPassword: null };
+        seller = {
+          id: existing[0].id, created: false, username: existing[0].username,
+          temporaryPassword: opts.resetPasswords ? await resetToTemporaryPassword(db, existing[0].id) : null,
+        };
       } else {
         const pw = temporaryPassword();
         const { rows } = await db.query(
