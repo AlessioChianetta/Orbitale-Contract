@@ -58,7 +58,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  createUser(user: InsertUser & { mustChangePassword?: boolean }): Promise<User>;
   setUserActive(id: number, companyId: number, isActive: boolean): Promise<User | undefined>;
   getUsersByCompany(companyId: number): Promise<User[]>;
 
@@ -149,7 +149,7 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async createUser(insertUser: InsertUser & { mustChangePassword?: boolean }): Promise<User> {
     const [user] = await db
       .insert(users)
       .values(insertUser)
@@ -646,12 +646,38 @@ export class DatabaseStorage implements IStorage {
 
   
 
+  /**
+   * Crea il contratto assegnando il numero per azienda e anno (es. 2026-0001).
+   * Il contatore si incrementa in modo atomico nella stessa transazione
+   * dell'inserimento: due contratti creati insieme non ricevono mai lo stesso
+   * numero. Se l'inserimento fallisce il numero non viene consumato.
+   */
   async createContract(contract: InsertContract): Promise<Contract> {
-    const [newContract] = await db
-      .insert(contracts)
-      .values(contract)
-      .returning();
-    return newContract;
+    return db.transaction(async (tx) => {
+      const sellerRes: any = await tx.execute(
+        sql`SELECT company_id FROM public.users WHERE id = ${contract.sellerId}`,
+      );
+      const companyId = sellerRes.rows?.[0]?.company_id;
+      if (!companyId) {
+        throw new Error(`Venditore ${contract.sellerId} senza azienda: impossibile numerare il contratto.`);
+      }
+      const year = Number(
+        new Intl.DateTimeFormat("en-GB", { year: "numeric", timeZone: "Europe/Rome" }).format(new Date()),
+      );
+      const counterRes: any = await tx.execute(sql`
+        INSERT INTO company_contract_counters (company_id, year, last_number)
+        VALUES (${companyId}, ${year}, 1)
+        ON CONFLICT (company_id, year)
+        DO UPDATE SET last_number = company_contract_counters.last_number + 1
+        RETURNING last_number`);
+      const seq = Number(counterRes.rows[0].last_number);
+      const contractNumber = `${year}-${String(seq).padStart(4, "0")}`;
+      const [newContract] = await tx
+        .insert(contracts)
+        .values({ ...contract, contractNumber, documentLayout: 2 } as typeof contracts.$inferInsert)
+        .returning();
+      return newContract;
+    });
   }
 
   async updateContract(id: number, data: Partial<InsertContract>): Promise<Contract> {

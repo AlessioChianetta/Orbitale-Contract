@@ -2,19 +2,16 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express } from "express";
 import session from "express-session";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
-import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
+import { hashPassword, comparePasswords, registerPasswordRoutes } from "./password";
 
 declare global {
   namespace Express {
     interface User extends SelectUser {}
   }
 }
-
-const scryptAsync = promisify(scrypt);
 
 // Helper to sanitize user data (remove password)
 function sanitizeUser(user: SelectUser) {
@@ -25,26 +22,16 @@ function sanitizeUser(user: SelectUser) {
 // Validation schema for admin user creation
 const createUserSchema = insertUserSchema
   .omit({ companyId: true })
-  .extend({ role: z.enum(["admin", "seller"]).default("seller") });
+  .extend({
+    role: z.enum(["admin", "seller"]).default("seller"),
+    password: z.string().min(8, "La password deve avere almeno 8 caratteri"),
+  });
 
 const INVALID_CREDENTIALS = "Username o password non corretti";
 const ACCOUNT_DISABLED = "Account disattivato: contatta l'amministratore della tua azienda";
 
 function isUniqueViolation(error: any): boolean {
   return Boolean(error && (error.code === "23505" || error?.cause?.code === "23505"));
-}
-
-async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
-}
-
-async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
 export function setupAuth(app: Express) {
@@ -59,6 +46,16 @@ export function setupAuth(app: Express) {
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Password temporanea: finché non viene cambiata, l'utente collegato può
+  // solo leggere il proprio profilo, cambiare password o uscire.
+  const ALLOWED_WITH_TEMP_PASSWORD = new Set(["/api/user", "/api/user/change-password", "/api/logout"]);
+  app.use("/api", (req, res, next) => {
+    if (req.isAuthenticated() && req.user.mustChangePassword && !ALLOWED_WITH_TEMP_PASSWORD.has(req.originalUrl.split("?")[0])) {
+      return res.status(403).json({ message: "Devi cambiare la password temporanea prima di continuare.", code: "MUST_CHANGE_PASSWORD" });
+    }
+    next();
+  });
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
@@ -88,6 +85,8 @@ export function setupAuth(app: Express) {
       done(error, null);
     }
   });
+
+  registerPasswordRoutes(app);
 
   // Nessuna registrazione pubblica: le aziende e il loro primo
   // amministratore li crea il proprietario della piattaforma (script sul VPS).
@@ -152,6 +151,8 @@ export function setupAuth(app: Express) {
         fullName,
         role: role || "seller",
         companyId: req.user.companyId, // Use admin's company
+        // La password la sceglie l'admin: l'utente la cambia al primo accesso.
+        mustChangePassword: true,
       });
 
       res.status(201).json(sanitizeUser(user));

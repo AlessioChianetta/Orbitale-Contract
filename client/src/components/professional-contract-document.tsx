@@ -42,6 +42,8 @@ interface ProfessionalContractDocumentProps {
     pec?: string;
     contractTitle?: string;
     logoUrl?: string;
+    isOwner?: boolean;
+    priceVatMode?: string;
   };
   clientData?: Record<string, any>;
   template?: {
@@ -54,6 +56,9 @@ interface ProfessionalContractDocumentProps {
   };
   contract?: {
     id?: number | string;
+    contractNumber?: string | null;
+    documentLayout?: number | null;
+    autoRenewal?: boolean | null;
     createdAt?: string;
     signedAt?: string;
     status?: string;
@@ -67,6 +72,7 @@ interface ProfessionalContractDocumentProps {
     rata_numero?: number;
     rata_importo: string;
     rata_scadenza: string;
+    rata_descrizione?: string;
   }>;
   bonusList?: Array<{ bonus_descrizione: string }>;
   usingCustomInstallments?: boolean;

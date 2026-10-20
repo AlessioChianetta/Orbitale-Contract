@@ -15,6 +15,8 @@ export const users = pgTable("users", {
   // Gli utenti non si eliminano: si disattivano (login bloccato, contratti
   // e template restano all'azienda). Colonna creata da ensureTenantSchema.
   isActive: boolean("is_active").notNull().default(true),
+  // Password temporanea: al primo accesso l'utente deve cambiarla.
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -86,6 +88,12 @@ export const contracts = pgTable("contracts", {
   batchLabel: text("batch_label"),
   isArchived: boolean("is_archived").notNull().default(false),
   contentManuallyEdited: boolean("content_manually_edited").default(false),
+  // Numero per azienda e anno (es. 2026-0001), assegnato alla creazione.
+  // Null per i contratti creati prima della numerazione (mostrano l'id).
+  contractNumber: text("contract_number"),
+  // Versione dell'impaginazione del documento (vedi shared/contract-document.ts):
+  // 1 = storica (contratti creati prima del 20/10/2026), 2 = attuale.
+  documentLayout: integer("document_layout").notNull().default(2),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -139,6 +147,15 @@ export const companySettings = pgTable("company_settings", {
   // Azienda del proprietario della piattaforma: solo lei riceve i template
   // Orbitale/Procacciatore. Non modificabile dalle Impostazioni Azienda.
   isOwner: boolean("is_owner").notNull().default(false),
+  // Dicitura IVA accanto ai prezzi del contratto: "plus_vat" (+ IVA),
+  // "vat_included" (IVA inclusa), "none" (nessuna, es. regime forfettario).
+  priceVatMode: text("price_vat_mode", { enum: ["plus_vat", "vat_included", "none"] }).notNull().default("plus_vat"),
+  // Informativa privacy dell'azienda (titolare del trattamento), mostrata
+  // sulla pagina di firma: testo e/o link.
+  privacyPolicyText: text("privacy_policy_text"),
+  privacyPolicyUrl: text("privacy_policy_url"),
+  // Consenso facoltativo "comunicazioni commerciali" sulla pagina di firma.
+  marketingConsentEnabled: boolean("marketing_consent_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -277,6 +294,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   isActive: true,
+  mustChangePassword: true,
 }).extend({
   companyId: z.number().int().positive("Company ID is required"),
 });
@@ -306,6 +324,9 @@ export const insertContractSchema = createInsertSchema(contracts).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  // Assegnati dal server alla creazione, mai dal client.
+  contractNumber: true,
+  documentLayout: true,
 }).extend({
   renewalDuration: z.number().min(1).max(60).default(12),
   partnershipPercentage: z.string().nullable().optional(),
@@ -370,6 +391,11 @@ export const insertCompanySettingsSchema = createInsertSchema(companySettings).o
   isOwner: true,
 }).extend({
   logoUrl: z.string().optional(),
+  privacyPolicyText: z.string().max(60000, "Informativa troppo lunga (max 60.000 caratteri)").nullable().optional(),
+  privacyPolicyUrl: z.union([
+    z.literal(""),
+    z.string().trim().regex(/^https?:\/\/\S+$/i, "Il link all'informativa deve iniziare con https://"),
+  ]).nullable().optional(),
 });
 
 // Types

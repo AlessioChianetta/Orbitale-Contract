@@ -26,6 +26,7 @@ export default function AuthPage() {
   };
 
   if (user) {
+    if (user.mustChangePassword) return <Redirect to="/cambia-password" />;
     return <Redirect to={user.role === "admin" ? "/admin" : "/seller"} />;
   }
 
@@ -126,6 +127,11 @@ export default function AuthPage() {
               >
                 {loginMutation.isPending ? "Accesso in corso..." : "Accedi"}
               </Button>
+              <Link href="/password-dimenticata">
+                <span className="block text-center text-sm text-slate-500 hover:text-indigo-600 cursor-pointer" data-testid="link-forgot-password">
+                  Password dimenticata?
+                </span>
+              </Link>
             </form>
           </div>
         </div>

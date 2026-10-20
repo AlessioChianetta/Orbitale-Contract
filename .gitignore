@@ -7,3 +7,7 @@ vite.config.ts.*
 .env
 # output delle prove (PDF di test ecc.)
 /generated-artifacts/
+
+# Dump del DB e cookie di sessione: dati reali, mai nel repository
+/DATABASE/*.sql
+/cookies.txt

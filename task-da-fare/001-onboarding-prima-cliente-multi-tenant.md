@@ -1,7 +1,7 @@
 # 001 — Onboarding della prima cliente (multi-tenant reale)
 
 **Cliente:** evigliano.counseling@gmail.com (studio di counseling)
-**Stato:** in corso — Fase A completata il 20/10/2026 (vedi §8 Avanzamento). Analisi del 16/10/2026, rivista lo stesso giorno: vedi §2b
+**Stato:** in corso — Fasi A e B (tranne l'HTML della cliente) completate il 20/10/2026 (vedi §8 Avanzamento). Analisi del 16/10/2026, rivista lo stesso giorno: vedi §2b
 **Obiettivo:** la cliente entra con il suo account admin, trova il SUO contratto (preparato una tantum dal proprietario in HTML), crea gli account per sé e per i dipendenti, e chiunque di loro compila e invia il contratto al cliente finale, che lo firma con OTP. Tutto deve essere isolato dai dati del proprietario, con mittente email e SMS della cliente e senza errori in fase di invio.
 
 **Fuori scope (fase successiva):** accesso automatico dall'app esterna in cui questa è incorporata (SSO / login automatico). Vedi sezione 7.
@@ -86,30 +86,30 @@ Fase A (sicurezza) → punti 17, 18, 20 (documento e privacy) → Fase C (accoun
 ### Fase B — Contratto della cliente
 - [ ] Il proprietario fornisce l'HTML del contratto di counseling con i placeholder `{{...}}`.
 - [ ] Template caricato nell'azienda della cliente (categoria "Clienti").
-- [ ] Documento per cliente **privato** (punto 17).
-- [ ] Autorinnovo solo se attivo; blocco "partnership" senza testo del ristorante (punti 7, 9, 19). Tutto in `shared/contract-document.ts`.
-- [ ] Numerazione dei contratti per azienda (punto 18).
-- [ ] Informativa privacy dell'azienda sulla pagina di firma; consenso marketing attivabile per azienda (punto 20).
-- [ ] Nascondere gli strumenti "Sistema Orbitale" dell'editor template fuori dall'azienda del proprietario (punto 22).
+- [x] Documento per cliente **privato** (punto 17).
+- [x] Autorinnovo solo se attivo; blocco "partnership" senza testo del ristorante (punti 7, 9, 19). Tutto in `shared/contract-document.ts`.
+- [x] Numerazione dei contratti per azienda (punto 18).
+- [x] Informativa privacy dell'azienda sulla pagina di firma; consenso marketing attivabile per azienda (punto 20).
+- [x] Nascondere gli strumenti "Sistema Orbitale" dell'editor template fuori dall'azienda del proprietario (punto 22).
 
 ### Fase C — Account e configurazione
-- [ ] Creare l'azienda della cliente con i suoi dati fiscali (ragione sociale, indirizzo, CF/P.IVA, PEC, codice univoco, logo).
-- [ ] Creare l'admin `evigliano.counseling@gmail.com` (password temporanea + cambio password al primo accesso).
-- [ ] Predisporre la configurazione SMTP dell'azienda (casella da definire insieme al proprietario: la sezione Impostazioni Azienda → Configurazione Email è già pronta) e verificare con l'email di prova.
-- [ ] Canale OTP: **email** (decisione del proprietario). Twilio non usato per questa azienda.
-- [ ] Pagina "Cambia password" per tutti gli utenti e "Password dimenticata" via email (punto 24).
-- [ ] Email all'operatore (e all'admin) quando un cliente firma (punto 23).
-- [ ] Titolo della scheda del browser sulla pagina di firma = nome dell'azienda, non "TurboContract" (punto 21).
-- [ ] Se la cliente usa Gmail come mittente: verifica in due passaggi attiva + "password per le app"; limite di circa 500 email al giorno (punto 25).
+- [x] (script pronto: `scripts/onboard-company.ts`; **da lanciare sul VPS dal proprietario**) Creare l'azienda della cliente con i suoi dati fiscali (ragione sociale, indirizzo, CF/P.IVA, PEC, codice univoco, logo).
+- [x] (stesso script) Creare l'admin `evigliano.counseling@gmail.com` (password temporanea + cambio password al primo accesso).
+- [ ] **Proprietario/cliente:** Predisporre la configurazione SMTP dell'azienda (casella da definire insieme al proprietario: la sezione Impostazioni Azienda → Configurazione Email è già pronta) e verificare con l'email di prova.
+- [x] Canale OTP: **email** (lo imposta lo script) (decisione del proprietario). Twilio non usato per questa azienda.
+- [x] Pagina "Cambia password" per tutti gli utenti e "Password dimenticata" via email (punto 24).
+- [x] Email all'operatore (e all'admin) quando un cliente firma (punto 23).
+- [x] Titolo della scheda del browser sulla pagina di firma = nome dell'azienda, non "TurboContract" (punto 21).
+- [x] (indicazioni in Impostazioni Azienda quando l'indirizzo è Gmail) Se la cliente usa Gmail come mittente: verifica in due passaggi attiva + "password per le app"; limite di circa 500 email al giorno (punto 25).
 
 ### Fase D — Test
-- [ ] Test automatici di isolamento: un utente dell'azienda B non può leggere, modificare, eliminare, archiviare o scaricare template/contratti/PDF/impostazioni dell'azienda A (e viceversa); il dipendente vede solo i propri contratti.
-- [ ] Test del flusso di invio con SMTP e Twilio simulati: creazione → anteprima → invio email (mittente = azienda giusta) → apertura link → OTP (email e SMS) → firma → PDF → notifica firmato; nessun WhatsApp dal numero del proprietario.
-- [ ] Test con modalità "il cliente compila i propri dati".
-- [ ] Prova reale end-to-end con una casella email di test prima della consegna alla cliente.
-- [ ] Contratto di prova con cliente **privato** e con cliente **azienda**: pagina e PDF corretti.
-- [ ] Ereditato dalla task 002: aggiornare il VPS (`git pull`, `npm install`, riavvio) e controllare nginx; analizzare il PDF reale con "WhatsApp" segnalato dal proprietario insieme a `git log -1 --oneline` del VPS.
-- [ ] Tutti i test girano su aziende/utenti di prova dedicati e si ripuliscono da soli (il DB è quello reale).
+- [x] Test automatici di isolamento: un utente dell'azienda B non può leggere, modificare, eliminare, archiviare o scaricare template/contratti/PDF/impostazioni dell'azienda A (e viceversa); il dipendente vede solo i propri contratti.
+- [x] (SMTP simulato; SMS non testato in rete: per questa azienda l'OTP è via email e il client Twilio ora si crea per azienda) Test del flusso di invio con SMTP e Twilio simulati: creazione → anteprima → invio email (mittente = azienda giusta) → apertura link → OTP (email e SMS) → firma → PDF → notifica firmato; nessun WhatsApp dal numero del proprietario.
+- [x] Test con modalità "il cliente compila i propri dati".
+- [ ] **Proprietario:** Prova reale end-to-end con una casella email di test prima della consegna alla cliente.
+- [x] (automatico con contratto di prova; da ripetere con l'HTML vero) Contratto di prova con cliente **privato** e con cliente **azienda**: pagina e PDF corretti.
+- [ ] **Proprietario:** Ereditato dalla task 002: aggiornare il VPS (`git pull`, `npm install`, riavvio) e controllare nginx; analizzare il PDF reale con "WhatsApp" segnalato dal proprietario insieme a `git log -1 --oneline` del VPS.
+- [x] Tutti i test girano su aziende/utenti di prova dedicati e si ripuliscono da soli (il DB è quello reale).
 
 ## 4. Criteri di accettazione
 - La cliente accede, vede solo il suo contratto e i suoi dati; il proprietario non vede i suoi e viceversa.
@@ -145,5 +145,36 @@ L'app è incorporata in un'altra app. Oggi non c'è alcuna integrazione (nessun 
 - **Migrazione:** `server/tenant-schema.ts`, eseguita all'avvio prima delle rotte (idempotente). Sul VPS parte da sola dopo `git pull` + riavvio. **Da verificare sul VPS** che l'azienda con id più basso sia quella del proprietario: `SELECT id, company_name, is_owner FROM company_settings ORDER BY id;`
 - **Test:** `tests/tenant-isolation.test.ts` (aziende e utenti di prova, si ripulisce da solo). `npm test` e `npm run test:pdf` verdi. Verificate anche via HTTP: modifica/eliminazione template tra aziende, disattivazione tra aziende, sessione e login dell'utente disattivato, duplicati.
 
-**Prossimo passo:** Fase B — documento per cliente privato (punto 17), numerazione per azienda (18), informativa privacy (20), autorinnovo/partnership (7, 9, 19), strumenti Orbitale nell'editor (22).
+
+### 20/10/2026 — Fase B completata (manca solo l'HTML del contratto della cliente)
+- **Contratti già esistenti invariati:** nuova colonna `contracts.document_layout`. Alla sua creazione tutti i contratti esistenti ricevono 1 e continuano a essere resi esattamente come prima (autorinnovo sempre stampato, privato come azienda, "+ IVA" fisso). Motivo: sul DB di Replit 21 contratti firmati hanno `auto_renewal = false` ma riportano la clausola, 5 contratti firmati di privati sono stati stampati come azienda. I nuovi contratti hanno 2 (regole sotto).
+- **Cliente privato (punto 17):** sezione "Dati del cliente" con nome e cognome, codice fiscale, nato/a a, data di nascita, residenza, email, cellulare; firma "Firma del Cliente". Niente società, PEC, codice univoco, REA, legale rappresentante. Anche le email salutano la persona (nome e cognome del privato, referente per l'azienda).
+- **Autorinnovo (7, 9):** nel form c'è la casella "Rinnovo automatico" (al posto della frase "Tutti i contratti si rinnovano automaticamente"); la clausola si stampa solo se attiva. Il form inviava sempre `autoRenewal: true` al controllo di anteprima: corretto.
+- **Partnership (19):** il testo da ristorante resta solo per l'azienda proprietaria; le altre hanno un testo generico ("Compenso: X% del fatturato…").
+- **Dicitura IVA:** Impostazioni Azienda → "Contratto e privacy": "+ IVA", "IVA inclusa" o nessuna dicitura (utile per forfettari/prestazioni esenti).
+- **Numerazione (18):** `contracts.contract_number` + tabella `company_contract_counters`. Numero per azienda e anno (es. 2026-0001) assegnato in transazione alla creazione (contratti creati insieme non si sovrappongono; un inserimento fallito non consuma il numero). Usato in pagina, PDF (titolo, piè di pagina, registro), email di richiesta firma e di contratto firmato, nome dell'allegato. I contratti storici mostrano ancora l'id, come già stampato. Un contratto eliminato lascia un buco nella numerazione.
+- **Informativa privacy (20):** in Impostazioni Azienda testo e/o link dell'informativa (avviso se mancano entrambi) e casella "Chiedi il consenso alle comunicazioni commerciali". Sulla pagina di firma "informativa sulla privacy" apre il testo (titolare = azienda) o il link. Il server rifiuta la firma senza consenso privacy (400). Alla firma si registrano link e impronta SHA-256 del testo dell'informativa e, solo se richiesto, il consenso commerciale; il registro delle operazioni li stampa (solo per le firme nuove).
+- **Editor template (22):** "Parti da un modello pronto" (Partnership, Sistema Orbitale, Procacciatore) visibile solo all'azienda proprietaria; esempi delle sezioni resi neutri.
+- **Test:** `tests/contract-document.test.ts` (privato, impaginazione storica, autorinnovo, IVA, numero, partnership) e `tests/contract-numbering.test.ts` (numeri concorrenti, per azienda, inserimento fallito). `npm test` e `npm run test:pdf` verdi.
+
+### 20/10/2026 — Fasi C e D completate (lato sviluppo)
+- **Password (24):** "Cambia password" (icona chiave accanto a "Esci" nelle dashboard, pagina `/cambia-password`) e "Password dimenticata?" nella pagina di accesso (`/password-dimenticata` → email con link a `/reimposta-password`, valido 1 ora, monouso, massimo 3 richieste all'ora; del link si salva solo l'impronta). La risposta alla richiesta è sempre la stessa, che l'account esista o no. L'email parte dall'SMTP dell'azienda dell'utente. Dopo il cambio le altre sessioni aperte si chiudono. Minimo 8 caratteri.
+- **Password temporanea:** gli utenti creati dall'admin (e l'admin creato dallo script) devono cambiarla al primo accesso: finché non lo fanno il server rifiuta ogni altra richiesta (403) e la pagina li porta su "Cambia password".
+- **Avviso firma all'operatore (23):** quando il cliente firma, il venditore che ha inviato il contratto e gli admin attivi della sua azienda ricevono un'email con il PDF firmato, dal mittente dell'azienda. Non rallenta la firma; se fallisce resta nel registro del contratto.
+- **Scheda del browser (21):** pagina di firma e di compilazione mostrano il nome dell'azienda; i testi di riserva non dicono più "TurboContract".
+- **Gmail (25):** in Impostazioni Azienda → Configurazione Email, se l'indirizzo è Gmail compaiono server/porta, "password per le app" con verifica in due passaggi e limite di circa 500 email al giorno.
+- **SMS (Twilio):** il client si crea a ogni invio con le credenziali dell'azienda del contratto (prima un'istanza condivisa poteva usare le credenziali di un'altra azienda in caso di invii contemporanei). Le credenziali globali del server valgono solo per l'azienda proprietaria. Tolto dal log il codice OTP in chiaro della verifica SMS.
+- **Script per il VPS:** `scripts/onboard-company.ts` + esempio `scripts/onboard-company.example.json`. Crea o aggiorna azienda (dati fiscali, logo, informativa privacy, dicitura IVA), admin con password temporanea (stampata una sola volta), OTP via email, template dal file HTML (categoria "Clienti"). Rilanciabile senza doppioni; `--dry-run` per provare; elenca i segnaposto `{{...}}` trovati nell'HTML; rifiuta un'email che appartiene all'azienda del proprietario.
+- **Correzioni trovate dai test:**
+  - Co-compilazione: un utente poteva creare una bozza su un template di un'altra azienda passando il suo id. Ora 403.
+  - "Il cliente compila i propri dati": l'invio singolo veniva bloccato se il testo usava i segnaposto anagrafici che il cliente deve ancora compilare, e il controllo dell'anteprima risultava "cambiato" quando mancava il tipo cliente. Ora l'invio passa; prima di mandare il codice di firma si verifica che nel testo non resti nessun `{{...}}` (altrimenti si chiede al cliente di completare quei campi).
+- **Test nuovi:** `tenant-isolation-routes` (rotte HTTP con due aziende: liste, letture e scritture per id, operazioni in blocco, impostazioni, utenti, preset, co-compilazione; venditore vede solo i suoi contratti; utente disattivato perde la sessione), `send-sign-flow` (SMTP simulato: invio dal mittente giusto, OTP via email, firma senza privacy rifiutata, PDF, avvisi a cliente e operatori, nessun WhatsApp, privato/azienda, cliente compila), `password`, `onboarding`. `npm test` 52/52, `npm run test:pdf` OK.
+- **Repository:** i dump `DATABASE/*.sql` e `cookies.txt` non sono più tracciati da git (restano sul disco, ignorati).
+
+**Restano al proprietario:**
+1. Inviare l'HTML del contratto di counseling (o lanciare lo script con il suo percorso).
+2. Sul VPS: `git pull`, `npm install`, `npm run build`, riavvio; controllare `SELECT id, company_name, is_owner FROM company_settings ORDER BY id;` (deve risultare proprietaria solo la sua azienda).
+3. Sul VPS: preparare il file JSON (dati fiscali della cliente) e lanciare `npx tsx --require ./server/loadEnv.cjs scripts/onboard-company.ts <file.json> --dry-run`, poi senza `--dry-run`; comunicare alla cliente username e password temporanea.
+4. Con la cliente: configurare la casella email in Impostazioni Azienda e inviare l'email di prova.
+5. Prova reale end-to-end con una casella di test (contratto privato e azienda) prima di consegnare.
 

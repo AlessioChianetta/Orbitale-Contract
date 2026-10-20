@@ -7,7 +7,7 @@ import { z } from "zod";
 import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, insertContractPresetSchema, type InsertCoFillSession, type User } from "@shared/schema";
 import { resolveSelectedSections, renderSectionsHtml, parseSelectedIds, parseSections, SECTIONS_MARKER } from "@shared/sections";
 import { isOrbitalPackagesTemplate } from "@shared/orbital-packages";
-import { getMissingClientFields, getClientType, SYNCED_FIELD_KEYS, getContractPartyDisplayName } from "@shared/client-fields";
+import { getMissingClientFields, getClientType, SYNCED_FIELD_KEYS, getContractPartyDisplayName, getSignerGreetingName, ALL_CLIENT_FIELDS } from "@shared/client-fields";
 import {
   getMissingProcacciatoreFields,
   getTemplateRecipientType,
@@ -19,7 +19,7 @@ import cookie from "cookie";
 import signature from "cookie-signature";
 import { generatePDF, generatePreviewPDF } from "./services/pdf-generator-new";
 import { getClientIp } from "./services/client-ip";
-import { sendContractEmail, sendContractSignedNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, sendOtpLockoutAlertEmail, getBaseUrl, buildContractRequestEmail } from "./services/email-service";
+import { sendContractEmail, sendContractSignedNotification, sendContractSignedOperatorNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, sendOtpLockoutAlertEmail, getBaseUrl, buildContractRequestEmail } from "./services/email-service";
 import { hashContractPayload, hashBulkIds, signPreviewToken, verifyPreviewToken, type PreviewScope } from "./services/preview-token";
 import { generateOTP, sendOTP } from "./services/otp-service";
 import { nanoid } from "nanoid";
@@ -427,7 +427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // ancora non risolti (es. il venditore non ha compilato livello /
     // canone / attivazione), restituiamo errore strutturato che il
     // wizard intercetta per portare l'utente al campo mancante.
-    const unresolved = filterProcacciatoreSelfFillUnresolved(
+    const unresolved = filterSelfFillUnresolved(
       findUnresolvedPlaceholders(generatedContent),
       template,
       input.fillMode,
@@ -528,6 +528,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           contractEndDate: input.contractEndDate,
           isPercentagePartnership: input.isPercentagePartnership,
           partnershipPercentage: input.partnershipPercentage,
+          autoRenewal: input.autoRenewal,
           renewalDuration: input.renewalDuration,
         },
         companySettings,
@@ -1281,6 +1282,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           contractStartDate: contract.contractStartDate,
           contractEndDate: contract.contractEndDate,
           autoRenewal: contract.autoRenewal,
+          contractNumber: contract.contractNumber,
+          documentLayout: contract.documentLayout,
           renewalDuration: contract.renewalDuration,
           isPercentagePartnership: contract.isPercentagePartnership,
           partnershipPercentage: contract.partnershipPercentage,
@@ -1488,6 +1491,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contractStartDate: contract.contractStartDate,
             contractEndDate: contract.contractEndDate,
             autoRenewal: contract.autoRenewal,
+            contractNumber: contract.contractNumber,
+            documentLayout: contract.documentLayout,
             renewalDuration: contract.renewalDuration,
             isPercentagePartnership: contract.isPercentagePartnership,
             partnershipPercentage: contract.partnershipPercentage,
@@ -1624,7 +1629,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // contenuto generato contiene ancora placeholder `{{...}}` non
         // risolti. Si esegue PRIMA di toccare il DB per evitare di
         // marcare il contratto come "sent" quando non lo è realmente.
-        const unresolved = filterProcacciatoreSelfFillUnresolved(
+        const unresolved = filterSelfFillUnresolved(
           findUnresolvedPlaceholders(generatedContent),
           template,
           req.body.fillMode ?? (existingContract as any).fillMode,
@@ -1735,7 +1740,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/contracts", requireAuth, async (req, res) => {
     try {
       const contractCode = nanoid(16);
-      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      // Impronta del payload come l'ha visto l'anteprima: va calcolata prima
+      // delle normalizzazioni qui sotto (es. tipo_cliente di default in
+      // modalità "cliente compila"), altrimenti il token risulta "cambiato".
+      const previewPayloadHash = hashContractPayload(req.body);
 
       // Generate contract content from template first
       const template = await storage.getTemplate(req.body.templateId, req.user.companyId);
@@ -1808,9 +1816,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Gate: l'invio immediato richiede sempre un previewToken HMAC
         // valido, prodotto da /api/contracts/preview e poi confermato
         // dall'utente nel gate "Conferma invio contratto al cliente".
-        const expectedHash = hashContractPayload(req.body);
         const verification = verifyPreviewToken(req.body.previewToken, {
-          hash: expectedHash,
+          hash: previewPayloadHash,
           scope: "create-contract",
           userId: req.user.id,
         });
@@ -1825,7 +1832,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // previewToken di per sé è già sufficiente (preview ha già
         // bloccato i placeholder), ma una doppia verifica difende da
         // eventuali bypass futuri o token riusati su payload diversi.
-        const unresolved = filterProcacciatoreSelfFillUnresolved(
+        const unresolved = filterSelfFillUnresolved(
           findUnresolvedPlaceholders(generatedContent),
           template,
           fillMode,
@@ -2444,6 +2451,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contractStartDate: contract.contractStartDate,
         contractEndDate: contract.contractEndDate,
         autoRenewal: contract.autoRenewal,
+        contractNumber: contract.contractNumber,
+        documentLayout: contract.documentLayout,
         renewalDuration: contract.renewalDuration,
         isPercentagePartnership: contract.isPercentagePartnership,
         partnershipPercentage: contract.partnershipPercentage,
@@ -2462,6 +2471,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contractTitle: contractCompanySettings.contractTitle,
         logoUrl: contractCompanySettings.logoUrl,
         otpMethod: contractCompanySettings.otpMethod,
+        // Campi che il documento stampa (pagina = PDF) e dati privacy della pagina di firma.
+        isOwner: contractCompanySettings.isOwner,
+        priceVatMode: contractCompanySettings.priceVatMode,
+        privacyPolicyText: contractCompanySettings.privacyPolicyText,
+        privacyPolicyUrl: contractCompanySettings.privacyPolicyUrl,
+        marketingConsentEnabled: contractCompanySettings.marketingConsentEnabled,
       } : null;
 
       res.json({
@@ -2690,6 +2705,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             missingFields: missing.map((f) => ({ key: f.key, label: f.label })),
           });
         }
+        // Campi facoltativi del modulo usati però dal testo del contratto:
+        // vanno compilati, altrimenti il documento firmato mostrerebbe `{{...}}`.
+        const leftover = findUnresolvedPlaceholders(contract.generatedContent || "");
+        if (leftover.length > 0) {
+          const labels = leftover.map((k) => PLACEHOLDER_LABELS[k]?.label || ALL_CLIENT_FIELDS.find((f) => f.key === k)?.label || k);
+          return res.status(400).json({
+            message: `Per ricevere il codice di firma completa anche: ${labels.join(", ")}.`,
+            code: "CLIENT_DATA_INCOMPLETE",
+            missingFields: leftover.map((k, i) => ({ key: k, label: labels[i] })),
+          });
+        }
       }
 
       const clientData = contract.clientData as any;
@@ -2904,7 +2930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const seller = await storage.getUser(contract.sellerId);
       const settings = seller?.companyId ? await storage.getCompanySettings(seller.companyId) : null;
-      const senderName = settings?.companyName || "Turbo Contract";
+      const senderName = settings?.companyName || "Contratto";
       const cd = (contract.clientData as any) || {};
       const clientEmail = contract.sentToEmail || cd.email || "";
       const signedAt = contract.signedAt
@@ -2981,6 +3007,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (contract.status === "signed") {
         return res.status(400).json({ message: "Contract already signed" });
+      }
+
+      // L'informativa privacy va accettata: controllo anche lato server, non
+      // solo nella pagina (prima della verifica OTP, che non viene consumata).
+      if (!consents || consents.privacy !== true) {
+        return res.status(400).json({ message: "Devi accettare l'informativa privacy per procedere con la firma." });
       }
 
       // ---------- LOCKOUT ANTI-BRUTEFORCE PER CONTRATTO ----------
@@ -3108,7 +3140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const seller = await storage.getUser(contract.sellerId);
               if (seller?.email && seller.companyId) {
                 const cd = (contract.clientData as any) || {};
-                const clientName = cd.cliente_nome || cd.nome || cd.ragione_sociale || cd.procacciatore_nome || null;
+                const clientName = getSignerGreetingName(cd) || cd.ragione_sociale || null;
                 const baseUrl = getBaseUrl();
                 const contractLink = `${baseUrl}/client/${encodeURIComponent(contract.contractCode)}`;
                 await sendOtpLockoutAlertEmail({
@@ -3207,6 +3239,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? (otpRecordContact.includes('@') ? otpRecordContact : (emailAddress || null))
         : ((otpRecordContact && !otpRecordContact.includes('@')) ? otpRecordContact : (phoneNumber || null));
 
+      const marketingConsentOffered = (pdfCompanySettings as any)?.marketingConsentEnabled !== false;
+      const privacyText = String((pdfCompanySettings as any)?.privacyPolicyText || "").trim();
+      const privacyUrl = String((pdfCompanySettings as any)?.privacyPolicyUrl || "").trim();
       const signedAuditEntry = {
         id: -1,
         contractId: contract.id,
@@ -3218,7 +3253,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           phoneNumber: phoneNumber || 'Telefono non disponibile',
           signatureMethod: "otp_verification",
           signatures: signatures,
-          consents: consents,
+          // Consensi registrati: privacy obbligatoria; "comunicazioni
+          // commerciali" solo se l'azienda la chiede sulla pagina di firma.
+          consents: {
+            privacy: true,
+            ...(marketingConsentOffered ? { marketing: consents?.marketing === true } : {}),
+          },
+          marketingConsentOffered,
+          // Informativa mostrata al firmatario: link e impronta del testo
+          // (in vigore al momento della firma), stampati nel registro.
+          privacyPolicy: {
+            url: privacyUrl || null,
+            textSha256: privacyText
+              ? crypto.createHash("sha256").update(privacyText, "utf8").digest("hex")
+              : null,
+          },
           contactUsedForOTP: validOtp?.phoneNumber,
           otpMethod: resolvedOtpMethod,
           verifiedContact: verifiedContact,
@@ -3247,6 +3296,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contractStartDate: contract.contractStartDate,
         contractEndDate: contract.contractEndDate,
         autoRenewal: contract.autoRenewal,
+        contractNumber: contract.contractNumber,
+        documentLayout: contract.documentLayout,
         renewalDuration: contract.renewalDuration,
         isPercentagePartnership: contract.isPercentagePartnership,
         partnershipPercentage: contract.partnershipPercentage,
@@ -3302,6 +3353,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get the updated contract with the PDF path
       const updatedContract = await storage.getContract(contract.id, seller?.companyId);
 
+      // Avviso all'operatore che ha mandato il contratto e agli admin della
+      // sua azienda (non blocca la risposta al cliente; gli errori finiscono
+      // nel registro del contratto).
+      if (updatedContract) {
+        sendContractSignedOperatorNotification(updatedContract)
+          .then((r) => { if (r.sentTo.length) console.log(`📧 Avviso firma inviato a ${r.sentTo.length} operatori`); })
+          .catch((e) => console.error("❌ Avviso firma operatori:", e?.message || e));
+      }
+
       // Invia email di notifica firma al cliente
       const clientEmail = contract.sentToEmail || (contract.clientData as any).email;
       if (clientEmail && updatedContract) {
@@ -3320,7 +3380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // credenziali globali del server, che appartengono al proprietario).
         try {
           const clientPhone = clientData.cellulare || clientData.phone || clientData.telefono;
-          const clientName = clientData.cliente_nome || clientData.nome || clientData.procacciatore_nome || 'Cliente';
+          const clientName = getSignerGreetingName(clientData) || 'Cliente';
           const { isCompanyWhatsAppConfigured, sendCongratulationsWhatsApp } = await import('./services/twilio-service');
 
           if (!isCompanyWhatsAppConfigured(pdfCompanySettings)) {
@@ -3440,6 +3500,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contractStartDate: contract.contractStartDate,
         contractEndDate: contract.contractEndDate,
         autoRenewal: contract.autoRenewal,
+        contractNumber: contract.contractNumber,
+        documentLayout: contract.documentLayout,
         renewalDuration: contract.renewalDuration,
         isPercentagePartnership: contract.isPercentagePartnership,
         partnershipPercentage: contract.partnershipPercentage,
@@ -3654,6 +3716,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // even if the seller closes the form.
       if (!contractId) {
         let templateId = parsed.data.templateId || null;
+        // Il template deve essere dell'azienda dell'utente (mai di un'altra).
+        if (templateId && !(await storage.getTemplate(templateId, user.companyId))) {
+          return res.status(403).json({ message: "Template non autorizzato" });
+        }
         if (!templateId) {
           const tpls = await storage.getTemplates(user.companyId);
           const firstActive = tpls.find(t => t.isActive) || tpls[0];
@@ -3763,7 +3829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const link = `${getBaseUrl()}/co-fill/${sess.token}`;
 
       const currentData = (sess.currentData as Record<string, any>) || {};
-      const clientName = currentData.cliente_nome || currentData.nome || currentData.procacciatore_nome || null;
+      const clientName = getSignerGreetingName(currentData);
 
       try {
         const result = await sendCoFillLinkEmail({
@@ -4330,18 +4396,21 @@ const BULK_SELF_FILL_EXEMPT_KEYS = new Set<string>([
   ...PROCACCIATORE_SYNCED_FIELD_KEYS,
 ]);
 
-function filterProcacciatoreSelfFillUnresolved(
+// Modalità "il destinatario compila i propri dati": i placeholder anagrafici
+// che compilerà lui sul link pubblico non bloccano anteprima/invio. Prima
+// dell'OTP la rotta send-otp verifica che nel testo non resti nessun
+// placeholder (il contratto non si firma mai con un `{{...}}` visibile).
+function filterSelfFillUnresolved(
   unresolved: string[],
   template: unknown,
   fillMode: string | null | undefined,
 ): string[] {
-  if (
-    getTemplateRecipientType(template as any) === "procacciatore" &&
-    fillMode === "client_fill"
-  ) {
-    return unresolved.filter((k) => !PROCACCIATORE_SELF_FILL_PLACEHOLDER_KEYS.has(k));
-  }
-  return unresolved;
+  if (fillMode !== "client_fill") return unresolved;
+  const selfFillKeys =
+    getTemplateRecipientType(template as any) === "procacciatore"
+      ? PROCACCIATORE_SELF_FILL_PLACEHOLDER_KEYS
+      : CLIENT_DATA_ALLOWED_KEYS;
+  return unresolved.filter((k) => !selfFillKeys.has(k));
 }
 
 // Cerca nel testo finale del contratto eventuali placeholder `{{nome}}`
@@ -4472,9 +4541,12 @@ async function generateContractContent(
 
   // Format payment plan for template. Reuses the shared formatDate helper so the
   // YYYY-MM-DD / UTC-shift and Europe/Rome timezone handling stay consistent.
-  const formattedPaymentPlan = paymentPlanData.map((payment: any, index: number) => {
+  // Una riga con descrizione (es. "Attivazione") mostra quella al posto del
+  // numero e non consuma un numero di rata.
+  let rataCounter = 0;
+  const formattedPaymentPlan = paymentPlanData.map((payment: any) => {
     return {
-      rata_numero: index + 1,
+      rata_numero: payment.rata_descrizione || ++rataCounter,
       rata_importo: payment.rata_importo || payment.amount || '0.00',
       rata_scadenza: formatDate(payment.rata_scadenza || payment.date || '')
     };
@@ -4673,8 +4745,9 @@ function buildEnhancedClientData(
 
   const usingCustomInstallments = data.rata_list && Array.isArray(data.rata_list) && data.rata_list.length > 0;
   const paymentPlanData = usingCustomInstallments ? data.rata_list : data.payment_plan || [];
-  const formattedPaymentPlan = paymentPlanData.map((payment: any, index: number) => ({
-    rata_numero: index + 1,
+  let rataCounter = 0;
+  const formattedPaymentPlan = paymentPlanData.map((payment: any) => ({
+    rata_numero: payment.rata_descrizione || ++rataCounter,
     rata_importo: payment.rata_importo || payment.amount || '0.00',
     rata_scadenza: formatDate(payment.rata_scadenza || payment.date || ''),
   }));

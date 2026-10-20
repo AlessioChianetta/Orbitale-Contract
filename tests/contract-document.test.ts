@@ -16,7 +16,7 @@ const input: ContractDocumentInput = {
     bonus_list: [{ bonus_descrizione: "Consulenza extra" }],
   },
   template: { name: "Contratto servizi", content: "<p>Articolo 1</p><script>alert(1)</script>", customContent: "<p>Nota</p>", paymentText: "<p>Bonifico</p>", predefinedBonuses: [{ description: "Sconto", value: 10, type: "percentage" }] },
-  contract: { id: 7, status: "signed", signedAt: "2026-10-16T10:00:00Z", contractStartDate: "2026-10-16", renewalDuration: 12 },
+  contract: { id: 7, status: "signed", signedAt: "2026-10-16T10:00:00Z", contractStartDate: "2026-10-16", renewalDuration: 12, autoRenewal: true },
 };
 const signature = "data:image/png;base64,AAAA";
 
@@ -56,4 +56,63 @@ test("nessuna copia del documento fuori dal modulo condiviso", () => {
     assert.ok(!src.includes("Clausola di autorinnovo") && !src.includes("CLAUSOLA DI AUTORINNOVO"), "testo del documento duplicato");
     assert.ok(!src.includes("tacitamente rinnovato"), "testo del documento duplicato");
   }
+});
+
+// ---------------------------------------------------------------- Fase B
+
+const privato = {
+  tipo_cliente: "privato", societa: "Giulia Bianchi", p_iva: "BNCGLI85M41H501Z", nato_a: "Roma",
+  data_nascita: "1985-08-01", indirizzo_residenza: "Via Verdi 3", residente_a: "Torino", provincia_residenza: "TO",
+  email: "g@b.it", cellulare: "+39 333 0000000",
+  rata_list: [{ rata_importo: "80", rata_scadenza: "2026-11-01" }],
+};
+
+test("cliente privato: dati della persona, niente società/REA/legale rappresentante", () => {
+  const { html } = renderContractDocument({ ...input, client: privato, contract: { id: 9, contractStartDate: "2026-10-20" } }, { mode: "pdf" });
+  assert.ok(html.includes("Dati del cliente</h2>"));
+  assert.ok(html.includes("Nome e cognome") && html.includes("Giulia Bianchi"));
+  assert.ok(html.includes("BNCGLI85M41H501Z") && html.includes("01/08/1985"));
+  assert.ok(html.includes("Via Verdi 3, Torino (TO)"));
+  assert.ok(!html.includes("legale rappresentante") && !html.includes("REA") && !html.includes("Codice univoco</div>"));
+  assert.ok(html.includes("Firma del Cliente<") && !html.includes("Committente"));
+});
+
+test("impaginazione storica (1): invariata per i contratti già esistenti", () => {
+  const legacyContract = { id: 9, documentLayout: 1, autoRenewal: false, contractStartDate: "2026-10-20" };
+  const { html, sections } = renderContractDocument(
+    { ...input, company: { ...input.company, priceVatMode: "none" }, client: privato, contract: legacyContract }, { mode: "pdf" });
+  assert.ok(html.includes("Dati del cliente / committente"), "privato reso come allora");
+  assert.ok(sections.some((s) => s.id === "autorinnovo"), "autorinnovo sempre stampato come allora");
+  assert.ok(html.includes("80.00 EUR + IVA"), "+ IVA fisso come allora");
+});
+
+test("autorinnovo stampato solo se attivo sul contratto", () => {
+  const off = renderContractDocument({ ...input, contract: { ...input.contract, autoRenewal: false } }, { mode: "pdf" });
+  assert.ok(!off.sections.some((s) => s.id === "autorinnovo"));
+  assert.ok(!off.html.includes("tacitamente rinnovato"));
+  const on = renderContractDocument(input, { mode: "pdf" });
+  assert.ok(on.html.includes("tacitamente rinnovato"));
+});
+
+test("dicitura IVA dalle impostazioni azienda", () => {
+  const r = (priceVatMode?: string) =>
+    renderContractDocument({ ...input, company: { ...input.company, priceVatMode } }, { mode: "pdf" }).html;
+  assert.ok(r(undefined).includes("1500.50 EUR + IVA"));
+  assert.ok(r("vat_included").includes("1500.50 EUR IVA inclusa"));
+  const none = r("none");
+  assert.ok(none.includes("1500.50 EUR</strong>") && none.includes("Importo (EUR)") && !none.includes("+ IVA"));
+});
+
+test("numero contratto per azienda, id per i contratti storici", () => {
+  const withNumber = renderContractDocument({ ...input, contract: { ...input.contract, contractNumber: "2026-0003" } }, { mode: "pdf" }).html;
+  assert.ok(withNumber.includes("Contratto n. 2026-0003"));
+  assert.ok(renderContractDocument(input, { mode: "pdf" }).html.includes("Contratto n. 7"));
+});
+
+test("partnership: testo ristorazione solo per l'azienda proprietaria", () => {
+  const contract = { ...input.contract, isPercentagePartnership: true, partnershipPercentage: 10 };
+  const other = renderContractDocument({ ...input, contract }, { mode: "pdf" }).html;
+  assert.ok(!other.includes("cibo e bevande") && other.includes("10% del fatturato"));
+  const owner = renderContractDocument({ ...input, company: { ...input.company, isOwner: true }, contract }, { mode: "pdf" }).html;
+  assert.ok(owner.includes("cibo e bevande"));
 });

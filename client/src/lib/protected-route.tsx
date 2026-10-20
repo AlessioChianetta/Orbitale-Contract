@@ -29,5 +29,14 @@ export function ProtectedRoute({
     );
   }
 
+  // Password temporanea: si va prima a sceglierne una nuova.
+  if (user.mustChangePassword && path !== "/cambia-password") {
+    return (
+      <Route path={path}>
+        <Redirect to="/cambia-password" />
+      </Route>
+    );
+  }
+
   return <Component />
 }

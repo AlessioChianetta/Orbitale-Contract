@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -36,6 +37,7 @@ import {
 import SectionPreviewDialog from "./section-preview-dialog";
 import ContractRecapPanel, { type ContractRecapData } from "./contract-recap-panel";
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { ACTIVATION_LABEL, buildAutomaticPlan, sumPlanCents, toCents } from "@/lib/payment-plan";
 
 function getTemplateSections(t: unknown): ModularSection[] {
   return parseSections((t as { sections?: unknown } | null | undefined)?.sections);
@@ -103,7 +105,8 @@ const contractFormSchema = z.object({
     })).default([]).optional(),
     payment_plan: z.array(z.object({
       rata_importo: z.string().optional(),
-      rata_scadenza: z.string().optional()
+      rata_scadenza: z.string().optional(),
+      rata_descrizione: z.string().optional(),
     })).default([]).optional(),
     rata_list: z.array(z.object({
       rata_importo: z.number().min(0.01, "Importo deve essere maggiore di 0").optional(),
@@ -502,13 +505,60 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   // sopravvive al cambio step (lo step 4 monta/smonta il componente).
   const [paymentCalcFrequency, setPaymentCalcFrequency] = useState<
     'monthly' | 'quarterly' | 'semiannual' | 'annual'
-  >('annual');
+  >(() => {
+    // Riaprendo una bozza: frequenza dedotta dal numero di rate salvate
+    // (esclusa la riga dell'attivazione), altrimenti annuale.
+    const plan = (contract as any)?.clientData?.payment_plan;
+    const n = Array.isArray(plan) ? plan.filter((p: any) => p && !p.rata_descrizione).length : 0;
+    if (n >= 12) return 'monthly';
+    if (n >= 4) return 'quarterly';
+    if (n >= 2) return 'semiannual';
+    return 'annual';
+  });
   const [paymentCalcIsSubscription, setPaymentCalcIsSubscription] = useState(false);
   const [paymentCalcFirstMonthDiscount, setPaymentCalcFirstMonthDiscount] = useState<{
     enabled: boolean;
     type: 'percentage' | 'fixed';
     value: number;
   }>({ enabled: false, type: 'percentage', value: 50 });
+  // Costo di attivazione compreso nel prezzo totale (primo pagamento alla
+  // firma). Riaprendo una bozza si deduce dal piano salvato.
+  const [paymentCalcIncludeActivation, setPaymentCalcIncludeActivation] = useState<boolean>(() => {
+    const plan = (contract as any)?.clientData?.payment_plan;
+    return Array.isArray(plan) && plan[0]?.rata_descrizione === ACTIVATION_LABEL;
+  });
+
+  // Controllo dei conti prima di anteprima/invio: la somma delle rate deve
+  // coincidere con il totale (prezzo totale, meno l'eventuale sconto prima
+  // rata nel calcolo automatico). Restituisce il messaggio d'errore o null.
+  const paymentPlanProblem = (values: any): string | null => {
+    if (values.isPercentagePartnership || !values.totalValue || values.totalValue <= 0) return null;
+    const fmt = (cents: number) => (cents / 100).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+    const rataList = (values.clientData?.rata_list || []).filter(
+      (r: any) => r && Number(r.rata_importo) > 0 && r.rata_scadenza && String(r.rata_scadenza).trim() !== "",
+    );
+    if (rataList.length > 0) {
+      const sum = sumPlanCents(rataList);
+      const expected = toCents(values.totalValue);
+      return sum === expected ? null
+        : `La somma delle rate personalizzate (${fmt(sum)}) non corrisponde al prezzo totale (${fmt(expected)}).`;
+    }
+    const plan = (values.clientData?.payment_plan || []).filter((p: any) => p && p.rata_importo && p.rata_scadenza);
+    if (plan.length === 0) return null;
+    const calc = buildAutomaticPlan({
+      total: values.totalValue,
+      frequency: paymentCalcFrequency,
+      isSubscription: paymentCalcIsSubscription,
+      discount: paymentCalcFirstMonthDiscount,
+      activationFee: values.activationFee,
+      includeActivation: paymentCalcIncludeActivation,
+    });
+    if (calc.error) return calc.error;
+    const sum = sumPlanCents(plan);
+    const expected = toCents(calc.totalToPay);
+    return sum === expected ? null
+      : `La somma delle rate (${fmt(sum)}) non corrisponde al totale da pagare (${fmt(expected)}). Correggi le rate o usa "Ripristina automatico".`;
+  };
 
   // Preset Offerta state
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
@@ -615,6 +665,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       templateId: contract?.templateId || selectedTemplateId || 0,
       totalValue: contract?.totalValue ? contract.totalValue / 100 : 0, // Convert from cents to euros
       sendImmediately: false,
+      autoRenewal: contract ? contract.autoRenewal !== false : true,
       renewalDuration: contract?.renewalDuration || 12,
       contractStartDate: contract?.contractStartDate ? new Date(contract.contractStartDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       contractEndDate: contract?.contractEndDate ? new Date(contract.contractEndDate).toISOString().split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to 1 year from now
@@ -1043,6 +1094,14 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         scrollToSection("section-payment");
         return;
       }
+      {
+        const planProblem = paymentPlanProblem(values);
+        if (planProblem) {
+          toast({ title: "Controlla il piano pagamenti", description: planProblem, variant: "destructive" });
+          scrollToSection("section-payment");
+          return;
+        }
+      }
     } else {
       // client_fill: serve almeno l'email per poter inviare il link.
       if (!cd.email) {
@@ -1174,7 +1233,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       totalValue: raw.totalValue ? Math.round(raw.totalValue * 100) : null,
       isPercentagePartnership: !!raw.isPercentagePartnership,
       partnershipPercentage: raw.partnershipPercentage ?? null,
-      autoRenewal: true,
+      autoRenewal: raw.autoRenewal !== false,
       renewalDuration: raw.renewalDuration,
       contractStartDate: raw.contractStartDate,
       contractEndDate: raw.contractEndDate,
@@ -1237,6 +1296,14 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
         toast({ title: "Inserisci il prezzo totale", description: "Deve essere maggiore di zero.", variant: "destructive" });
         scrollToSection("section-payment");
         return;
+      }
+      {
+        const planProblem = paymentPlanProblem(values);
+        if (planProblem) {
+          toast({ title: "Controlla il piano pagamenti", description: planProblem, variant: "destructive" });
+          scrollToSection("section-payment");
+          return;
+        }
       }
     } else if (!cd.email) {
       toast({ title: "Inserisci l'email del cliente", description: "Per inviare il link serve almeno un'email valida.", variant: "destructive" });
@@ -1622,9 +1689,12 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       const cd: any = values.clientData || {};
       const usingCustomInstallments = Array.isArray(cd.rata_list) && cd.rata_list.length > 0;
       const rawPaymentData = usingCustomInstallments ? cd.rata_list : (cd.payment_plan || []);
+      let rataCounter = 0;
       const paymentPlan = rawPaymentData
-        .map((p: any, i: number) => ({
-          rata_numero: i + 1,
+        .map((p: any) => ({
+          // stessa numerazione del documento: la riga "Attivazione" non consuma un numero
+          rata_numero: p.rata_descrizione ? undefined : ++rataCounter,
+          ...(p.rata_descrizione ? { rata_descrizione: String(p.rata_descrizione) } : {}),
           rata_importo: String(p.rata_importo ?? p.amount ?? "0.00"),
           rata_scadenza: String(p.rata_scadenza ?? p.date ?? ""),
         }))
@@ -1667,6 +1737,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
             contract: {
               isPercentagePartnership: !!values.isPercentagePartnership,
               partnershipPercentage: values.partnershipPercentage,
+              autoRenewal: values.autoRenewal !== false,
+              documentLayout: (contract as any)?.documentLayout ?? null,
+              contractNumber: (contract as any)?.contractNumber ?? null,
               renewalDuration: values.renewalDuration,
               contractStartDate: values.contractStartDate,
               contractEndDate: values.contractEndDate,
@@ -3058,6 +3131,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         onFrequencyChange={setPaymentCalcFrequency}
                         onIsSubscriptionChange={setPaymentCalcIsSubscription}
                         onFirstMonthDiscountChange={setPaymentCalcFirstMonthDiscount}
+                        activationFee={form.watch("activationFee")}
+                        includeActivation={paymentCalcIncludeActivation}
+                        onIncludeActivationChange={setPaymentCalcIncludeActivation}
                       />
                       <p className="text-sm text-slate-500 mt-4 flex items-center">
                         <Info className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
@@ -3073,20 +3149,27 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         Inserisci manualmente gli importi e le scadenze per ogni rata
                       </p>
                       
-                      {/* Validazione Somma */}
-                      {rataListFields.fields.length > 0 && (
-                        <div className="mb-4 flex items-center text-sm text-slate-600">
-                          <AlertTriangle className="h-4 w-4 mr-2 text-amber-500 flex-shrink-0" />
-                          <span>
-                            Totale rate: <strong>{
-                              rataListFields.fields.reduce((sum, field, index) => {
-                                const value = form.watch(`clientData.rata_list.${index}.rata_importo`) || 0;
-                                return sum + Number(value);
-                              }, 0).toFixed(2)
-                            }€</strong> / Prezzo totale: <strong>{currentTotalValue}€</strong>
-                          </span>
-                        </div>
-                      )}
+                      {/* Validazione Somma (in centesimi: niente errori di arrotondamento) */}
+                      {rataListFields.fields.length > 0 && (() => {
+                        const sumCents = sumPlanCents(
+                          rataListFields.fields.map((_, index) => ({
+                            rata_importo: Number(form.watch(`clientData.rata_list.${index}.rata_importo`)) || 0,
+                          })),
+                        );
+                        const diffCents = toCents(currentTotalValue) - sumCents;
+                        const eur = (c: number) => (c / 100).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+                        return (
+                          <div className={`mb-4 flex items-center text-sm ${diffCents === 0 ? "text-emerald-700" : "text-amber-700"}`} data-testid="text-custom-rates-sum">
+                            <AlertTriangle className={`h-4 w-4 mr-2 flex-shrink-0 ${diffCents === 0 ? "hidden" : "text-amber-500"}`} />
+                            <span>
+                              Totale rate: <strong>{eur(sumCents)}</strong> / Prezzo totale: <strong>{eur(toCents(currentTotalValue))}</strong>
+                              {diffCents > 0 && <> — mancano <strong>{eur(diffCents)}</strong></>}
+                              {diffCents < 0 && <> — in eccesso di <strong>{eur(-diffCents)}</strong></>}
+                              {diffCents === 0 && <> — corretto</>}
+                            </span>
+                          </div>
+                        );
+                      })()}
                       
                       {/* Lista Rate Personalizzate */}
                       <div className="space-y-3 mb-4">
@@ -3167,10 +3250,25 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                 Durata Contratto
               </h3>
               <div className="space-y-5">
-                <p className="text-sm text-slate-500 flex items-center">
-                  <Info className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
-                  Tutti i contratti si rinnovano automaticamente alle stesse condizioni
-                </p>
+                <label
+                  className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 cursor-pointer select-none"
+                  data-testid="checkbox-auto-renewal"
+                >
+                  <Checkbox
+                    checked={form.watch("autoRenewal") !== false}
+                    onCheckedChange={(v) => form.setValue("autoRenewal", v === true, { shouldDirty: true })}
+                    disabled={createContractMutation.isPending}
+                    className="mt-0.5 h-5 w-5"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-slate-800">Rinnovo automatico</span>
+                    <span className="block text-xs text-slate-500 mt-0.5">
+                      {form.watch("autoRenewal") !== false
+                        ? "Nel contratto compare la clausola di rinnovo tacito alle stesse condizioni, salvo disdetta 30 giorni prima della scadenza."
+                        : "Il contratto termina alla data di scadenza: nessuna clausola di rinnovo nel documento."}
+                    </span>
+                  </span>
+                </label>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div>
@@ -3227,7 +3325,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                       {...form.register("renewalDuration", { valueAsNumber: true })}
                       placeholder="12"
                       className={inputClass}
-                      disabled={createContractMutation.isPending}
+                      disabled={createContractMutation.isPending || form.watch("autoRenewal") === false}
                     />
                     <p className="text-xs text-slate-400 mt-1.5">
                       Durata del rinnovo automatico
@@ -4050,6 +4148,9 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     status: "draft",
                     isPercentagePartnership: !!values.isPercentagePartnership,
                     partnershipPercentage: values.partnershipPercentage,
+                    autoRenewal: values.autoRenewal !== false,
+                    documentLayout: (contract as any)?.documentLayout ?? null,
+                    contractNumber: (contract as any)?.contractNumber ?? null,
                     renewalDuration: values.renewalDuration,
                     contractStartDate: values.contractStartDate,
                     contractEndDate: values.contractEndDate,

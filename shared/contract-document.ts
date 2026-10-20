@@ -12,6 +12,7 @@
  */
 import { SECTIONS_MARKER, renderSectionsHtml, type ModularSection } from "./sections";
 import { formatDateItalian } from "./procacciatore-fields";
+import { getClientType } from "./client-fields";
 
 // ------------------------------------------------------------------ tipi
 
@@ -25,6 +26,19 @@ export interface DocCompany {
   pec?: string | null;
   contractTitle?: string | null;
   logoUrl?: string | null;
+  /** azienda proprietaria della piattaforma (testi storici del proprietario) */
+  isOwner?: boolean | null;
+  /** dicitura IVA accanto ai prezzi: "+ IVA" (default), "IVA inclusa" o nessuna */
+  priceVatMode?: PriceVatMode | string | null;
+}
+
+export type PriceVatMode = "plus_vat" | "vat_included" | "none";
+
+/** Dicitura IVA da stampare accanto agli importi. */
+export function priceVatSuffix(mode?: string | null): string {
+  if (mode === "vat_included") return "IVA inclusa";
+  if (mode === "none") return "";
+  return "+ IVA";
 }
 
 export interface DocTemplate {
@@ -39,6 +53,8 @@ export interface DocTemplate {
 
 export interface DocContract {
   id?: number | string | null;
+  /** numero per azienda (es. 2026-0001); i contratti storici non lo hanno */
+  contractNumber?: string | null;
   status?: string | null;
   createdAt?: string | Date | null;
   signedAt?: string | Date | null;
@@ -46,6 +62,14 @@ export interface DocContract {
   contractEndDate?: string | Date | null;
   isPercentagePartnership?: boolean | null;
   partnershipPercentage?: number | string | null;
+  /** la clausola di autorinnovo si stampa solo se true (impaginazione attuale) */
+  autoRenewal?: boolean | null;
+  /**
+   * Versione dell'impaginazione con cui il contratto è stato creato.
+   * 1 = contratti creati prima del 20/10/2026: si rendono sempre come allora
+   * (un contratto firmato non cambia). Assente o 2 = impaginazione attuale.
+   */
+  documentLayout?: number | null;
   renewalDuration?: number | null;
   regenerationNotice?: {
     regeneratedAt?: string | Date | null;
@@ -54,7 +78,7 @@ export interface DocContract {
   } | null;
 }
 
-export interface DocPayment { rata_numero?: number; rata_importo?: string | number; rata_scadenza?: string }
+export interface DocPayment { rata_numero?: number; rata_importo?: string | number; rata_scadenza?: string; rata_descrizione?: string }
 
 export interface ContractDocumentInput {
   company?: DocCompany | null;
@@ -85,6 +109,17 @@ export interface ContractDocumentResult {
   html: string;
   /** indice delle sezioni (id = attributo data-section) */
   sections: Array<{ id: string; title: string }>;
+}
+
+/**
+ * Numero del contratto da mostrare a clienti e operatori: quello per azienda
+ * se presente, altrimenti l'id interno (contratti creati prima della
+ * numerazione per azienda, che lo hanno già stampato così).
+ */
+export function contractDisplayNumber(c?: { contractNumber?: string | null; id?: number | string | null } | null): string {
+  if (!c) return "";
+  if (c.contractNumber) return String(c.contractNumber);
+  return c.id === undefined || c.id === null ? "" : String(c.id);
 }
 
 /** Elemento in cui la pagina cliente monta l'area firma interattiva. */
@@ -156,11 +191,18 @@ export function derivePaymentsAndBonuses(client: Record<string, any> | null | un
   const c = client || {};
   const usingCustomInstallments = Array.isArray(c.rata_list) && c.rata_list.length > 0;
   const raw: any[] = usingCustomInstallments ? c.rata_list : (Array.isArray(c.payment_plan) ? c.payment_plan : []);
-  const paymentPlan: DocPayment[] = raw.map((p: any, i: number) => ({
-    rata_numero: i + 1,
-    rata_importo: p?.rata_importo ?? p?.amount ?? "0.00",
-    rata_scadenza: p?.rata_scadenza ?? p?.date ?? "",
-  }));
+  // Righe con descrizione (es. "Attivazione") non consumano un numero di
+  // rata: senza descrizioni la numerazione resta 1, 2, 3… come sempre.
+  let n = 0;
+  const paymentPlan: DocPayment[] = raw.map((p: any) => {
+    const descr = typeof p?.rata_descrizione === "string" && p.rata_descrizione.trim() ? p.rata_descrizione.trim() : undefined;
+    return {
+      rata_numero: descr ? undefined : ++n,
+      rata_importo: p?.rata_importo ?? p?.amount ?? "0.00",
+      rata_scadenza: p?.rata_scadenza ?? p?.date ?? "",
+      ...(descr ? { rata_descrizione: descr } : {}),
+    };
+  });
   let bonusList: Array<{ bonus_descrizione: string }> = [];
   if (Array.isArray(template?.predefinedBonuses)) {
     bonusList = template!.predefinedBonuses!.map((b: any) => ({
@@ -326,7 +368,13 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
 
   const isProcacciatore = template.recipientType === "procacciatore" ||
     (!!client.procacciatore_nome && !client.societa && !client.cliente_nome);
+  // Impaginazione storica (v1): cliente privato stampato come azienda,
+  // autorinnovo sempre presente, "+ IVA" fisso, validità sempre presente.
+  const legacy = contract.documentLayout === 1;
+  const isPrivato = !legacy && !isProcacciatore && getClientType(client) === "privato";
   const isPartnership = !!(contract.isPercentagePartnership && contract.partnershipPercentage);
+  const vat = legacy ? "+ IVA" : priceVatSuffix(company.priceVatMode);
+  const withVat = (label: string) => (vat ? `${label} ${vat}` : label);
   const renewalDuration = contract.renewalDuration || 12;
   const contractStartDate = contract.contractStartDate || contract.createdAt;
   const contractEndDate = contract.contractEndDate;
@@ -365,7 +413,10 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
   const title = template.name || company.contractTitle || "Contratto";
   const totalAmount = paymentPlan.reduce((s, p) => s + parseAmount(p.rata_importo), 0).toFixed(2);
 
-  const signerName = isProcacciatore ? (client.procacciatore_nome || "") : (client.cliente_nome || client.societa || "");
+  const signerName = isProcacciatore
+    ? (client.procacciatore_nome || "")
+    : isPrivato ? (client.societa || client.cliente_nome || "") : (client.cliente_nome || client.societa || "");
+  const docNumber = contractDisplayNumber(contract);
   const signatureInner = opts.signature
     ? (opts.signature.startsWith("data:image")
         ? `<img src="${e(opts.signature)}" alt="Firma" />`
@@ -395,7 +446,7 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
       </div>
     </header>
     <div class="doc-title">
-      ${contract.id ? `<div class="doc-eyebrow">Contratto n. ${e(contract.id)}</div>` : ""}
+      ${docNumber ? `<div class="doc-eyebrow">Contratto n. ${e(docNumber)}</div>` : ""}
       <h1>${e(title)}</h1>
     </div>
   </div>`);
@@ -415,6 +466,22 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
       <tr>${field("Email", client.email, "email@esempio.it")}${field("Cellulare", client.cellulare, "+39...")}</tr>
       ${(client.procacciatore_pec || client.procacciatore_sdi) ? `<tr>${field("PEC", client.procacciatore_pec)}${field("Codice SDI", client.procacciatore_sdi)}</tr>` : ""}
       ${client.procacciatore_iban ? `<tr>${field("IBAN", client.procacciatore_iban, "", true)}</tr>` : ""}
+    </table>
+  </section>`);
+  } else if (isPrivato) {
+    const cityProv = (city?: string, prov?: string) =>
+      [city ? String(city).trim() : "", prov ? `(${String(prov).trim()})` : ""].filter(Boolean).join(" ");
+    const join = (...xs: string[]) => xs.map((x) => (x || "").trim()).filter(Boolean).join(", ");
+    const residenza = join(client.indirizzo_residenza, cityProv(client.residente_a, client.provincia_residenza))
+      || join(client.indirizzo, cityProv(client.sede, client.provincia_sede));
+    parts.push(`
+  <section data-section="dati-cliente">
+    ${section("dati-cliente", "Dati del cliente")}
+    <table class="fields">
+      <tr>${field("Nome e cognome", client.societa || client.cliente_nome, "Nome Cognome")}${field("Codice fiscale", client.p_iva, "RSSMRA80A01H501U")}</tr>
+      <tr>${field("Nato/a a", client.nato_a, "Città")}${field("Data di nascita", formatShortDate(client.data_nascita), "01/01/1990")}</tr>
+      <tr>${field("Residenza", residenza, "Via..., Città (Prov.)", true)}</tr>
+      <tr>${field("Email", client.email, "email@esempio.it")}${field("Cellulare", client.cellulare, "+39...")}</tr>
     </table>
   </section>`);
   } else {
@@ -451,7 +518,7 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
     parts.push(`
   <section data-section="piano-pagamenti">
     ${section("piano-pagamenti", "Modello di partnership")}
-    <div class="panel">
+    <div class="panel">${legacy || company.isOwner ? `
       <p class="lead"><strong>Percentuale: ${e(contract.partnershipPercentage)}% sul fatturato TOTALE</strong></p>
       <p><strong>Definizione di fatturato totale.</strong> Per "fatturato TOTALE" si intende la somma di tutti i ricavi lordi generati dall'attività, comprensivi di:</p>
       <ul class="list" style="margin: 0.5em 0 0.9em 0;">
@@ -468,18 +535,20 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
         <li>Dichiarazioni IVA periodiche</li>
         <li>Report di fatturato certificati dal commercialista</li>
       </ul>
-      <p><strong>Importante:</strong> questo modello di partnership sostituisce qualsiasi piano di pagamento fisso. Il compenso sarà calcolato esclusivamente come percentuale del fatturato totale.</p>
+      <p><strong>Importante:</strong> questo modello di partnership sostituisce qualsiasi piano di pagamento fisso. Il compenso sarà calcolato esclusivamente come percentuale del fatturato totale.</p>` : `
+      <p class="lead"><strong>Compenso: ${e(contract.partnershipPercentage)}% del fatturato</strong></p>
+      <p>Il compenso è calcolato esclusivamente come percentuale del fatturato e sostituisce qualsiasi piano di pagamento fisso. Le modalità di calcolo, rendicontazione e pagamento sono quelle indicate nel presente contratto.</p>`}
     </div>
   </section>`);
   } else if (paymentPlan.length > 0) {
     parts.push(`
   <section data-section="piano-pagamenti">
     ${section("piano-pagamenti", "Piano pagamenti")}
-    <p class="lead">Il prezzo totale di <strong>${e(totalAmount)} EUR + IVA</strong> sarà corrisposto con le seguenti modalità:</p>
+    <p class="lead">Il prezzo totale di <strong>${e(withVat(`${totalAmount} EUR`))}</strong> sarà corrisposto con le seguenti modalità:</p>
     <table class="pay">
-      <thead><tr><th>Pagamento</th><th>Entro il</th><th class="num">Importo (EUR + IVA)</th></tr></thead>
+      <thead><tr><th>Pagamento</th><th>Entro il</th><th class="num">Importo (${e(withVat("EUR"))})</th></tr></thead>
       <tbody>
-        ${paymentPlan.map((p, i) => `<tr><td>${e(p.rata_numero || i + 1)}</td><td>${e(formatShortDate(p.rata_scadenza) || p.rata_scadenza || "")}</td><td class="num">${e(p.rata_importo)}</td></tr>`).join("")}
+        ${paymentPlan.map((p, i) => `<tr><td>${e(p.rata_descrizione || p.rata_numero || i + 1)}</td><td>${e(formatShortDate(p.rata_scadenza) || p.rata_scadenza || "")}</td><td class="num">${e(p.rata_importo)}</td></tr>`).join("")}
       </tbody>
       <tfoot><tr><td colspan="2">Totale</td><td class="num">${e(totalAmount)}</td></tr></tfoot>
     </table>
@@ -531,16 +600,19 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
     contractEndDate ? `<tr><td class="k">Data di scadenza</td><td class="v">${e(formatLongDate(contractEndDate))}</td></tr>` : "",
     contract.signedAt ? `<tr><td class="k">Firmato il</td><td class="v">${e(formatLongDate(contract.signedAt))}</td></tr>` : "",
   ].join("");
-  parts.push(`
+  if (legacy || validityRows || opts.mode === "preview") {
+    parts.push(`
   <section data-section="validita">
     ${section("validita", "Validità del contratto")}
     ${validityRows
       ? `<table class="kv">${validityRows}</table>`
       : (opts.mode === "preview" ? `<p class="muted-note">Le date di validità saranno compilate alla creazione del contratto.</p>` : "")}
   </section>`);
+  }
 
-  // 10. Autorinnovo (il contratto procacciatore disciplina durata e recesso nei propri articoli)
-  if (!isProcacciatore) {
+  // 10. Autorinnovo: solo se attivo sul contratto (il contratto procacciatore
+  // disciplina durata e recesso nei propri articoli)
+  if (!isProcacciatore && (legacy || contract.autoRenewal === true)) {
     parts.push(`
   <section data-section="autorinnovo">
     ${section("autorinnovo", "Clausola di autorinnovo")}
@@ -570,7 +642,7 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
       <div class="sign-box">
         ${signatureArea}
         <div class="sign-caption">
-          <span>${isProcacciatore ? "Firma del Procacciatore" : "Firma del Cliente / Committente"}</span>
+          <span>${isProcacciatore ? "Firma del Procacciatore" : isPrivato ? "Firma del Cliente" : "Firma del Cliente / Committente"}</span>
           ${signerName ? `<span class="who">${e(signerName)}</span>` : ""}
         </div>
       </div>

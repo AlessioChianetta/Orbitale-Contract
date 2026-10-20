@@ -13,7 +13,7 @@ export type RequiredClientField = {
   type?: "text" | "email" | "tel" | "date" | "select";
 };
 
-const ALL_CLIENT_FIELDS: RequiredClientField[] = [
+export const ALL_CLIENT_FIELDS: RequiredClientField[] = [
   { key: "societa", label: "Nome società / Cognome e Nome", sectionId: "section-client", requiredFor: "both", group: "company" },
   { key: "sede", label: "Città sede legale / Città", sectionId: "section-client", requiredFor: "both", group: "company" },
   { key: "indirizzo", label: "Indirizzo società / Indirizzo", sectionId: "section-client", requiredFor: "both", group: "company" },
@@ -59,6 +59,19 @@ export function getContractPartyDisplayName(
 ): string | null {
   const cd = clientData || {};
   return cd.societa || cd.cliente_nome || cd.nome || cd.procacciatore_nome || null;
+}
+
+/**
+ * Nome con cui salutare il firmatario nelle email: la persona, non la
+ * società. Privato → nome e cognome (campo "societa" del form privato);
+ * azienda → referente; procacciatore → suo nome.
+ */
+export function getSignerGreetingName(
+  clientData: Record<string, any> | undefined | null,
+): string | null {
+  const cd = clientData || {};
+  if (getClientType(cd) === "privato") return cd.societa || cd.cliente_nome || cd.nome || null;
+  return cd.cliente_nome || cd.nome || cd.procacciatore_nome || null;
 }
 
 export function getMissingClientFields(clientData: Record<string, any> | undefined | null): RequiredClientField[] {

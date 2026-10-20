@@ -9,3 +9,6 @@
 - [Task files](task-files-convention.md) — owner wants plans as task-da-fare/NNN-slug.md, in Italian.
 - [Signed PDF invariants](signed-pdf-invariants.md) — registry frozen at signature, no unrecorded/legal claims, signed = immutable, tenant creds only, no emoji.
 - [PDF = client page](pdf-client-view-parity.md) — owner rule: signing page and PDF must be identical (one renderer); never diverge, never ask.
+- [Document layout versioning](document-layout-versioning.md) — renderer changes must leave documentLayout 1 identical; new rules go to a new layout version, never mutate old flags.
+- [Route-level tests](route-tests.md) — full app + fake SMTP + throwaway tenants; close Chromium in after(), one X-Forwarded-For per simulated browser.
+- [Payment plan rules](payment-plan-rules.md) — cents math, sum = total enforced, activation optionally first payment; npm test must run serially.

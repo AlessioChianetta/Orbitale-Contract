@@ -4,7 +4,7 @@ Aggiornato al: **20/10/2026**. Chi lavora su una task aggiorna questa tabella e 
 
 | Task | Titolo | Stato | Prossimo passo |
 |------|--------|-------|----------------|
-| 001 | Onboarding prima cliente (multi-azienda) | In corso: Fase A (sicurezza) completata il 20/10/2026 | Fase B: documento per cliente privato, numerazione per azienda, informativa privacy. Sul VPS: verificare quale azienda ha `is_owner` |
+| 001 | Onboarding prima cliente (multi-azienda) | Sviluppo completato il 20/10/2026 (Fasi A–D, test verdi). In attesa delle azioni del proprietario | HTML del contratto; sul VPS: aggiornamento, controllo `is_owner`, script `scripts/onboard-company.ts`; SMTP con la cliente; prova reale (vedi §8 della task) |
 | 003 | Registro attività e log del sistema | Da fare: analisi del 16/10/2026 | Fase 1 subito: togliere il codice di verifica e gli altri dati riservati dai log |
 
 ## Task completate (in `task-da-fare/fatti/`)

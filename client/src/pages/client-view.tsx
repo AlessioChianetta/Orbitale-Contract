@@ -23,6 +23,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
+import PrivacyPolicyLink from "@/components/privacy-policy-link";
 import { getMissingClientFields, getClientType } from "@/lib/required-client-fields";
 import { getMissingProcacciatoreFields, formatDateItalian } from "@shared/procacciatore-fields";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
@@ -907,6 +908,15 @@ export default function ClientView() {
   const clientCode = contract?.contractCode || ""; // Added contractCode
   const companySettings = contract?.companySettings; // Extracted companySettings
 
+  // Titolo della scheda: il nome dell'azienda che manda il contratto, mai il
+  // marchio della piattaforma (il cliente finale non la conosce).
+  useEffect(() => {
+    const name = (companySettings?.companyName || "").trim();
+    const previous = document.title;
+    document.title = name ? `${name} — Contratto` : "Contratto";
+    return () => { document.title = previous; };
+  }, [companySettings?.companyName]);
+
   // Presenza live (Task #12) — apriamo un WS dedicato e inviamo un ping ogni
   // 15s. Nessuna UI per il cliente: serve solo a far accendere il pallino
   // verde "in linea ora" nella dashboard del venditore. Reconnect con backoff
@@ -1199,6 +1209,9 @@ export default function ClientView() {
       }}
       contract={{
         id: (contract as { id?: number }).id,
+        contractNumber: (contract as { contractNumber?: string | null }).contractNumber ?? null,
+        documentLayout: (contract as { documentLayout?: number | null }).documentLayout ?? null,
+        autoRenewal: (contract as { autoRenewal?: boolean | null }).autoRenewal ?? null,
         createdAt: contract.createdAt,
         signedAt: contract.signedAt,
         status: contract.status,
@@ -1593,11 +1606,18 @@ export default function ClientView() {
                           className="mt-1 h-5 w-5"
                         />
                         <Label htmlFor="privacy" className="text-sm text-gray-700 leading-relaxed cursor-pointer font-medium">
-                          Accetto l'informativa sulla privacy e il trattamento dei dati personali
+                          Ho letto e accetto l'{" "}
+                          <PrivacyPolicyLink
+                            companyName={companySettings?.companyName}
+                            text={companySettings?.privacyPolicyText}
+                            url={companySettings?.privacyPolicyUrl}
+                          />{" "}
+                          e acconsento al trattamento dei dati personali
                           <span className="text-red-500 ml-1 font-bold">*</span>
                         </Label>
                       </div>
 
+                      {companySettings?.marketingConsentEnabled !== false && (
                       <div className="flex items-start space-x-3 p-4 bg-white rounded-lg border border-gray-200">
                         <Checkbox
                           id="marketing"
@@ -1611,6 +1631,7 @@ export default function ClientView() {
                           Acconsento a ricevere comunicazioni commerciali e promozionali
                         </Label>
                       </div>
+                      )}
                     </div>
 
                     <Button

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCompanySettingsSchema } from "@shared/schema";
@@ -110,6 +111,10 @@ export default function CompanySettings() {
       smtpSecure: settings?.smtpSecure ?? true,
       emailFromAddress: settings?.emailFromAddress || "",
       emailFromName: settings?.emailFromName || "",
+      priceVatMode: settings?.priceVatMode || "plus_vat",
+      privacyPolicyText: settings?.privacyPolicyText || "",
+      privacyPolicyUrl: settings?.privacyPolicyUrl || "",
+      marketingConsentEnabled: settings?.marketingConsentEnabled ?? true,
     },
   });
 
@@ -140,6 +145,10 @@ export default function CompanySettings() {
         smtpSecure: settings.smtpSecure ?? true,
         emailFromAddress: settings.emailFromAddress || "",
         emailFromName: settings.emailFromName || "",
+        priceVatMode: settings.priceVatMode || "plus_vat",
+        privacyPolicyText: settings.privacyPolicyText || "",
+        privacyPolicyUrl: settings.privacyPolicyUrl || "",
+        marketingConsentEnabled: settings.marketingConsentEnabled ?? true,
       };
       console.log("Form reset with values:", formValues);
       form.reset(formValues);
@@ -413,6 +422,91 @@ export default function CompanySettings() {
               </div>
             </div>
 
+            {/* Contratto e privacy */}
+            <div className="space-y-4 pt-6 border-t" data-testid="section-contract-privacy">
+              <div className="flex items-center space-x-2">
+                <KeyRound className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold">Contratto e privacy</h3>
+              </div>
+
+              <div>
+                <Label>Dicitura IVA accanto ai prezzi</Label>
+                <Controller
+                  control={form.control}
+                  name="priceVatMode"
+                  render={({ field }) => (
+                    <Select value={field.value || "plus_vat"} onValueChange={field.onChange} disabled={saveSettingsMutation.isPending}>
+                      <SelectTrigger className="mt-1" data-testid="select-price-vat-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="plus_vat">Prezzi + IVA (es. "1.000,00 EUR + IVA")</SelectItem>
+                        <SelectItem value="vat_included">IVA inclusa</SelectItem>
+                        <SelectItem value="none">Nessuna dicitura (es. regime forfettario o prestazione esente)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <p className="text-xs text-gray-500 mt-1">Vale per i nuovi contratti. I contratti già creati restano come sono.</p>
+              </div>
+
+              <div>
+                <Label htmlFor="privacyPolicyText">Informativa privacy (testo)</Label>
+                <Textarea
+                  id="privacyPolicyText"
+                  rows={8}
+                  {...form.register("privacyPolicyText")}
+                  placeholder="Informativa sul trattamento dei dati personali ai sensi dell'art. 13 del Regolamento UE 2016/679. Titolare del trattamento è ..."
+                  disabled={saveSettingsMutation.isPending}
+                  data-testid="input-privacy-text"
+                />
+                {form.formState.errors.privacyPolicyText && (
+                  <p className="text-sm text-red-600 mt-1">{String(form.formState.errors.privacyPolicyText.message)}</p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="privacyPolicyUrl">Link all'informativa privacy (facoltativo)</Label>
+                <Input
+                  id="privacyPolicyUrl"
+                  {...form.register("privacyPolicyUrl")}
+                  placeholder="https://www.tuosito.it/privacy"
+                  disabled={saveSettingsMutation.isPending}
+                  data-testid="input-privacy-url"
+                />
+                {form.formState.errors.privacyPolicyUrl && (
+                  <p className="text-sm text-red-600 mt-1">{String(form.formState.errors.privacyPolicyUrl.message)}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Il cliente vede l'informativa sulla pagina di firma prima di accettarla. Titolare del trattamento è la tua azienda: il testo deve essere il tuo.
+                </p>
+                {!form.watch("privacyPolicyText")?.trim() && !form.watch("privacyPolicyUrl")?.trim() && (
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-2" data-testid="warning-privacy-missing">
+                    Nessuna informativa impostata: il cliente deve accettare un'informativa che non può leggere. Inserisci il testo o il link prima di inviare contratti.
+                  </p>
+                )}
+              </div>
+
+              <Controller
+                control={form.control}
+                name="marketingConsentEnabled"
+                render={({ field }) => (
+                  <label className="flex items-start gap-3 cursor-pointer select-none" data-testid="checkbox-marketing-consent">
+                    <Checkbox
+                      checked={field.value !== false}
+                      onCheckedChange={(v) => field.onChange(v === true)}
+                      disabled={saveSettingsMutation.isPending}
+                      className="mt-0.5"
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium">Chiedi il consenso alle comunicazioni commerciali</span>
+                      <span className="block text-xs text-gray-500">Casella facoltativa sulla pagina di firma. Disattivala se non invii comunicazioni promozionali ai clienti.</span>
+                    </span>
+                  </label>
+                )}
+              />
+            </div>
+
             {/* OTP Settings */}
             <div className="space-y-4 pt-6 border-t">
               <div className="flex items-center space-x-2 mb-4">
@@ -568,6 +662,18 @@ export default function CompanySettings() {
                 Inserisci le credenziali del server SMTP del tuo provider (Aruba, Register.it, IONOS, ecc.).
                 Le email di contratto, OTP e notifica firma verranno inviate da questo mittente.
               </p>
+
+              {/gmail|googlemail/i.test(`${form.watch("smtpHost") || ""} ${form.watch("emailFromAddress") || ""} ${form.watch("smtpUser") || ""}`) && (
+                <div className="text-sm text-blue-900 bg-blue-50 border border-blue-200 rounded-md px-3 py-2 space-y-1" data-testid="hint-gmail">
+                  <p className="font-medium">Indirizzo Gmail</p>
+                  <ul className="list-disc pl-5 space-y-0.5">
+                    <li>Server <strong>smtp.gmail.com</strong>, porta <strong>465</strong> (SSL attivo); utente = indirizzo Gmail completo.</li>
+                    <li>Come password serve una <strong>password per le app</strong>, non quella dell'account: attiva la verifica in due passaggi nell'account Google, poi Sicurezza → Password per le app.</li>
+                    <li>L'email mittente deve essere lo stesso indirizzo Gmail.</li>
+                    <li>Gmail invia al massimo circa <strong>500 email al giorno</strong> (ogni contratto ne usa 2–4: invio, codice di verifica, conferma, avviso all'operatore).</li>
+                  </ul>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

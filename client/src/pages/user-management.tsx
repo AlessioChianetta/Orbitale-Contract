@@ -42,7 +42,7 @@ import { z } from "zod";
 const createUserSchema = z.object({
   username: z.string().min(3, "Username deve essere di almeno 3 caratteri"),
   email: z.string().email("Email non valida"),
-  password: z.string().min(6, "Password deve essere di almeno 6 caratteri"),
+  password: z.string().min(8, "La password deve avere almeno 8 caratteri"),
   fullName: z.string().min(2, "Nome completo deve essere di almeno 2 caratteri"),
   role: z.enum(["admin", "seller"]).default("seller"),
 });
@@ -253,7 +253,7 @@ export default function UserManagement() {
                 </div>
 
                 <div>
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">Password temporanea</Label>
                   <Input
                     id="password"
                     type="password"
@@ -266,6 +266,7 @@ export default function UserManagement() {
                       {form.formState.errors.password.message}
                     </p>
                   )}
+                  <p className="text-xs text-gray-500 mt-1">Comunicala all'utente: al primo accesso dovrà sceglierne una sua.</p>
                 </div>
 
                 <div>

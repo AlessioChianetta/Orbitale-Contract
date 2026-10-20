@@ -234,6 +234,25 @@ export function getActionLabel(action: string): string {
   }
 }
 
+/**
+ * Consensi della firma. Si stampano solo per le firme che registrano
+ * l'informativa mostrata (campo `privacyPolicy`): per le firme precedenti
+ * il registro resta com'era.
+ */
+function renderSignedConsents(m: Record<string, any>): string[] {
+  const pp = m.privacyPolicy;
+  if (!pp || typeof pp !== "object") return [];
+  const out = [line("Informativa privacy", "accettata")];
+  if (nonEmpty(pp.url)) out.push(line("Informativa consultabile a", pp.url));
+  if (nonEmpty(pp.textSha256)) {
+    out.push(`<div class="at-line"><span class="at-k">Impronta SHA-256 del testo dell'informativa:</span> <span class="at-hash">${escapeHtml(pp.textSha256)}</span></div>`);
+  }
+  if (m.marketingConsentOffered === true && typeof m.consents?.marketing === "boolean") {
+    out.push(line("Comunicazioni commerciali", m.consents.marketing ? "consenso dato" : "consenso non dato"));
+  }
+  return out;
+}
+
 export function renderAuditDetails(row: AuditRow, allLogs: AuditLogLike[], ctx: AuditTrailContext): string {
   const { log } = row;
   const m = meta(log);
@@ -278,6 +297,7 @@ export function renderAuditDetails(row: AuditRow, allLogs: AuditLogLike[], ctx: 
         line(contactLabel, signedVerifiedContact(log, channel)),
         nonEmpty(m.emailUsedForSigning) && m.emailUsedForSigning !== signedVerifiedContact(log, channel)
           ? line("Email del firmatario", m.emailUsedForSigning) : "",
+        ...renderSignedConsents(m),
         ip,
         device,
       ].join("");

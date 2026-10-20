@@ -30,6 +30,7 @@ import {
   Filter,
   ArrowUpDown,
   LogOut,
+  KeyRound,
   TrendingUp,
   FileText,
   Calendar,
@@ -258,6 +259,11 @@ export default function AdminDashboard() {
                   {user?.fullName}
                 </span>
               </div>
+              <Link href="/cambia-password">
+                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-slate-900 hover:bg-black/[0.03]" title="Cambia password" data-testid="link-change-password">
+                  <KeyRound className="h-4 w-4" />
+                </Button>
+              </Link>
               <Button 
                 variant="ghost" 
                 size="sm"

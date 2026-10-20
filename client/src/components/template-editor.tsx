@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -383,6 +383,10 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
   // "Bonus & Pagamenti" non hanno senso (niente pacchetti orbitali né
   // BONUS_LIST) e le variabili disponibili sono quelle del procacciatore.
   const recipientTypeValue = (form.watch("recipientType") as string) || "cliente";
+  // I modelli pronti (Partnership, Sistema Orbitale, Procacciatore) sono i
+  // contratti dell'azienda proprietaria: le altre aziende non li vedono.
+  const { data: ownCompany } = useQuery<{ isOwner?: boolean }>({ queryKey: ["/api/company-settings"] });
+  const showOwnerModels = ownCompany?.isOwner === true;
   const isProcTpl = recipientTypeValue === "procacciatore";
   useEffect(() => {
     if (isProcTpl && (activeTab === "sections" || activeTab === "bonuspay")) {
@@ -662,7 +666,8 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                       description="Qui scrivi (o importi) l'HTML che diventa il PDF firmato. Puoi partire da un modello pronto, poi personalizzare. Il testo introduttivo è facoltativo e appare prima della sezione bonus."
                     />
 
-                    {/* Quick start: import templates */}
+                    {/* Quick start: import templates (solo azienda proprietaria) */}
+                    {showOwnerModels && (
                     <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/40 to-violet-50/30 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                       <div className="flex items-center justify-between mb-3">
                         <div>
@@ -782,6 +787,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                         </button>
                       </div>
                     </div>
+                    )}
 
                     {/* Body editor */}
                     <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
@@ -875,7 +881,7 @@ Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere
                       icon={List}
                       accent="violet"
                       title="Pacchetti / Moduli — opzionali, scelti per ogni cliente"
-                      description="Blocchi di testo che il venditore può attivare o disattivare al momento di creare il contratto (es. i 11 Pacchetti del Sistema Orbitale, oppure SEO, Social, Report mensile). Compaiono nel contratto solo se selezionati. Lascia vuoto se il template non ha parti opzionali."
+                      description="Blocchi di testo che il venditore può attivare o disattivare al momento di creare il contratto (es. servizi aggiuntivi, pacchetti, attività facoltative). Compaiono nel contratto solo se selezionati. Lascia vuoto se il template non ha parti opzionali."
                     />
                     <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                       <div className="flex items-start justify-between gap-4 mb-1">

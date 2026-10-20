@@ -16,6 +16,9 @@ import CompanySettings from "./pages/company-settings";
 import UserManagement from "./pages/user-management";
 import ContractView from "./pages/contract-view";
 import CoFillPage from "@/pages/co-fill-page";
+import ChangePasswordPage from "@/pages/change-password";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 
 function Router() {
   return (
@@ -30,6 +33,9 @@ function Router() {
       <Route path="/contratto" component={ContractView} />
       <Route path="/client/:code" component={ClientView} />
       <Route path="/co-fill/:token" component={CoFillPage} />
+      <ProtectedRoute path="/cambia-password" component={ChangePasswordPage} />
+      <Route path="/password-dimenticata" component={ForgotPasswordPage} />
+      <Route path="/reimposta-password" component={ResetPasswordPage} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>

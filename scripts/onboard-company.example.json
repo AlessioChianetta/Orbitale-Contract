@@ -1,0 +1,29 @@
+{
+  "company": {
+    "companyName": "Ragione sociale della cliente",
+    "address": "Via Esempio 1",
+    "city": "Città",
+    "postalCode": "00000",
+    "taxId": "CODICE FISCALE",
+    "vatId": "PARTITA IVA",
+    "uniqueCode": "0000000",
+    "pec": "pec@esempio.it",
+    "contractTitle": "Contratto di consulenza",
+    "logoPath": "logo.png",
+    "priceVatMode": "plus_vat",
+    "privacyPolicyTextPath": "informativa-privacy.txt",
+    "privacyPolicyUrl": "https://www.esempio.it/privacy",
+    "marketingConsentEnabled": false
+  },
+  "admin": {
+    "username": "nome.cognome",
+    "email": "indirizzo@esempio.it",
+    "fullName": "Nome Cognome"
+  },
+  "template": {
+    "name": "Contratto cliente",
+    "htmlPath": "contratto.html",
+    "recipientType": "cliente",
+    "category": "Clienti"
+  }
+}

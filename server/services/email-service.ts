@@ -3,6 +3,7 @@ import * as path from 'path';
 import nodemailer, { Transporter } from 'nodemailer';
 import { Contract, CompanySettings, InsertAuditLog } from '@shared/schema';
 import { storage } from "../storage";
+import { getSignerGreetingName, getContractPartyDisplayName } from '@shared/client-fields';
 
 /**
  * Professional transactional email sender via the customer's own SMTP server
@@ -18,7 +19,8 @@ import { storage } from "../storage";
  *   - emailFromName (defaults to companyName)
  */
 
-const FALLBACK_DISPLAY_NAME = "Turbo Contract";
+// Mai il marchio della piattaforma: i destinatari sono clienti delle aziende.
+const FALLBACK_DISPLAY_NAME = "Contratti";
 
 export type EmailConfigStatus = { configured: boolean; missingFields: string[] };
 
@@ -178,7 +180,7 @@ export interface ContractRequestEmailContent {
  * cliente riceverà.
  */
 export async function buildContractRequestEmail(opts: {
-  contract: Pick<Contract, "sellerId" | "clientData">;
+  contract: Pick<Contract, "sellerId" | "clientData"> & { contractNumber?: string | null };
   contractCode: string;
   emailTo?: string;
   companyId?: number | null;
@@ -198,7 +200,7 @@ export async function buildContractRequestEmail(opts: {
 
   const clientData = (opts.contract.clientData as any) || {};
   const clientEmail = (opts.emailTo || clientData?.email || "").trim();
-  const clientName = clientData?.cliente_nome || clientData?.nome || "Cliente";
+  const clientName = getSignerGreetingName(clientData) || "Cliente";
   if (!clientEmail) {
     throw new Error("Email destinatario mancante per l'invio del contratto.");
   }
@@ -209,6 +211,7 @@ export async function buildContractRequestEmail(opts: {
     clientName,
     contractUrl: signLink,
     contractCode: opts.contractCode,
+    contractNumber: opts.contract.contractNumber ?? null,
     senderName: fromName,
     otpChannel: (settings as any).otpMethod === "twilio" ? "sms" : "email",
   });
@@ -546,6 +549,32 @@ async function recordEmailFailure(contractId: number | undefined, stage: string,
   }
 }
 
+/** PDF firmato da allegare alle email (vuoto se il file non c'è). */
+function loadSignedPdfAttachment(contract: Contract, displayNumber: string | null): Array<{ filename: string; content: Buffer }> {
+  const attachments: Array<{ filename: string; content: Buffer }> = [];
+  if (contract.pdfPath) {
+    try {
+      let pdfPath = contract.pdfPath;
+      if (!path.isAbsolute(pdfPath)) {
+        pdfPath = pdfPath.includes("/")
+          ? path.resolve(pdfPath)
+          : path.join(process.cwd(), "generated-pdfs", pdfPath);
+      }
+      if (fs.existsSync(pdfPath)) {
+        attachments.push({
+          filename: `contratto-firmato-${displayNumber || contract.contractCode}.pdf`,
+          content: fs.readFileSync(pdfPath),
+        });
+      } else {
+        console.warn("⚠️ PDF firmato non trovato per allegato:", pdfPath);
+      }
+    } catch (err) {
+      console.error("❌ Errore lettura PDF per allegato:", err);
+    }
+  }
+  return attachments;
+}
+
 export async function sendContractSignedNotification(contract: Contract): Promise<void> {
   const settings = await loadSettingsForSeller(contract.sellerId);
   if (!settings) {
@@ -566,7 +595,8 @@ export async function sendContractSignedNotification(contract: Contract): Promis
 
   const clientData = contract.clientData as any;
   const clientEmail = contract.sentToEmail || clientData?.email;
-  const clientName = clientData?.cliente_nome || clientData?.nome || "Cliente";
+  const clientName = getSignerGreetingName(clientData) || "Cliente";
+  const displayNumber = contract.contractNumber || null;
 
   if (!clientEmail) {
     console.warn("⚠️ Notifica firma: email destinatario mancante, skip.");
@@ -574,40 +604,21 @@ export async function sendContractSignedNotification(contract: Contract): Promis
   }
 
 
-  const attachments: Array<{ filename: string; content: Buffer }> = [];
-  if (contract.pdfPath) {
-    try {
-      let pdfPath = contract.pdfPath;
-      if (!path.isAbsolute(pdfPath)) {
-        pdfPath = pdfPath.includes("/")
-          ? path.resolve(pdfPath)
-          : path.join(process.cwd(), "generated-pdfs", pdfPath);
-      }
-      if (fs.existsSync(pdfPath)) {
-        attachments.push({
-          filename: `contratto-firmato-${contract.contractCode}.pdf`,
-          content: fs.readFileSync(pdfPath),
-        });
-      } else {
-        console.warn("⚠️ PDF firmato non trovato per allegato:", pdfPath);
-      }
-    } catch (err) {
-      console.error("❌ Errore lettura PDF per allegato:", err);
-    }
-  }
+  const attachments = loadSignedPdfAttachment(contract, displayNumber);
 
   const html = renderSignedHtml({
     clientName,
     senderName: fromName,
     signedAt: contract.signedAt ?? null,
     hasAttachment: attachments.length > 0,
+    contractNumber: displayNumber,
   });
 
   try {
     const info = await transporter.sendMail({
       from: buildFrom(fromName, fromAddress),
       to: clientEmail,
-      subject: `Contratto firmato — ${fromName}`,
+      subject: displayNumber ? `Contratto n. ${displayNumber} firmato — ${fromName}` : `Contratto firmato — ${fromName}`,
       html,
       attachments: attachments.length ? attachments : undefined,
     });
@@ -619,12 +630,158 @@ export async function sendContractSignedNotification(contract: Contract): Promis
   }
 }
 
+/**
+ * Avvisa l'operatore che ha mandato il contratto e gli amministratori della
+ * sua azienda che il cliente ha firmato (con il PDF firmato in allegato).
+ * Usa l'SMTP dell'azienda; un errore viene registrato nel registro del
+ * contratto ma non blocca la firma.
+ */
+export async function sendContractSignedOperatorNotification(contract: Contract): Promise<{ sentTo: string[] }> {
+  const seller = await storage.getUser(contract.sellerId);
+  if (!seller?.companyId) return { sentTo: [] };
+  const settings = await loadSettingsForCompany(seller.companyId);
+  if (!settings) return { sentTo: [] };
+
+  const colleagues = await storage.getUsersByCompany(seller.companyId);
+  const recipients = Array.from(new Set(
+    [seller, ...colleagues.filter((u) => u.role === "admin")]
+      .filter((u) => u.isActive && /.+@.+\..+/.test(u.email || ""))
+      .map((u) => u.email.trim().toLowerCase()),
+  ));
+  if (!recipients.length) return { sentTo: [] };
+
+  let transporter: Transporter, fromAddress: string, fromName: string;
+  try {
+    ({ transporter, fromAddress, fromName } = getTransporterForCompany(settings));
+  } catch (e: any) {
+    await recordEmailFailure(contract.id, "sendContractSignedOperatorNotification:smtp_config", `SMTP non configurato: ${e?.message || e}`);
+    return { sentTo: [] };
+  }
+
+  const cd = (contract.clientData as any) || {};
+  const party = getContractPartyDisplayName(cd) || getSignerGreetingName(cd) || "Cliente";
+  const displayNumber = contract.contractNumber || null;
+  const attachments = loadSignedPdfAttachment(contract, displayNumber);
+  const html = renderOperatorSignedHtml({
+    party,
+    contractNumber: displayNumber,
+    contractCode: contract.contractCode,
+    signedAt: contract.signedAt ?? null,
+    sellerName: seller.fullName,
+    senderName: fromName,
+    dashboardUrl: `${getBaseUrl()}/auth`,
+    hasAttachment: attachments.length > 0,
+  });
+  try {
+    await transporter.sendMail({
+      from: buildFrom(fromName, fromAddress),
+      to: recipients.join(", "),
+      subject: displayNumber ? `Firmato: contratto n. ${displayNumber} — ${party}` : `Firmato: contratto di ${party}`,
+      html,
+      attachments: attachments.length ? attachments : undefined,
+    });
+    return { sentTo: recipients };
+  } catch (error: any) {
+    await recordEmailFailure(contract.id, "sendContractSignedOperatorNotification:send", `SMTP error: ${error?.message || error}`);
+    return { sentTo: [] };
+  }
+}
+
+/**
+ * Link per scegliere una nuova password. Parte dall'SMTP dell'azienda
+ * dell'utente (mai da quello del proprietario): se non è configurato
+ * l'errore risale al chiamante, che lo registra senza rivelarlo.
+ */
+export async function sendPasswordResetEmail(opts: {
+  companyId: number;
+  to: string;
+  fullName: string;
+  link: string;
+  validMinutes: number;
+}): Promise<void> {
+  const settings = await loadSettingsForCompany(opts.companyId);
+  if (!settings) throw new Error("Impostazioni azienda non trovate.");
+  const { transporter, fromAddress, fromName } = getTransporterForCompany(settings);
+  const html = `
+    <!DOCTYPE html>
+    <html><head><style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .content { padding: 20px; background-color: #f9f9f9; }
+      .button { display: inline-block; background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 16px 0; }
+    </style></head>
+    <body>
+      <div class="container">
+        <div class="content">
+          <p>Ciao ${escapeHtml(opts.fullName || "")},</p>
+          <p>abbiamo ricevuto una richiesta di nuova password per il tuo account del gestionale contratti di <strong>${escapeHtml(fromName)}</strong>.</p>
+          <p style="text-align:center;"><a href="${escapeHtml(opts.link)}" class="button">Scegli una nuova password</a></p>
+          <p>Il link vale ${opts.validMinutes} minuti e si può usare una sola volta. Se non hai chiesto tu il cambio, ignora questa email: la password attuale resta valida.</p>
+        </div>
+      </div>
+    </body></html>
+  `;
+  await transporter.sendMail({
+    from: buildFrom(fromName, fromAddress),
+    to: opts.to,
+    subject: `Nuova password — ${fromName}`,
+    html,
+  });
+}
+
 // ---------- HTML templates ----------
+
+export function renderOperatorSignedHtml(opts: {
+  party: string;
+  contractNumber: string | null;
+  contractCode: string;
+  signedAt: Date | string | null;
+  sellerName: string;
+  senderName: string;
+  dashboardUrl: string;
+  hasAttachment: boolean;
+}): string {
+  const d = opts.signedAt ? new Date(opts.signedAt) : null;
+  const when = d && !isNaN(d.getTime())
+    ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Rome" }).format(d) + " (ora italiana)"
+    : null;
+  return `
+    <!DOCTYPE html>
+    <html><head><style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background-color: #10B981; color: white; padding: 20px; text-align: center; }
+      .content { padding: 20px; background-color: #f9f9f9; }
+      .meta { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:12px 16px; margin:16px 0; font-size:14px; }
+    </style></head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2 style="margin:0;">Contratto firmato</h2>
+          <p style="margin:4px 0 0;">${escapeHtml(opts.senderName)}</p>
+        </div>
+        <div class="content">
+          <p><strong>${escapeHtml(opts.party)}</strong> ha firmato il contratto.</p>
+          <div class="meta">
+            ${opts.contractNumber ? `<div><strong>Contratto n.:</strong> ${escapeHtml(opts.contractNumber)}</div>` : ""}
+            <div><strong>Codice contratto:</strong> ${escapeHtml(opts.contractCode)}</div>
+            ${when ? `<div><strong>Firmato il:</strong> ${escapeHtml(when)}</div>` : ""}
+            <div><strong>Inviato da:</strong> ${escapeHtml(opts.sellerName)}</div>
+          </div>
+          <p>${opts.hasAttachment ? "In allegato il PDF firmato, con il registro delle operazioni. " : ""}Il contratto è visibile nella dashboard: <a href="${escapeHtml(opts.dashboardUrl)}">${escapeHtml(opts.dashboardUrl)}</a></p>
+        </div>
+      </div>
+    </body></html>
+  `;
+}
+
 
 export function renderContractRequestHtml(opts: {
   clientName: string;
   contractUrl: string;
   contractCode: string;
+  /** numero per azienda (es. 2026-0001), se assegnato */
+  contractNumber?: string | null;
   senderName: string;
   /** canale con cui arriverà il codice di verifica (impostazione azienda) */
   otpChannel: "sms" | "email";
@@ -655,6 +812,7 @@ export function renderContractRequestHtml(opts: {
           <div style="text-align: center;">
             <a href="${contractUrl}" class="button">Visualizza e firma il contratto</a>
           </div>
+          ${opts.contractNumber ? `<p><strong>Contratto n.</strong> ${escapeHtml(opts.contractNumber)}</p>` : ""}
           <p><strong>Codice contratto:</strong> ${escapeHtml(contractCode)}</p>
           <p>La firma è completamente digitale. Ti verrà richiesto di:</p>
           <ul>
@@ -707,7 +865,7 @@ function renderOtpHtml(otpCode: string, senderName: string): string {
   `;
 }
 
-export function renderSignedHtml(opts: { clientName: string; senderName: string; signedAt: Date | string | null; hasAttachment: boolean }): string {
+export function renderSignedHtml(opts: { clientName: string; senderName: string; signedAt: Date | string | null; hasAttachment: boolean; contractNumber?: string | null }): string {
   const { clientName, senderName } = opts;
   const signedAtDate = opts.signedAt ? new Date(opts.signedAt) : null;
   const signedAtText = signedAtDate && !isNaN(signedAtDate.getTime())
@@ -732,7 +890,7 @@ export function renderSignedHtml(opts: { clientName: string; senderName: string;
         </div>
         <div class="content">
           <h2>Gentile ${escapeHtml(clientName)},</h2>
-          <p>ti confermiamo che il contratto è stato firmato.</p>
+          <p>ti confermiamo che il contratto${opts.contractNumber ? ` n. ${escapeHtml(opts.contractNumber)}` : ""} è stato firmato.</p>
           <p><strong>Dettagli della firma:</strong></p>
           <ul>
             ${signedAtText ? `<li>Data e ora: ${escapeHtml(signedAtText)}</li>` : ""}

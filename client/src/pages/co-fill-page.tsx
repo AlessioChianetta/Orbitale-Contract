@@ -62,6 +62,14 @@ export default function CoFillPage() {
     return () => { cancelled = true; };
   }, [token]);
 
+  // Titolo della scheda: nome dell'azienda, non il marchio della piattaforma.
+  useEffect(() => {
+    const name = (info?.companyName || "").trim();
+    const previous = document.title;
+    document.title = name ? `${name} — Dati per il contratto` : "Dati per il contratto";
+    return () => { document.title = previous; };
+  }, [info?.companyName]);
+
   // WebSocket
   useEffect(() => {
     if (!token || !info || terminated) return;

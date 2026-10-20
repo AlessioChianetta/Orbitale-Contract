@@ -7,12 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Calculator, Calendar, Euro, Gift, Percent, Edit3, Save, X, RotateCcw } from "lucide-react";
-import { calculateDiscountedPrice, formatCurrency, generatePaymentDates } from "@/lib/validation-utils";
-import { format } from "date-fns";
+import { formatCurrency } from "@/lib/validation-utils";
+import { buildAutomaticPlan, sumPlanCents, toCents } from "@/lib/payment-plan";
 
 interface PaymentPlan {
   rata_importo: string;
   rata_scadenza: string;
+  rata_descrizione?: string;
 }
 
 type Frequency = 'monthly' | 'quarterly' | 'semiannual' | 'annual';
@@ -34,6 +35,11 @@ interface PaymentCalculatorAdvancedProps {
   onFrequencyChange?: (value: Frequency) => void;
   onIsSubscriptionChange?: (value: boolean) => void;
   onFirstMonthDiscountChange?: (value: FirstMonthDiscount) => void;
+  /** Costo di attivazione del contratto (campo "Variabili contratto"). */
+  activationFee?: number | null;
+  /** Se vero l'attivazione è compresa nel prezzo totale: primo pagamento alla firma. */
+  includeActivation?: boolean;
+  onIncludeActivationChange?: (value: boolean) => void;
 }
 
 function inferFrequencyFromCount(n: number): Frequency {
@@ -54,7 +60,11 @@ export default function PaymentCalculatorAdvanced({
   onFrequencyChange,
   onIsSubscriptionChange,
   onFirstMonthDiscountChange,
+  activationFee,
+  includeActivation = false,
+  onIncludeActivationChange,
 }: PaymentCalculatorAdvancedProps) {
+  const activationValue = Number.isFinite(Number(activationFee)) ? Number(activationFee) : 0;
   const hasInitialPlan = Array.isArray(initialPlan) && initialPlan.length > 0;
   const [paymentFrequency, setPaymentFrequency] = useState<Frequency>(
     initialFrequency ?? (hasInitialPlan ? inferFrequencyFromCount(initialPlan!.length) : 'annual'),
@@ -97,28 +107,17 @@ export default function PaymentCalculatorAdvanced({
     onPaymentPlanChangeRef.current = onPaymentPlanChange;
   }, [onPaymentPlanChange]);
 
-  const generatePlan = (): PaymentPlan[] => {
-    if (totalAmount <= 0) return [];
-    const calculation = calculateDiscountedPrice(totalAmount, paymentFrequency);
-    const paymentDates = generatePaymentDates(startDate, paymentFrequency, calculation.numberOfPayments);
+  const buildFor = (frequency: Frequency) => buildAutomaticPlan({
+    total: totalAmount,
+    frequency,
+    startDate,
+    isSubscription,
+    discount: firstMonthDiscount,
+    activationFee: activationValue,
+    includeActivation,
+  });
 
-    return paymentDates.map((date, index) => {
-      let amount = calculation.installmentAmount;
-
-      if (isSubscription && firstMonthDiscount.enabled && index === 0) {
-        if (firstMonthDiscount.type === 'percentage') {
-          amount = amount * (1 - firstMonthDiscount.value / 100);
-        } else {
-          amount = Math.max(0, amount - firstMonthDiscount.value);
-        }
-      }
-
-      return {
-        rata_importo: amount.toFixed(2),
-        rata_scadenza: format(date, 'dd/MM/yyyy'),
-      };
-    });
-  };
+  const generatePlan = (): PaymentPlan[] => buildFor(paymentFrequency).plan;
 
   // Rigenera il piano solo quando cambiano gli input del calcolo automatico.
   // `editingIndex` è volutamente fuori dalle dipendenze: non vogliamo
@@ -141,7 +140,7 @@ export default function PaymentCalculatorAdvanced({
     setHasManualEdits(false);
     onPaymentPlanChangeRef.current(newPlan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalAmount, paymentFrequency, isSubscription, firstMonthDiscount.enabled, firstMonthDiscount.type, firstMonthDiscount.value]);
+  }, [totalAmount, paymentFrequency, isSubscription, firstMonthDiscount.enabled, firstMonthDiscount.type, firstMonthDiscount.value, includeActivation, activationValue]);
 
   const handleFrequencyChange = (value: Frequency) => {
     if (hasManualEdits) {
@@ -170,6 +169,7 @@ export default function PaymentCalculatorAdvanced({
 
     const updatedPlan = [...paymentPlan];
     updatedPlan[editingIndex] = {
+      ...updatedPlan[editingIndex],
       rata_importo: parsedAmount.toFixed(2),
       rata_scadenza: editingPayment.date,
     };
@@ -199,8 +199,9 @@ export default function PaymentCalculatorAdvanced({
     return null;
   }
 
-  const calculation = calculateDiscountedPrice(totalAmount, paymentFrequency);
-  const currentTotal = paymentPlan.reduce((sum, p) => sum + parseFloat(p.rata_importo || '0'), 0);
+  const calculation = buildFor(paymentFrequency);
+  const currentTotal = sumPlanCents(paymentPlan) / 100;
+  const sumMismatch = paymentPlan.length > 0 && sumPlanCents(paymentPlan) !== toCents(calculation.totalToPay);
 
   return (
     <Card className="mt-6 border-2 border-purple-100 shadow-lg bg-gradient-to-br from-purple-50 to-white">
@@ -219,6 +220,32 @@ export default function PaymentCalculatorAdvanced({
               <span className="text-2xl font-bold text-gray-900">{formatCurrency(totalAmount)}</span>
             </div>
           </div>
+
+          {/* Costo di attivazione compreso nel prezzo totale */}
+          {activationValue > 0 && (
+            <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+              <div className="flex items-start space-x-3">
+                <Checkbox
+                  id="include-activation"
+                  data-testid="checkbox-include-activation"
+                  checked={includeActivation}
+                  onCheckedChange={(checked) => onIncludeActivationChange?.(!!checked)}
+                  disabled={disabled}
+                  className="mt-0.5"
+                />
+                <div>
+                  <Label htmlFor="include-activation" className="text-sm font-medium text-amber-900">
+                    Costo di attivazione ({formatCurrency(activationValue)}) compreso nel prezzo totale
+                  </Label>
+                  <div className="mt-1 text-xs text-amber-800">
+                    {includeActivation
+                      ? `Si paga alla firma; il resto (${formatCurrency(Math.max(0, totalAmount - activationValue))}) è diviso nelle rate, dal mese successivo.`
+                      : "Non selezionato: le rate dividono solo il prezzo totale e l'attivazione non compare nel piano."}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Subscription Mode Toggle */}
           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
@@ -334,9 +361,7 @@ export default function PaymentCalculatorAdvanced({
                 { id: 'quarterly', label: 'Trimestrale', sub: '4 rate' },
                 { id: 'monthly', label: 'Mensile', sub: '12 rate' },
               ] as const).map((opt) => {
-                const installment = calculation.numberOfPayments > 0
-                  ? totalAmount / ({ annual: 1, semiannual: 2, quarterly: 4, monthly: 12 } as const)[opt.id]
-                  : 0;
+                const installment = buildFor(opt.id).regularInstallment;
                 return (
                   <div key={opt.id} className="relative">
                     <RadioGroupItem value={opt.id} id={opt.id} className="peer sr-only" />
@@ -364,14 +389,31 @@ export default function PaymentCalculatorAdvanced({
 
           {/* Price Summary */}
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-            <div className="flex justify-between items-center">
-              <span className="font-semibold text-gray-700">Totale da pagare:</span>
-              <span className="text-xl font-bold text-blue-700">{formatCurrency(totalAmount)}</span>
-            </div>
-            {hasManualEdits && Math.abs(currentTotal - totalAmount) > 0.01 && (
-              <div className="mt-2 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
-                Attenzione: la somma delle rate modificate ({formatCurrency(currentTotal)}) non corrisponde al prezzo totale ({formatCurrency(totalAmount)}).
-              </div>
+            {calculation.error ? (
+              <div className="text-sm text-red-700" data-testid="text-plan-error">{calculation.error}</div>
+            ) : (
+              <>
+                {(calculation.activationIncluded > 0 || calculation.discountAmount > 0) && (
+                  <div className="space-y-1 text-sm text-gray-600 mb-2">
+                    <div className="flex justify-between"><span>Prezzo totale</span><span>{formatCurrency(totalAmount)}</span></div>
+                    {calculation.activationIncluded > 0 && (
+                      <div className="flex justify-between"><span>di cui attivazione alla firma</span><span>{formatCurrency(calculation.activationIncluded)}</span></div>
+                    )}
+                    {calculation.discountAmount > 0 && (
+                      <div className="flex justify-between text-green-700"><span>Sconto prima rata</span><span>−{formatCurrency(calculation.discountAmount)}</span></div>
+                    )}
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-700">Totale da pagare:</span>
+                  <span className="text-xl font-bold text-blue-700" data-testid="text-plan-total">{formatCurrency(calculation.totalToPay)}</span>
+                </div>
+                {sumMismatch && (
+                  <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                    La somma delle rate ({formatCurrency(currentTotal)}) non corrisponde al totale da pagare ({formatCurrency(calculation.totalToPay)}): correggi gli importi o usa "Ripristina automatico". Finché non coincidono il contratto non si può inviare.
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -382,7 +424,7 @@ export default function PaymentCalculatorAdvanced({
                 <Calendar className="h-4 w-4 text-gray-600" />
                 <h4 className="font-semibold text-gray-800 text-sm">Calendario Pagamenti</h4>
               </div>
-              {hasManualEdits && (
+              {(hasManualEdits || sumMismatch) && (
                 <Button
                   type="button"
                   size="sm"
@@ -401,7 +443,9 @@ export default function PaymentCalculatorAdvanced({
               {paymentPlan.map((payment, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
                   <span className="text-sm font-medium text-gray-600 shrink-0">
-                    Rata {index + 1}
+                    {payment.rata_descrizione
+                      ? payment.rata_descrizione
+                      : `Rata ${index + 1 - paymentPlan.slice(0, index).filter((p) => p.rata_descrizione).length}`}
                   </span>
 
                   {editingIndex === index ? (
@@ -467,7 +511,7 @@ export default function PaymentCalculatorAdvanced({
                         className="h-8 w-8 p-0"
                         onClick={() => handleEditPayment(index)}
                         disabled={disabled}
-                        aria-label={`Modifica rata ${index + 1}`}
+                        aria-label={`Modifica ${payment.rata_descrizione || `rata ${index + 1}`}`}
                       >
                         <Edit3 className="h-4 w-4 text-purple-600" />
                       </Button>

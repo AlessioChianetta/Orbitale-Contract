@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'fs';
 import { execSync } from 'child_process';
 import path from 'path';
 import { AuditLog } from '@shared/schema';
-import { renderContractDocument, CONTRACT_DOCUMENT_CSS } from '@shared/contract-document';
+import { renderContractDocument, CONTRACT_DOCUMENT_CSS, contractDisplayNumber } from '@shared/contract-document';
 import { renderAuditTrailHtml, escapeHtml } from './audit-trail';
 
 // Singleton Puppeteer browser: launch once, reuse across PDF generations.
@@ -201,7 +201,9 @@ async function renderPdf(
     // Wait for fonts to load
     await page.evaluateHandle('document.fonts.ready');
 
-    const contractLabel = isPreview ? 'Anteprima — documento non firmato' : `Contratto n. ${contractId}`;
+    const contractLabel = isPreview
+      ? 'Anteprima — documento non firmato'
+      : `Contratto n. ${contractDisplayNumber({ contractNumber: contractData?.contractNumber, id: contractId })}`;
     const footerLeft = contractData
       ? [companySettings?.companyName, contractLabel].filter(Boolean).join('  ·  ')
       : contractLabel;
@@ -239,6 +241,9 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings: any
       template: contractData.template || {},
       contract: {
         id: contractData.id,
+        contractNumber: contractData.contractNumber ?? null,
+        documentLayout: contractData.documentLayout ?? null,
+        autoRenewal: contractData.autoRenewal ?? null,
         status: contractData.status,
         createdAt: contractData.createdAt,
         signedAt: contractData.signedAt,
@@ -257,7 +262,7 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings: any
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <title>${contractData.id ? `Contratto ${escapeHtml(contractData.id)}` : 'Anteprima contratto'}</title>
+  <title>${contractData.id ? `Contratto ${escapeHtml(contractDisplayNumber(contractData))}` : 'Anteprima contratto'}</title>
   <style>
     ${getEmbeddedFontCss()}
     @page { size: A4; }
@@ -301,7 +306,9 @@ async function resolveOperatorNames(auditLogs: AuditLog[]): Promise<Record<numbe
 
 function generateAuditTrailHtml(auditLogs: AuditLog[], contractData?: any, userNames: Record<number, string> = {}): string {
   return renderAuditTrailHtml(auditLogs as any, {
-    contractId: contractData?.id ?? auditLogs[0]?.contractId ?? '',
+    contractId: contractData?.id != null
+      ? contractDisplayNumber(contractData)
+      : (auditLogs[0]?.contractId ?? ''),
     docType: contractData?.template?.name || contractData?.templateName,
     status: contractData?.status,
     signedAt: contractData?.signedAt,

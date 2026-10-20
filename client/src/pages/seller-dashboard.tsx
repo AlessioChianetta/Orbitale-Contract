@@ -44,6 +44,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  KeyRound,
   Shield,
   MoreHorizontal,
   Archive,
@@ -733,6 +734,11 @@ export default function SellerDashboard() {
                 </div>
                 <span className="text-sm font-medium text-white/90 hidden sm:inline">{user?.fullName}</span>
               </div>
+              <Link href="/cambia-password">
+                <Button variant="ghost" size="sm" className="text-white/70 hover:text-white hover:bg-white/10" title="Cambia password" data-testid="link-change-password">
+                  <KeyRound className="h-4 w-4" />
+                </Button>
+              </Link>
               <Button
                 variant="ghost"
                 size="sm"

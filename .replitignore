@@ -1,1 +1,4 @@
 /generated-artifacts/
+
+/DATABASE/*.sql
+/cookies.txt

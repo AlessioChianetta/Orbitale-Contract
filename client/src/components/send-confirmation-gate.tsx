@@ -59,12 +59,15 @@ export interface SendConfirmationGateProps {
   /** Dati per il rendering del documento (clientData, paymentPlan, ecc.) */
   documentProps: {
     clientData: any;
-    paymentPlan?: Array<{ rata_numero: number; rata_importo: string; rata_scadenza: string }>;
+    paymentPlan?: Array<{ rata_numero?: number; rata_importo: string; rata_scadenza: string; rata_descrizione?: string }>;
     bonusList?: Array<{ bonus_descrizione: string }>;
     usingCustomInstallments?: boolean;
     contract: {
       isPercentagePartnership?: boolean;
       partnershipPercentage?: number | null;
+      autoRenewal?: boolean;
+      documentLayout?: number | null;
+      contractNumber?: string | null;
       renewalDuration?: number | null;
       contractStartDate?: string;
       contractEndDate?: string;
@@ -320,6 +323,9 @@ export default function SendConfirmationGate(props: SendConfirmationGateProps) {
                         status: "draft",
                         isPercentagePartnership: !!documentProps.contract.isPercentagePartnership,
                         partnershipPercentage: documentProps.contract.partnershipPercentage ?? undefined,
+                        autoRenewal: documentProps.contract.autoRenewal,
+                        documentLayout: documentProps.contract.documentLayout ?? null,
+                        contractNumber: documentProps.contract.contractNumber ?? null,
                         renewalDuration: documentProps.contract.renewalDuration ?? undefined,
                         contractStartDate: documentProps.contract.contractStartDate,
                         contractEndDate: documentProps.contract.contractEndDate,
