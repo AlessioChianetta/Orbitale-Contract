@@ -121,7 +121,11 @@ function buildFooterTemplate(left: string): string {
  * quando il cliente chiede il codice, cioè poco prima della firma.
  */
 export function warmPdfBrowser(): void {
-  getBrowser().catch((err) => {
+  if (browserInstance?.connected || browserLaunchPromise) return;
+  const t0 = Date.now();
+  getBrowser().then(() => {
+    console.log(`[PDF] Browser avviato in anticipo in ${Date.now() - t0} ms`);
+  }).catch((err) => {
     console.warn('[PDF] Avvio anticipato del browser non riuscito:', err?.message || err);
   });
 }
