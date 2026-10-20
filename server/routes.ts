@@ -27,6 +27,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { pool } from "./db";
+import { ensureTenantSchema } from "./tenant-schema";
 
 // ============================================================================
 // Client presence (Task #12) — in-memory tracking of clients viewing
@@ -289,7 +290,8 @@ function sanitizeClientDataInput(
 // Max number of contract IDs accepted in a single bulk operation payload.
 const BULK_IDS_MAX = 100;
 
-export function registerRoutes(app: Express): Server {
+export async function registerRoutes(app: Express): Promise<Server> {
+  await ensureTenantSchema();
   setupAuth(app);
 
   // Helper function to ensure user is authenticated
@@ -644,7 +646,10 @@ export function registerRoutes(app: Express): Server {
     try {
       const id = parseInt(req.params.id);
       const templateData = insertContractTemplateSchema.partial().parse(req.body);
-      const template = await storage.updateTemplate(id, templateData);
+      const template = await storage.updateTemplate(id, req.user.companyId, templateData);
+      if (!template) {
+        return res.status(404).json({ message: "Template non trovato" });
+      }
       res.json(template);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -657,7 +662,10 @@ export function registerRoutes(app: Express): Server {
   app.delete("/api/templates/:id", requireAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      await storage.deleteTemplate(id);
+      const deleted = await storage.deleteTemplate(id, req.user.companyId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Template non trovato" });
+      }
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete template" });
@@ -3126,6 +3134,12 @@ export function registerRoutes(app: Express): Server {
 
       // Get seller's information (needed for company ID in template and contract queries)
       const seller = await storage.getUser(contract.sellerId);
+      // Senza venditore non si sa a quale azienda appartiene il contratto:
+      // niente firma con intestazione/credenziali di un'altra azienda.
+      if (!seller?.companyId) {
+        console.error(`[SIGN] Contratto ${contract.contractCode}: venditore ${contract.sellerId} non trovato, firma bloccata.`);
+        return res.status(500).json({ message: "Contratto non associato a nessuna azienda: contatta chi te lo ha inviato." });
+      }
 
       // Extract proper contact information
       const clientData = contract.clientData as any;
@@ -3486,6 +3500,7 @@ export function registerRoutes(app: Express): Server {
         fullName: user.fullName,
         role: user.role,
         companyId: user.companyId,
+        isActive: user.isActive,
         createdAt: user.createdAt
       })));
     } catch (error) {
@@ -3494,24 +3509,36 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+  // Gli utenti non si eliminano: si disattivano. Un utente disattivato non
+  // può accedere (anche le sessioni aperte decadono), ma i suoi contratti e
+  // template restano visibili all'amministratore dell'azienda.
+  app.patch("/api/admin/users/:id/status", requireAdmin, async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
-      if (userId === req.user.id) {
-        return res.status(400).json({ message: "Cannot delete your own account" });
+      const parsed = z.object({ isActive: z.boolean() }).safeParse(req.body);
+      if (!Number.isInteger(userId) || !parsed.success) {
+        return res.status(400).json({ message: "Richiesta non valida" });
       }
-      
-      // Verify user belongs to same company before deletion
-      const userToDelete = await storage.getUser(userId);
-      if (!userToDelete || userToDelete.companyId !== req.user.companyId) {
-        return res.status(404).json({ message: "User not found in your company" });
+      if (userId === req.user.id && !parsed.data.isActive) {
+        return res.status(400).json({ message: "Non puoi disattivare il tuo account" });
       }
-      
-      await storage.deleteUser(userId);
-      res.status(204).send();
+      const updated = await storage.setUserActive(userId, req.user.companyId, parsed.data.isActive);
+      if (!updated) {
+        return res.status(404).json({ message: "Utente non trovato nella tua azienda" });
+      }
+      res.json({
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        fullName: updated.fullName,
+        role: updated.role,
+        companyId: updated.companyId,
+        isActive: updated.isActive,
+        createdAt: updated.createdAt,
+      });
     } catch (error) {
-      console.error("Error deleting user:", error);
-      res.status(500).json({ message: "Failed to delete user" });
+      console.error("Error updating user status:", error);
+      res.status(500).json({ message: "Impossibile aggiornare lo stato dell'utente" });
     }
   });
 
@@ -3819,6 +3846,12 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       res.status(500).json({ message: "Failed to load session" });
     }
+  });
+
+  // Rotte API inesistenti (o rimosse, es. /api/register): 404 esplicito,
+  // invece della pagina HTML del frontend servita dal fallback.
+  app.all("/api/*", (_req, res) => {
+    res.status(404).json({ message: "Risorsa non trovata" });
   });
 
   const httpServer = createServer(app);

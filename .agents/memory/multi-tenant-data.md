@@ -11,4 +11,6 @@ Templates and contracts have no companyId column: scoping happens via join on th
 
 **Why:** Counting rows with raw SQL shows more templates/contracts than the admin UI displays; this is expected, not a bug.
 
-**How to apply:** When verifying UI-visible data or writing aggregations, always join through users and filter by company_id, and don't assume raw table counts match what the user sees. Watch out: template UPDATE/DELETE routes still did not verify company ownership as of Oct 2026, and getTemplates auto-seeds the owner's Orbitale + Procacciatore templates into ANY company (must be gated before onboarding real tenants).
+**How to apply:** When verifying UI-visible data or writing aggregations, always join through users and filter by company_id, and don't assume raw table counts match what the user sees.
+
+Owner company = `company_settings.is_owner` (one-time backfill to the lowest id when the column was created; owner must confirm the VPS row). Owner-only things (Orbitale/Procacciatore seed, owner tools) must gate on this flag, never on "id 1". Users are deactivated (`is_active`), never deleted: deleting breaks template FKs and orphans contracts.

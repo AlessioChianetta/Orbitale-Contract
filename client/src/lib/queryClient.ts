@@ -7,6 +7,21 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Messaggio leggibile da un errore di apiRequest ("400: {"message":"..."}"):
+// estrae il campo message del JSON del server, se presente.
+export function getErrorMessage(error: unknown, fallback = "Si è verificato un errore"): string {
+  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  if (!raw) return fallback;
+  const body = raw.replace(/^\d{3}:\s*/, "");
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed && typeof parsed.message === "string" && parsed.message) return parsed.message;
+  } catch {
+    // corpo non JSON: si usa il testo così com'è
+  }
+  return body || fallback;
+}
+
 export async function apiRequest(
   method: string,
   url: string,

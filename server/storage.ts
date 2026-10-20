@@ -59,17 +59,15 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  deleteUser(id: number): Promise<void>;
+  setUserActive(id: number, companyId: number, isActive: boolean): Promise<User | undefined>;
   getUsersByCompany(companyId: number): Promise<User[]>;
-  getUsersByCompanyAndUsername(companyId: number, username: string): Promise<User | undefined>;
-  getUsersByCompanyAndEmail(companyId: number, email: string): Promise<User | undefined>;
 
   // Template methods
   getTemplates(companyId: number): Promise<ContractTemplateWithUsage[]>;
   getTemplate(id: number, companyId: number): Promise<ContractTemplate | undefined>;
   createTemplate(template: InsertContractTemplate): Promise<ContractTemplate>;
-  updateTemplate(id: number, template: Partial<InsertContractTemplate>): Promise<ContractTemplate>;
-  deleteTemplate(id: number): Promise<void>;
+  updateTemplate(id: number, companyId: number, template: Partial<InsertContractTemplate>): Promise<ContractTemplate | undefined>;
+  deleteTemplate(id: number, companyId: number): Promise<boolean>;
 
   // Contract methods
   getContracts(companyId: number, sellerId?: number, includeArchived?: boolean): Promise<Contract[]>;
@@ -164,18 +162,16 @@ export class DatabaseStorage implements IStorage {
     return userList;
   }
 
-  async getUsersByCompanyAndUsername(companyId: number, username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(and(eq(users.companyId, companyId), eq(users.username, username)));
+  // Disattivazione/riattivazione (al posto dell'eliminazione): l'utente
+  // resta nel DB, così contratti e template continuano ad appartenere
+  // all'azienda. Ritorna undefined se l'utente non è di quell'azienda.
+  async setUserActive(id: number, companyId: number, isActive: boolean): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ isActive })
+      .where(and(eq(users.id, id), eq(users.companyId, companyId)))
+      .returning();
     return user || undefined;
-  }
-
-  async getUsersByCompanyAndEmail(companyId: number, email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(and(eq(users.companyId, companyId), eq(users.email, email)));
-    return user || undefined;
-  }
-
-  async deleteUser(id: number): Promise<void> {
-    await db.delete(users).where(eq(users.id, id));
   }
 
   // Template methods
@@ -404,10 +400,14 @@ export class DatabaseStorage implements IStorage {
 
   async getTemplates(companyId: number): Promise<ContractTemplateWithUsage[]> {
     try {
-        // Idempotent seed of the Sistema Orbitale modular template
-        await this.ensureOrbitalTemplate(companyId);
-        // Idempotent seed of the Contratto Procacciatore d'Affari template
-        await this.ensureProcacciatoreTemplate(companyId);
+        // I template del proprietario (Sistema Orbitale, Procacciatore) si
+        // creano/sincronizzano SOLO nell'azienda del proprietario: le altre
+        // aziende vedono esclusivamente i propri template.
+        const company = await this.getCompanySettings(companyId);
+        if (company?.isOwner) {
+          await this.ensureOrbitalTemplate(companyId);
+          await this.ensureProcacciatoreTemplate(companyId);
+        }
 
         // Filter templates by company - get templates created by users of this company
         const templates = await db
@@ -509,20 +509,38 @@ export class DatabaseStorage implements IStorage {
     return newTemplate;
   }
 
-  async updateTemplate(id: number, template: Partial<InsertContractTemplate>): Promise<ContractTemplate> {
+  // Template dell'azienda = creati da un utente di quell'azienda (stesso
+  // criterio di getTemplate). Update/delete su template di un'altra azienda
+  // non toccano nulla: undefined / false → la rotta risponde 404.
+  private templateOfCompany(id: number, companyId: number) {
+    return and(
+      eq(contractTemplates.id, id),
+      inArray(
+        contractTemplates.createdBy,
+        db.select({ id: users.id }).from(users).where(eq(users.companyId, companyId)),
+      ),
+    );
+  }
+
+  async updateTemplate(id: number, companyId: number, template: Partial<InsertContractTemplate>): Promise<ContractTemplate | undefined> {
+    const { createdBy: _ignored, ...changes } = template as Partial<InsertContractTemplate> & { createdBy?: number };
     const [updatedTemplate] = await db
       .update(contractTemplates)
       .set({
-        ...template,
+        ...changes,
         updatedAt: new Date(),
       })
-      .where(eq(contractTemplates.id, id))
+      .where(this.templateOfCompany(id, companyId))
       .returning();
-    return updatedTemplate;
+    return updatedTemplate || undefined;
   }
 
-  async deleteTemplate(id: number): Promise<void> {
-    await db.delete(contractTemplates).where(eq(contractTemplates.id, id));
+  async deleteTemplate(id: number, companyId: number): Promise<boolean> {
+    const deleted = await db
+      .delete(contractTemplates)
+      .where(this.templateOfCompany(id, companyId))
+      .returning({ id: contractTemplates.id });
+    return deleted.length > 0;
   }
 
   // Contract methods
@@ -736,17 +754,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Company settings methods
-  async getCompanySettings(companyId?: number): Promise<CompanySettings | undefined> {
-    let query = db.select().from(companySettings);
-    
-    if (companyId) {
-      query = query.where(eq(companySettings.id, companyId));
-    } else {
-      // If no companyId provided, get the first company settings
-      query = query.limit(1);
+  // Senza companyId si fallisce in modo esplicito: in passato si ripiegava
+  // sulla prima azienda del DB, mostrando intestazione e credenziali del
+  // proprietario su contratti di altre aziende.
+  async getCompanySettings(companyId: number): Promise<CompanySettings | undefined> {
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      throw new Error(`getCompanySettings: companyId mancante o non valido (${String(companyId)})`);
     }
-    
-    const [settings] = await query;
+    const [settings] = await db.select().from(companySettings).where(eq(companySettings.id, companyId));
     return settings;
   }
 

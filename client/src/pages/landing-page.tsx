@@ -253,11 +253,11 @@ export default function LandingPage() {
             Pronto a digitalizzare i tuoi contratti?
           </h2>
           <p className="text-lg text-white/80 mb-10">
-            Registra la tua azienda in pochi minuti e inizia subito a creare contratti digitali professionali.
+            Gli account aziendali vengono attivati dal nostro team. Se hai già le credenziali, accedi e inizia subito a creare contratti digitali professionali.
           </p>
           <Link href="/auth">
             <span className="inline-flex items-center gap-2 px-8 py-4 bg-white text-indigo-700 font-semibold rounded-xl hover:shadow-2xl transition-all text-lg cursor-pointer">
-              Registra la tua Azienda
+              Accedi
               <ArrowRight className="h-5 w-5" />
             </span>
           </Link>

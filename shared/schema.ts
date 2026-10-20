@@ -12,6 +12,9 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   fullName: text("full_name").notNull(),
   companyId: integer("company_id").notNull().references(() => companySettings.id),
+  // Gli utenti non si eliminano: si disattivano (login bloccato, contratti
+  // e template restano all'azienda). Colonna creata da ensureTenantSchema.
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -133,6 +136,9 @@ export const companySettings = pgTable("company_settings", {
   smtpSecure: boolean("smtp_secure"),
   emailFromAddress: text("email_from_address"),
   emailFromName: text("email_from_name"),
+  // Azienda del proprietario della piattaforma: solo lei riceve i template
+  // Orbitale/Procacciatore. Non modificabile dalle Impostazioni Azienda.
+  isOwner: boolean("is_owner").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -270,6 +276,7 @@ export const coFillSessionsRelations = relations(coFillSessions, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
+  isActive: true,
 }).extend({
   companyId: z.number().int().positive("Company ID is required"),
 });
@@ -360,6 +367,7 @@ export const insertOtpCodeSchema = createInsertSchema(otpCodes).omit({
 export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({
   id: true,
   updatedAt: true,
+  isOwner: true,
 }).extend({
   logoUrl: z.string().optional(),
 });

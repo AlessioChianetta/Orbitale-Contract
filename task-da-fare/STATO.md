@@ -1,10 +1,10 @@
 # Stato dei lavori
 
-Aggiornato al: **16/10/2026**. Chi lavora su una task aggiorna questa tabella e la sezione "Avanzamento" della task.
+Aggiornato al: **20/10/2026**. Chi lavora su una task aggiorna questa tabella e la sezione "Avanzamento" della task.
 
 | Task | Titolo | Stato | Prossimo passo |
 |------|--------|-------|----------------|
-| 001 | Onboarding prima cliente (multi-azienda) | Da fare: analisi rivista il 16/10/2026 (12 punti nuovi, §2b) | Fase A (sicurezza), poi documento per cliente privato, numerazione per azienda, informativa privacy |
+| 001 | Onboarding prima cliente (multi-azienda) | In corso: Fase A (sicurezza) completata il 20/10/2026 | Fase B: documento per cliente privato, numerazione per azienda, informativa privacy. Sul VPS: verificare quale azienda ha `is_owner` |
 | 003 | Registro attività e log del sistema | Da fare: analisi del 16/10/2026 | Fase 1 subito: togliere il codice di verifica e gli altri dati riservati dai log |
 
 ## Task completate (in `task-da-fare/fatti/`)

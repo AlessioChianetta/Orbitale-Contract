@@ -1,7 +1,7 @@
 # 001 — Onboarding della prima cliente (multi-tenant reale)
 
 **Cliente:** evigliano.counseling@gmail.com (studio di counseling)
-**Stato:** da fare (analisi completata il 16/10/2026, rivista lo stesso giorno: vedi §2b)
+**Stato:** in corso — Fase A completata il 20/10/2026 (vedi §8 Avanzamento). Analisi del 16/10/2026, rivista lo stesso giorno: vedi §2b
 **Obiettivo:** la cliente entra con il suo account admin, trova il SUO contratto (preparato una tantum dal proprietario in HTML), crea gli account per sé e per i dipendenti, e chiunque di loro compila e invia il contratto al cliente finale, che lo firma con OTP. Tutto deve essere isolato dai dati del proprietario, con mittente email e SMS della cliente e senza errori in fase di invio.
 
 **Fuori scope (fase successiva):** accesso automatico dall'app esterna in cui questa è incorporata (SSO / login automatico). Vedi sezione 7.
@@ -75,13 +75,13 @@ Fase A (sicurezza) → punti 17, 18, 20 (documento e privacy) → Fase C (accoun
 ## 3. Lavori da fare
 
 ### Fase A — Isolamento e sicurezza (bloccante)
-- [ ] Filtro azienda su update/delete template (rotta + storage).
-- [ ] Seed automatico Orbitale/Procacciatore solo per l'azienda del proprietario.
-- [x] WhatsApp post-firma per-azienda, spento di default per le nuove aziende (fatto in task 002). Resta da rendere visibili i campi WhatsApp nelle impostazioni anche con OTP via email.
-- [ ] Disattivare la registrazione pubblica.
-- [ ] `getCompanySettings` senza `companyId` → errore esplicito; nessuna ricaduta sulla prima azienda.
-- [ ] Utenti: disattivazione al posto dell'eliminazione (o riassegnazione contratti); messaggi chiari su username/email duplicati.
-- [ ] Rimuovere `db:push --force` dal post-merge.
+- [x] Filtro azienda su update/delete template (rotta + storage).
+- [x] Seed automatico Orbitale/Procacciatore solo per l'azienda del proprietario.
+- [x] WhatsApp post-firma per-azienda, spento di default per le nuove aziende (fatto in task 002). Campi WhatsApp visibili nelle impostazioni anche con OTP via email (20/10/2026).
+- [x] Disattivare la registrazione pubblica.
+- [x] `getCompanySettings` senza `companyId` → errore esplicito; nessuna ricaduta sulla prima azienda.
+- [x] Utenti: disattivazione al posto dell'eliminazione; messaggi chiari su username/email duplicati.
+- [x] Rimuovere `db:push --force` dal post-merge.
 
 ### Fase B — Contratto della cliente
 - [ ] Il proprietario fornisce l'HTML del contratto di counseling con i placeholder `{{...}}`.
@@ -131,3 +131,19 @@ Fase A (sicurezza) → punti 17, 18, 20 (documento e privacy) → Fase C (accoun
 
 ## 7. Fase successiva — accesso automatico dall'app esterna
 L'app è incorporata in un'altra app. Oggi non c'è alcuna integrazione (nessun SSO, token o postMessage) e il cookie di sessione non ha `SameSite=None; Secure`, quindi in un iframe su un dominio diverso il login non viene mantenuto. Da progettare a parte: token firmato emesso dall'app esterna → login automatico qui, sincronizzazione degli account, impostazioni cookie per l'iframe.
+
+## 8. Avanzamento
+
+### 20/10/2026 — Fase A completata
+- **Template:** modifica ed eliminazione agiscono solo sui template della propria azienda (altrimenti 404 "Template non trovato"). Non è più possibile spostare un template in un'altra azienda cambiando `createdBy`.
+- **Azienda proprietaria:** nuova colonna `company_settings.is_owner`. Alla creazione della colonna il flag va all'azienda con l'id più basso (sul DB di Replit: id 1, "Orbitale di Chianetta Trovato Alessio"). Solo quell'azienda riceve i template Orbitale e Procacciatore. Il flag non è modificabile dalle Impostazioni Azienda. Servirà anche per il punto 22 (strumenti "Sistema Orbitale" nell'editor).
+- **Registrazione pubblica rimossa:** niente rotta `/api/register`, niente scheda "Registra Azienda" nella pagina di accesso; la landing invita ad accedere. Le rotte `/api/...` inesistenti ora rispondono 404 JSON (prima il server restituiva la pagina HTML con 200).
+- **`getCompanySettings`** senza `companyId` valido genera un errore esplicito. La firma di un contratto senza venditore viene bloccata con un messaggio chiaro invece di usare i dati di un'altra azienda.
+- **Utenti:** nuova colonna `users.is_active`. In Gestione utenti il cestino è sostituito da "Disattiva"/"Riattiva": l'utente disattivato non può accedere (anche le sessioni già aperte decadono), i suoi contratti e template restano all'azienda. Non si può disattivare il proprio account. La vecchia rotta di eliminazione non esiste più.
+- **Creazione utenti:** username ed email controllati su tutta la piattaforma, con messaggi in italiano ("Username già in uso", "Email già associata a un altro account") invece dell'errore 500. Il login mostra "Username o password non corretti" o "Account disattivato".
+- **Post-merge:** `scripts/post-merge.sh` esegue solo `npm install`.
+- **Migrazione:** `server/tenant-schema.ts`, eseguita all'avvio prima delle rotte (idempotente). Sul VPS parte da sola dopo `git pull` + riavvio. **Da verificare sul VPS** che l'azienda con id più basso sia quella del proprietario: `SELECT id, company_name, is_owner FROM company_settings ORDER BY id;`
+- **Test:** `tests/tenant-isolation.test.ts` (aziende e utenti di prova, si ripulisce da solo). `npm test` e `npm run test:pdf` verdi. Verificate anche via HTTP: modifica/eliminazione template tra aziende, disattivazione tra aziende, sessione e login dell'utente disattivato, duplicati.
+
+**Prossimo passo:** Fase B — documento per cliente privato (punto 17), numerazione per azienda (18), informativa privacy (20), autorinnovo/partnership (7, 9, 19), strumenti Orbitale nell'editor (22).
+

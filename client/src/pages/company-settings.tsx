@@ -456,17 +456,29 @@ export default function CompanySettings() {
                 </p>
               </div>
 
-              {/* Twilio Settings - Show only when Twilio is selected */}
-              {form.watch("otpMethod") === "twilio" && (
+              {/* Credenziali Twilio: obbligatorie con OTP via SMS; con OTP via
+                  email servono solo per il WhatsApp facoltativo dopo la firma
+                  (inviato sempre dal numero dell'azienda, mai da quello del
+                  proprietario della piattaforma). */}
+              {(() => {
+                const isTwilioOtp = form.watch("otpMethod") === "twilio";
+                return (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
                   <div className="flex items-center space-x-2">
                     <MessageSquare className="h-4 w-4 text-blue-600" />
-                    <h4 className="font-medium text-blue-900">Configurazione Twilio</h4>
+                    <h4 className="font-medium text-blue-900">
+                      {isTwilioOtp ? "Configurazione Twilio" : "WhatsApp dopo la firma (facoltativo)"}
+                    </h4>
                   </div>
+                  {!isTwilioOtp && (
+                    <p className="text-sm text-blue-900/80">
+                      Compila questi campi solo se vuoi che, dopo la firma, il cliente riceva un messaggio WhatsApp dal numero della tua azienda. Se li lasci vuoti non parte nessun WhatsApp.
+                    </p>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="twilioAccountSid">Account SID *</Label>
+                      <Label htmlFor="twilioAccountSid">Account SID{isTwilioOtp ? " *" : ""}</Label>
                       <Input
                         id="twilioAccountSid"
                         {...form.register("twilioAccountSid")}
@@ -481,7 +493,7 @@ export default function CompanySettings() {
                     </div>
 
                     <div>
-                      <Label htmlFor="twilioAuthToken">Auth Token *</Label>
+                      <Label htmlFor="twilioAuthToken">Auth Token{isTwilioOtp ? " *" : ""}</Label>
                       <Input
                         id="twilioAuthToken"
                         type="password"
@@ -497,6 +509,7 @@ export default function CompanySettings() {
                     </div>
                   </div>
 
+                  {isTwilioOtp && (
                   <div>
                     <Label htmlFor="twilioVerifyServiceSid">Verify Service SID *</Label>
                     <Input
@@ -511,9 +524,10 @@ export default function CompanySettings() {
                       </p>
                     )}
                   </div>
+                  )}
 
                   <div>
-                    <Label htmlFor="twilioWhatsappFrom">WhatsApp From (Opzionale)</Label>
+                    <Label htmlFor="twilioWhatsappFrom">Numero WhatsApp mittente{isTwilioOtp ? " (facoltativo)" : ""}</Label>
                     <Input
                       id="twilioWhatsappFrom"
                       {...form.register("twilioWhatsappFrom")}
@@ -525,6 +539,7 @@ export default function CompanySettings() {
                     </p>
                   </div>
 
+                  {isTwilioOtp && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
                     <p className="text-sm text-yellow-800">
                       <strong>📋 Guida rapida Twilio:</strong><br />
@@ -534,8 +549,10 @@ export default function CompanySettings() {
                       4. Copia il Service SID del servizio Verify
                     </p>
                   </div>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
             </div>
 

@@ -28,11 +28,12 @@ import {
 import { 
   Users, 
   Plus, 
-  Trash2,
+  UserX,
+  UserCheck,
   ArrowLeft,
   UserPlus
 } from "lucide-react";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, getErrorMessage } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -81,32 +82,39 @@ export default function UserManagement() {
     onError: (error: any) => {
       toast({ 
         title: "Errore", 
-        description: error.message || "Impossibile creare l'utente",
+        description: getErrorMessage(error, "Impossibile creare l'utente"),
         variant: "destructive" 
       });
     },
   });
 
-  const deleteUserMutation = useMutation({
-    mutationFn: async (userId: number) => {
-      await apiRequest("DELETE", `/api/admin/users/${userId}`);
+  // Gli utenti non si eliminano: si disattivano. I loro contratti restano
+  // visibili all'amministratore e l'account può essere riattivato.
+  const setUserStatusMutation = useMutation({
+    mutationFn: async ({ userId, isActive }: { userId: number; isActive: boolean }) => {
+      await apiRequest("PATCH", `/api/admin/users/${userId}/status`, { isActive });
+      return isActive;
     },
-    onSuccess: () => {
+    onSuccess: (isActive: boolean) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({ title: "Utente eliminato con successo" });
+      toast({ title: isActive ? "Utente riattivato" : "Utente disattivato" });
     },
     onError: (error: any) => {
       toast({ 
         title: "Errore", 
-        description: error.message || "Impossibile eliminare l'utente",
+        description: getErrorMessage(error, "Impossibile aggiornare l'utente"),
         variant: "destructive" 
       });
     },
   });
 
-  const handleDeleteUser = (userId: number, username: string) => {
-    if (confirm(`Sei sicuro di voler eliminare l'utente "${username}"?`)) {
-      deleteUserMutation.mutate(userId);
+  const handleToggleUser = (userId: number, username: string, isActive: boolean) => {
+    if (isActive) {
+      if (confirm(`Disattivare l'utente "${username}"? Non potrà più accedere; i suoi contratti restano visibili e potrai riattivarlo in qualsiasi momento.`)) {
+        setUserStatusMutation.mutate({ userId, isActive: false });
+      }
+    } else {
+      setUserStatusMutation.mutate({ userId, isActive: true });
     }
   };
 
@@ -326,13 +334,18 @@ export default function UserManagement() {
                     <TableHead>Username</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Ruolo</TableHead>
+                    <TableHead>Stato</TableHead>
                     <TableHead>Data Creazione</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.map((userItem: any) => (
-                    <TableRow key={userItem.id} data-testid={`row-user-${userItem.id}`}>
+                    <TableRow
+                      key={userItem.id}
+                      data-testid={`row-user-${userItem.id}`}
+                      className={userItem.isActive === false ? "opacity-60" : undefined}
+                    >
                       <TableCell className="font-medium" data-testid={`text-fullname-${userItem.id}`}>
                         {userItem.fullName}
                       </TableCell>
@@ -350,20 +363,45 @@ export default function UserManagement() {
                           {userItem.role === "admin" ? "Amministratore" : "Venditore"}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        {userItem.isActive === false ? (
+                          <Badge variant="outline" className="text-gray-500" data-testid={`badge-status-${userItem.id}`}>
+                            Disattivato
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50" data-testid={`badge-status-${userItem.id}`}>
+                            Attivo
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell data-testid={`text-date-${userItem.id}`}>
                         {new Date(userItem.createdAt).toLocaleDateString('it-IT')}
                       </TableCell>
                       <TableCell className="text-right">
                         {userItem.id !== user?.id && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteUser(userItem.id, userItem.username)}
-                            disabled={deleteUserMutation.isPending}
-                            data-testid={`button-delete-${userItem.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
+                          userItem.isActive === false ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleToggleUser(userItem.id, userItem.username, false)}
+                              disabled={setUserStatusMutation.isPending}
+                              data-testid={`button-activate-${userItem.id}`}
+                            >
+                              <UserCheck className="h-4 w-4 mr-1 text-green-600" />
+                              Riattiva
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleToggleUser(userItem.id, userItem.username, true)}
+                              disabled={setUserStatusMutation.isPending}
+                              data-testid={`button-deactivate-${userItem.id}`}
+                            >
+                              <UserX className="h-4 w-4 mr-1 text-red-500" />
+                              Disattiva
+                            </Button>
+                          )
                         )}
                       </TableCell>
                     </TableRow>
