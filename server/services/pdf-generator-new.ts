@@ -115,6 +115,17 @@ function buildFooterTemplate(left: string): string {
     </div>`;
 }
 
+/**
+ * Avvia Chromium in anticipo (senza aspettare): la prima firma dopo un
+ * riavvio del server non paga l'avvio del browser (alcuni secondi). Si chiama
+ * quando il cliente chiede il codice, cioè poco prima della firma.
+ */
+export function warmPdfBrowser(): void {
+  getBrowser().catch((err) => {
+    console.warn('[PDF] Avvio anticipato del browser non riuscito:', err?.message || err);
+  });
+}
+
 export async function closePdfBrowser(): Promise<void> {
   if (browserInstance) {
     const b = browserInstance;
@@ -213,7 +224,10 @@ async function renderPdfOnce(
       `;
 
     await page.setViewport({ width: 1200, height: 1600 });
-    await page.setContent(fullHtml, { waitUntil: ['networkidle0', 'domcontentloaded'] });
+    // Tutto è nel documento (font e firme come data URL, logo come <img>):
+    // "load" aspetta già immagini e fogli di stile, senza i 500 ms di silenzio
+    // di rete richiesti da networkidle0.
+    await page.setContent(fullHtml, { waitUntil: 'load' });
 
     // Wait for fonts to load
     await page.evaluateHandle('document.fonts.ready');

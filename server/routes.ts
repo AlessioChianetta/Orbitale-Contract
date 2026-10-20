@@ -19,7 +19,7 @@ import {
 import cookie from "cookie";
 // @ts-ignore - no shipped types
 import signature from "cookie-signature";
-import { generatePDF, generatePreviewPDF } from "./services/pdf-generator-new";
+import { generatePDF, generatePreviewPDF, warmPdfBrowser } from "./services/pdf-generator-new";
 import { getClientIp } from "./services/client-ip";
 import { sendContractEmail, sendContractSignedNotification, sendContractSignedOperatorNotification, sendTestEmail, getEmailConfigStatusForCompany, sendCoFillLinkEmail, sendOtpLockoutAlertEmail, getBaseUrl, buildContractRequestEmail } from "./services/email-service";
 import { hashContractPayload, hashBulkIds, signPreviewToken, verifyPreviewToken, type PreviewScope } from "./services/preview-token";
@@ -2689,6 +2689,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Contract already signed" });
       }
 
+      // Il cliente sta per firmare: si avvia il browser che genera il PDF,
+      // così la firma non aspetta l'avvio (alcuni secondi dopo un riavvio).
+      warmPdfBrowser();
+
       // In modalità "cliente compila": l'invio OTP è bloccato finché i dati
       // anagrafici obbligatori non sono completi. Il set di campi richiesti
       // dipende dal destinatario del template (cliente vs procacciatore).
@@ -3025,6 +3029,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/client/contracts/:code/sign", otpRateLimiter, async (req, res) => {
     try {
       const { otpCode, consents, signatures } = req.body;
+      // Tempi delle fasi della firma, scritti in una riga di log alla fine.
+      const t0 = Date.now();
+      const timings: Record<string, number> = {};
+      let tLast = t0;
+      const mark = (name: string) => { const n = Date.now(); timings[name] = n - tLast; tLast = n; };
 
       const contract = await storage.getContractByCode(req.params.code);
       if (!contract) {
@@ -3200,6 +3209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid or expired OTP" });
       }
 
+      mark("verifica");
       // Get seller's information (needed for company ID in template and contract queries)
       const seller = await storage.getUser(contract.sellerId);
       // Senza venditore non si sa a quale azienda appartiene il contratto:
@@ -3341,6 +3351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         selectedSectionIds: contract.selectedSectionIds,
       };
 
+      mark("dati");
       let finalPdfPath: string;
       try {
         console.log("Generating PDF with signatures:", JSON.stringify(contractForPdf.signatures, null, 2));
@@ -3353,6 +3364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      mark("pdf");
       // Impronta del file PDF originale: conservata solo nel DB (non può stare
       // dentro il PDF stesso) per poter verificare in futuro il file inviato.
       try {
@@ -3385,56 +3397,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.markOtpAsUsed(validOtp.id);
       }
 
+      mark("salvataggio");
       console.log(`✅ Contratto ${contract.id} firmato e sigillato - Status: ${signedContract.status}`);
 
       // Get the updated contract with the PDF path
       const updatedContract = await storage.getContract(contract.id, seller?.companyId);
 
-      // Avviso all'operatore che ha mandato il contratto e agli admin della
-      // sua azienda (non blocca la risposta al cliente; gli errori finiscono
-      // nel registro del contratto).
-      if (updatedContract) {
-        sendContractSignedOperatorNotification(updatedContract)
-          .then((r) => { if (r.sentTo.length) console.log(`📧 Avviso firma inviato a ${r.sentTo.length} operatori`); })
-          .catch((e) => console.error("❌ Avviso firma operatori:", e?.message || e));
-      }
-
-      // Invia email di notifica firma al cliente
-      const clientEmail = contract.sentToEmail || (contract.clientData as any).email;
-      if (clientEmail && updatedContract) {
-        try {
-          console.log('📧 Invio notifica firma completata a:', clientEmail);
-          await sendContractSignedNotification(updatedContract);
-          console.log('✅ Notifica firma inviata con successo!');
-          console.log('👤 Destinatario:', contract.sentToEmail || clientData.email);
-        } catch (emailError: any) {
-          console.error('❌ Errore invio notifica firma:', emailError.message);
-          // Non bloccare il processo di firma se l'email fallisce
-        }
-
-        // Conferma su WhatsApp: SOLO se l'azienda del contratto ha configurato
-        // il proprio account Twilio con un mittente WhatsApp (mai le
-        // credenziali globali del server, che appartengono al proprietario).
-        try {
-          const clientPhone = clientData.cellulare || clientData.phone || clientData.telefono;
-          const clientName = getSignerGreetingName(clientData) || 'Cliente';
-          const { isCompanyWhatsAppConfigured, sendCongratulationsWhatsApp } = await import('./services/twilio-service');
-
-          if (!isCompanyWhatsAppConfigured(pdfCompanySettings)) {
-            console.log('ℹ️ WhatsApp di conferma non configurato per questa azienda: nessun invio');
-          } else if (clientPhone) {
-            await sendCongratulationsWhatsApp(clientPhone, clientName, contract.contractCode, pdfCompanySettings!);
-            console.log('✅ Conferma WhatsApp inviata');
-          } else {
-            console.log('⚠️ Numero di telefono non trovato, salto invio WhatsApp');
-          }
-        } catch (whatsappError) {
-          console.error('❌ Errore nell\'invio delle congratulazioni WhatsApp:', whatsappError);
-          // Non bloccare il processo se WhatsApp fallisce
-        }
-      }
-
+      // Il contratto è firmato e salvato: si risponde subito al cliente, le
+      // email (con il PDF allegato) e l'eventuale WhatsApp partono dopo, senza
+      // farlo aspettare. Gli errori di invio finiscono nel registro del
+      // contratto (recordEmailFailure), come prima.
+      mark("rilettura");
+      console.log(`[SIGN] Contratto ${contract.id}: ${Object.entries(timings).map(([k, v]) => `${k} ${v}ms`).join(", ")} (totale ${Date.now() - t0}ms)`);
       res.json({ message: "Contract signed successfully" });
+
+      void (async () => {
+        // Avviso all'operatore che ha mandato il contratto e agli admin della
+        // sua azienda (non blocca la risposta al cliente; gli errori finiscono
+        // nel registro del contratto).
+        if (updatedContract) {
+          sendContractSignedOperatorNotification(updatedContract)
+            .then((r) => { if (r.sentTo.length) console.log(`📧 Avviso firma inviato a ${r.sentTo.length} operatori`); })
+            .catch((e) => console.error("❌ Avviso firma operatori:", e?.message || e));
+        }
+
+        // Invia email di notifica firma al cliente
+        const clientEmail = contract.sentToEmail || (contract.clientData as any).email;
+        if (clientEmail && updatedContract) {
+          try {
+            console.log('📧 Invio notifica firma completata a:', clientEmail);
+            await sendContractSignedNotification(updatedContract);
+            console.log('✅ Notifica firma inviata con successo!');
+            console.log('👤 Destinatario:', contract.sentToEmail || clientData.email);
+          } catch (emailError: any) {
+            console.error('❌ Errore invio notifica firma:', emailError.message);
+            // Non bloccare il processo di firma se l'email fallisce
+          }
+
+          // Conferma su WhatsApp: SOLO se l'azienda del contratto ha configurato
+          // il proprio account Twilio con un mittente WhatsApp (mai le
+          // credenziali globali del server, che appartengono al proprietario).
+          try {
+            const clientPhone = clientData.cellulare || clientData.phone || clientData.telefono;
+            const clientName = getSignerGreetingName(clientData) || 'Cliente';
+            const { isCompanyWhatsAppConfigured, sendCongratulationsWhatsApp } = await import('./services/twilio-service');
+
+            if (!isCompanyWhatsAppConfigured(pdfCompanySettings)) {
+              console.log('ℹ️ WhatsApp di conferma non configurato per questa azienda: nessun invio');
+            } else if (clientPhone) {
+              await sendCongratulationsWhatsApp(clientPhone, clientName, contract.contractCode, pdfCompanySettings!);
+              console.log('✅ Conferma WhatsApp inviata');
+            } else {
+              console.log('⚠️ Numero di telefono non trovato, salto invio WhatsApp');
+            }
+          } catch (whatsappError) {
+            console.error('❌ Errore nell\'invio delle congratulazioni WhatsApp:', whatsappError);
+            // Non bloccare il processo se WhatsApp fallisce
+          }
+        }
+      })().catch((e) => console.error("❌ Notifiche dopo la firma:", e?.message || e));
+
     } catch (error) {
       console.error("Signature error:", error);
       res.status(500).json({ message: "Failed to sign contract" });
