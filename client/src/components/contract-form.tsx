@@ -1429,7 +1429,6 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const watchedPercentage = form.watch("partnershipPercentage");
   const watchedStartDate = form.watch("contractStartDate");
   const watchedEndDate = form.watch("contractEndDate");
-  const watchedRenewal = form.watch("renewalDuration");
 
   const recapData: ContractRecapData = useMemo(() => {
     const tmplSecs = getTemplateSections(selectedTemplate);
@@ -1440,9 +1439,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       : tipo === "privato"
       ? (cd.cliente_nome || cd.nome || null)
       : (cd.societa || cd.cliente_nome || cd.nome || null);
-    let durationMonths: number | null = null;
-    if (typeof watchedRenewal === "number") durationMonths = watchedRenewal;
-    else if (watchedRenewal && !isNaN(parseInt(String(watchedRenewal), 10))) durationMonths = parseInt(String(watchedRenewal), 10);
+    // Durata del contratto dalle date (prima mostrava i mesi del rinnovo).
+    const durationMonths: number | null = contractDurationMonths(watchedStartDate, watchedEndDate) ?? null;
     return {
       templateName: selectedTemplate?.name || null,
       clientType: tipo,
@@ -1459,7 +1457,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       durationMonths,
       presetName: appliedPresetName,
     };
-  }, [selectedTemplate, watchedClientData, watchedSelectedSectionIds, watchedTotalValue, watchedIsPercent, watchedPercentage, watchedStartDate, watchedEndDate, watchedRenewal, appliedPresetName]);
+  }, [selectedTemplate, watchedClientData, watchedSelectedSectionIds, watchedTotalValue, watchedIsPercent, watchedPercentage, watchedStartDate, watchedEndDate, appliedPresetName]);
 
   // Effetto: quando "stesso indirizzo" è attivo, replica sede→residenza e
   // mantiene i campi sincronizzati anche durante successive modifiche alla sede.
@@ -2980,7 +2978,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                               rows={4}
                               {...form.register(`clientData.template_vars.${def.key}` as any)}
                               disabled={createContractMutation.isPending}
-                              className={`${inputClass} min-h-[110px] py-3`}
+                              className={`${inputClass} block w-full h-auto min-h-[110px] px-3 py-3 text-sm bg-white`}
                             />
                           ) : (
                             <Input
@@ -3204,6 +3202,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         includeActivation={paymentCalcIncludeActivation}
                         onIncludeActivationChange={setPaymentCalcIncludeActivation}
                         durationMonths={contractDurationMonths(form.watch("contractStartDate"), form.watch("contractEndDate"))}
+                        contractStartDate={form.watch("contractStartDate") || null}
                       />
                       <p className="text-sm text-slate-500 mt-4 flex items-center">
                         <Info className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />

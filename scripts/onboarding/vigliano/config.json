@@ -20,6 +20,18 @@
   },
   "templates": [
     {
+      "name": "Contratto base di incarico professionale",
+      "htmlPath": "contratto-base.html",
+      "recipientType": "cliente",
+      "category": "Clienti",
+      "description": "Modello generico per qualsiasi servizio, cliente privato o azienda: oggetto, servizi e modalità si scrivono nel form.",
+      "preset": {
+        "name": "Incarico base",
+        "description": "Senza rinnovo automatico. Inserisci prezzo, durata e piano pagamenti.",
+        "autoRenewal": false
+      }
+    },
+    {
       "name": "Collaborazione sviluppo commerciale internazionale (3 mesi)",
       "htmlPath": "collaborazione-sviluppo-export.html",
       "recipientType": "cliente",

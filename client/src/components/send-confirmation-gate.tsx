@@ -233,7 +233,7 @@ export default function SendConfirmationGate(props: SendConfirmationGateProps) {
                   {emailData.contractCode === "ANTEPRIMA" && (
                     <div className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
                       <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                      <span>Il codice definitivo verrà generato all'invio (formato identico, es. <code>ORB-2026-0123</code>).</span>
+                      <span>Il numero definitivo verrà assegnato all'invio (es. <code>2026-0001</code>).</span>
                     </div>
                   )}
                 </div>

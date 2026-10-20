@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Calculator, Calendar, Euro, Gift, Percent, Edit3, Save, X, RotateCcw } from "lucide-react";
 import { formatCurrency } from "@/lib/validation-utils";
-import { buildAutomaticPlan, sumPlanCents, toCents, installmentCount, inferPlanFrequency } from "@/lib/payment-plan";
+import { buildAutomaticPlan, sumPlanCents, toCents, installmentCount, inferPlanFrequency, planStartDate } from "@/lib/payment-plan";
 
 interface PaymentPlan {
   rata_importo: string;
@@ -42,6 +42,8 @@ interface PaymentCalculatorAdvancedProps {
   onIncludeActivationChange?: (value: boolean) => void;
   /** Durata del contratto in mesi: sotto i 12 mesi decide il numero di rate. */
   durationMonths?: number | null;
+  /** Inizio del contratto (AAAA-MM-GG): sotto i 12 mesi, se futuro, è la data della prima rata. */
+  contractStartDate?: string | null;
 }
 
 export default function PaymentCalculatorAdvanced({
@@ -59,6 +61,7 @@ export default function PaymentCalculatorAdvanced({
   includeActivation = false,
   onIncludeActivationChange,
   durationMonths,
+  contractStartDate,
 }: PaymentCalculatorAdvancedProps) {
   // Mesi che contano per il numero di rate (12 per i contratti di un anno o più).
   const planMonths = installmentCount('monthly', durationMonths);
@@ -73,7 +76,12 @@ export default function PaymentCalculatorAdvanced({
   // riapriamo una bozza con un piano già salvato: altrimenti l'effetto
   // sotto sovrascriverebbe le rate salvate con quelle di default.
   const skipNextRegenRef = useRef<boolean>(hasInitialPlan);
-  const [startDate] = useState(new Date());
+  const [today] = useState(() => new Date());
+  const startDate = useMemo(
+    () => planStartDate(contractStartDate, durationMonths, today),
+    [contractStartDate, durationMonths, today],
+  );
+  const startKey = startDate.getTime();
   const [isSubscription, setIsSubscription] = useState<boolean>(initialIsSubscription);
   const [firstMonthDiscount, setFirstMonthDiscount] = useState<FirstMonthDiscount>(
     initialFirstMonthDiscount ?? {
@@ -141,7 +149,7 @@ export default function PaymentCalculatorAdvanced({
     setHasManualEdits(false);
     onPaymentPlanChangeRef.current(newPlan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalAmount, paymentFrequency, isSubscription, firstMonthDiscount.enabled, firstMonthDiscount.type, firstMonthDiscount.value, includeActivation, activationValue, planMonths]);
+  }, [totalAmount, paymentFrequency, isSubscription, firstMonthDiscount.enabled, firstMonthDiscount.type, firstMonthDiscount.value, includeActivation, activationValue, planMonths, startKey]);
 
   const handleFrequencyChange = (value: Frequency) => {
     if (hasManualEdits) {

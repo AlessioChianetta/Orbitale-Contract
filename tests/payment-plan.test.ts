@@ -121,3 +121,13 @@ test("durata del contratto: sotto i 12 mesi le rate seguono la durata, da 12 in 
   assert.equal(inferPlanFrequency(4), "quarterly");
   assert.equal(inferPlanFrequency(2, 12), "semiannual");
 });
+
+test("prima rata: inizio contratto futuro solo per contratti sotto i 12 mesi", async () => {
+  const { planStartDate } = await import("../client/src/lib/payment-plan");
+  const today = new Date(2026, 9, 20);
+  const d = (x: Date) => `${x.getFullYear()}-${x.getMonth() + 1}-${x.getDate()}`;
+  assert.equal(d(planStartDate("2026-11-01", 3, today)), "2026-11-1");
+  assert.equal(d(planStartDate("2026-11-01", 12, today)), "2026-10-20", "12 mesi: come prima (oggi)");
+  assert.equal(d(planStartDate("2026-10-01", 3, today)), "2026-10-20", "inizio passato: oggi");
+  assert.equal(d(planStartDate(null, 3, today)), "2026-10-20");
+});

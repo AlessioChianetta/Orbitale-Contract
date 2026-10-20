@@ -15,3 +15,4 @@
 - [Template markers](template-markers.md) — {{var_*}} free fields + APPROVAZIONE_SPECIFICA block for 1341/1342 second signature; tenant templates ship via onboarding config.
 - [Chromium PDF quirk](pdf-chromium-single-process.md) — single-process Chromium loses the page on image-after-plain PDFs; renderPdf retries with a fresh browser.
 - [Lockfile registry](lockfile-registry.md) — Replit npm proxy URLs leak into package-lock and break VPS installs; always rewrite to registry.npmjs.org.
+- [Real email tests](dev-email-tests.md) — .env BASE_URL is prod; run a 2nd server with BASE_URL=dev domain to send test contracts; test tenant 176 uses owner SMTP.

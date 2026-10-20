@@ -81,6 +81,20 @@ export function contractDurationMonths(start?: string | null, end?: string | nul
   return rounded >= 1 ? rounded : undefined;
 }
 
+/**
+ * Data della prima rata del calcolo automatico. Di norma oggi (pagamento alla
+ * firma). Per i contratti più brevi di un anno con inizio futuro, le rate
+ * partono dall'inizio del contratto: una all'inizio di ciascun mese/periodo.
+ * Da 12 mesi in su resta tutto come prima.
+ */
+export function planStartDate(contractStart?: string | null, durationMonths?: number | null, today: Date = new Date()): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(contractStart ?? ""));
+  if (!m || !durationMonths || durationMonths >= 12) return today;
+  const start = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return start > t ? start : today;
+}
+
 /** Frequenza più probabile di un piano salvato con `n` rate ordinarie. */
 export function inferPlanFrequency(n: number, durationMonths?: number | null): PlanFrequency {
   if (n > 1) {
