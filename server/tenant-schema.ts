@@ -15,7 +15,8 @@ import { pool } from "./db";
  * - contracts.document_layout: versione dell'impaginazione del documento.
  *   I contratti già esistenti quando la colonna viene creata ricevono 1
  *   (si rendono come sono stati mostrati/firmati); poi 2; dal 20/10/2026 i
- *   nuovi prendono 3 (C.F. e P.I. separati), senza toccare quelli già creati.
+ *   nuovi prendono 3 (C.F. e P.I. separati) dal codice, senza toccare quelli
+ *   già creati; il default del DB resta 2.
  * - contracts.contract_number + company_contract_counters: numerazione per
  *   azienda e per anno (es. 2026-0001). I contratti storici restano senza
  *   numero e continuano a mostrare l'id interno, come già stampato.
@@ -67,8 +68,10 @@ export async function ensureTenantSchema(): Promise<void> {
       await client.query(`ALTER TABLE contracts ALTER COLUMN document_layout SET DEFAULT 2`);
       console.log("[TENANT] contracts.document_layout creata: contratti esistenti con impaginazione storica.");
     }
-    // Impaginazione 3 per i nuovi contratti (i 2 già creati restano 2).
-    await client.query(`ALTER TABLE contracts ALTER COLUMN document_layout SET DEFAULT 3`);
+    // Il default del DB resta 2: i nuovi contratti ricevono l'impaginazione
+    // corrente dal codice (CURRENT_DOCUMENT_LAYOUT). Così una versione più
+    // vecchia del sito che usa lo stesso DB non crea contratti con
+    // un'impaginazione che non conosce.
     await client.query(`ALTER TABLE contracts ADD COLUMN IF NOT EXISTS contract_number TEXT`);
     await client.query(`
       CREATE TABLE IF NOT EXISTS company_contract_counters (

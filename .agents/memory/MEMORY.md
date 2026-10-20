@@ -5,7 +5,7 @@
 - [Drizzle db:push hang](drizzle-db-push.md) — never run plain db:push (interactive drift prompt hangs in non-TTY); apply schema via raw SQL + manual schema.ts sync.
 - [Contract send-pipeline invariants](contract-send-pipeline.md) — preview/create/update placeholder gates share one helper; preview-token HMAC must hash every content-affecting field.
 - [OTP channel truth](otp-audit-truth.md) — twilioVerify is the only ground truth; legacy method/otpMethod fields lie except when they say "email"; unknown channel renders neutral.
-- [Workspace DB vs live DB](live-db-and-post-merge.md) — live site (VPS) uses a separate DB; prod changes via scripts on VPS; schema via idempotent startup SQL. Vigliano admin already exists on VPS.
+- [Workspace DB = live DB](live-db-and-post-merge.md) — SAME DB as the VPS site; company 176 is the real client; VPS may run older code on it.
 - [Task files](task-files-convention.md) — owner wants plans as task-da-fare/NNN-slug.md, in Italian.
 - [Signed PDF invariants](signed-pdf-invariants.md) — registry frozen at signature, no unrecorded/legal claims, signed = immutable, tenant creds only, no emoji.
 - [PDF = client page](pdf-client-view-parity.md) — owner rule: signing page and PDF must be identical (one renderer); never diverge, never ask.
@@ -15,7 +15,7 @@
 - [Template markers](template-markers.md) — {{var_*}} free fields + APPROVAZIONE_SPECIFICA block for 1341/1342 second signature; tenant templates ship via onboarding config.
 - [Chromium PDF quirk](pdf-chromium-single-process.md) — single-process Chromium loses the page on image-after-plain PDFs; renderPdf retries with a fresh browser.
 - [Lockfile registry](lockfile-registry.md) — Replit npm proxy URLs leak into package-lock and break VPS installs; always rewrite to registry.npmjs.org.
-- [Real email tests](dev-email-tests.md) — .env BASE_URL is prod; run a 2nd server with BASE_URL=dev domain to send test contracts; test tenant 176 uses owner SMTP.
+- [Real email tests](dev-email-tests.md) — 2nd server with BASE_URL=dev domain; only throwaway tenants, never company 176 or other real tenants.
 - [Email design](email-design.md) — all emails share one neutral layout (company name, black button, no platform branding); new emails must reuse it.
 - [Page and signing speed](page-speed.md) — Express gzips/caches assets (nginx does not), lazy routes, Chromium warmed on send-otp, emails after sign response.
 - [Admin "Entra come venditore"](impersonation.md) — admin→seller switch: same company, active only, re-validated per request; sentByAdminId in audit metadata.

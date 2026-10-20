@@ -93,7 +93,8 @@ export const contracts = pgTable("contracts", {
   contractNumber: text("contract_number"),
   // Versione dell'impaginazione del documento (vedi shared/contract-document.ts):
   // 1 = storica, 2 = fino al 20/10/2026, 3 = attuale (C.F. e P.I. separati).
-  documentLayout: integer("document_layout").notNull().default(3),
+  // Il default del DB resta 2; i nuovi contratti ricevono CURRENT_DOCUMENT_LAYOUT dal codice.
+  documentLayout: integer("document_layout").notNull().default(2),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
