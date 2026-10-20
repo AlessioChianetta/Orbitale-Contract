@@ -151,3 +151,20 @@ test("date delle rate già in formato italiano (gg/mm/aaaa): stampate così come
   const doc = renderContractDocument({ ...input, client: { ...input.client, rata_list: [], payment_plan: [{ rata_importo: "500.00", rata_scadenza: "01/11/2026" }] } }, { mode: "pdf", signature });
   assert.ok(doc.html.includes("<td>01/11/2026</td>"));
 });
+
+test("C.F. e P.I.: separati dall'impaginazione 3, invariati per i contratti 1 e 2", () => {
+  const company = { ...input.company, taxId: "VGLLVR92L45I234X", vatId: "04549600619" };
+  const r = (documentLayout: number | null) =>
+    renderContractDocument({ ...input, company, contract: { ...input.contract, documentLayout } }, { mode: "pdf" }).html;
+  for (const html of [r(3), r(null)]) {
+    assert.ok(html.includes("<div>C.F. VGLLVR92L45I234X</div><div>P.I. 04549600619</div>"));
+    assert.ok(!html.includes("C.F. e P.I."));
+  }
+  for (const html of [r(1), r(2)]) {
+    assert.ok(html.includes("<div>C.F. e P.I. VGLLVR92L45I234X</div>"), "come già mostrato/firmato");
+    assert.ok(!html.includes("04549600619"));
+  }
+  // Stesso numero (società): una riga sola, come prima.
+  const same = renderContractDocument({ ...input, company: { ...company, taxId: "04549600619" } }, { mode: "pdf" }).html;
+  assert.ok(same.includes("<div>C.F. e P.I. 04549600619</div>"));
+});

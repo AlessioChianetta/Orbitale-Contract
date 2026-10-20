@@ -39,6 +39,7 @@ interface ProfessionalContractDocumentProps {
     city?: string;
     postalCode?: string;
     taxId?: string;
+    vatId?: string | null;
     uniqueCode?: string;
     pec?: string;
     contractTitle?: string;

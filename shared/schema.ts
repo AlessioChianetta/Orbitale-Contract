@@ -92,8 +92,8 @@ export const contracts = pgTable("contracts", {
   // Null per i contratti creati prima della numerazione (mostrano l'id).
   contractNumber: text("contract_number"),
   // Versione dell'impaginazione del documento (vedi shared/contract-document.ts):
-  // 1 = storica (contratti creati prima del 20/10/2026), 2 = attuale.
-  documentLayout: integer("document_layout").notNull().default(2),
+  // 1 = storica, 2 = fino al 20/10/2026, 3 = attuale (C.F. e P.I. separati).
+  documentLayout: integer("document_layout").notNull().default(3),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

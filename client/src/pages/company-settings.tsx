@@ -406,7 +406,7 @@ export default function CompanySettings() {
               </div>
 
               <div>
-                <Label htmlFor="pec">PEC *</Label>
+                <Label htmlFor="pec">PEC</Label>
                 <Input
                   id="pec"
                   type="email"

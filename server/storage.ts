@@ -39,6 +39,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 import { contracts as contractsTable, contractTemplates as contractTemplatesTable } from "@shared/schema";
+import { CURRENT_DOCUMENT_LAYOUT } from "@shared/contract-document";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -674,7 +675,7 @@ export class DatabaseStorage implements IStorage {
       const contractNumber = `${year}-${String(seq).padStart(4, "0")}`;
       const [newContract] = await tx
         .insert(contracts)
-        .values({ ...contract, contractNumber, documentLayout: 2 } as typeof contracts.$inferInsert)
+        .values({ ...contract, contractNumber, documentLayout: CURRENT_DOCUMENT_LAYOUT } as typeof contracts.$inferInsert)
         .returning();
       return newContract;
     });

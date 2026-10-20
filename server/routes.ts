@@ -469,6 +469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             city: settings.city,
             postalCode: settings.postalCode,
             taxId: settings.taxId,
+            vatId: settings.vatId,
             uniqueCode: settings.uniqueCode,
             pec: settings.pec,
             contractTitle: settings.contractTitle,

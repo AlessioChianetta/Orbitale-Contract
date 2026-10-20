@@ -48,7 +48,8 @@ export const onboardingConfigSchema = z.object({
     taxId: z.string().trim().min(1),
     vatId: z.string().trim().min(1),
     uniqueCode: z.string().trim().min(1).default("0000000"),
-    pec: z.string().trim().min(1),
+    /** facoltativa: se vuota non viene stampata; la cliente può aggiungerla in Impostazioni */
+    pec: z.string().trim().default(""),
     contractTitle: z.string().trim().optional(),
     /** percorso di un'immagine (png/jpg/svg) salvata come logo */
     logoPath: fileOrText.optional(),
@@ -202,7 +203,9 @@ export async function onboardCompany(
       await db.query(
         `UPDATE company_settings SET
            company_name = $2, address = $3, city = $4, postal_code = $5, tax_id = $6, vat_id = $7,
-           unique_code = $8, pec = $9,
+           unique_code = $8,
+           -- PEC vuota nel file: resta quella eventualmente inserita in Impostazioni
+           pec = COALESCE(NULLIF($9, ''), pec),
            contract_title = COALESCE($10, contract_title),
            logo_url = COALESCE($11, logo_url),
            otp_method = 'email',

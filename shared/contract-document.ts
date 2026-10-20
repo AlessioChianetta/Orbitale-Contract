@@ -22,6 +22,8 @@ export interface DocCompany {
   city?: string | null;
   postalCode?: string | null;
   taxId?: string | null;
+  /** partita IVA: dall'impaginazione 3 stampata a parte se diversa dal codice fiscale */
+  vatId?: string | null;
   uniqueCode?: string | null;
   pec?: string | null;
   contractTitle?: string | null;
@@ -389,6 +391,13 @@ export const CONTRACT_DOCUMENT_CSS = `
 
 // ------------------------------------------------------------- rendering
 
+/**
+ * Impaginazione dei nuovi contratti. 1 = storica; 2 = attuale fino al
+ * 20/10/2026; 3 = codice fiscale e partita IVA stampati separatamente quando
+ * sono diversi (prima: "C.F. e P.I." con il solo codice fiscale).
+ */
+export const CURRENT_DOCUMENT_LAYOUT = 3;
+
 const SAMPLE: Record<string, string> = {
   companyName: "Nome Azienda", address: "Via...", postalCode: "00000", city: "Città", taxId: "00000000000",
   uniqueCode: "XXXXXXX", pec: "pec@esempio.it",
@@ -441,6 +450,15 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
     const v = company[key];
     return v ? String(v) : (sample ? SAMPLE[key as string] || "" : "");
   };
+  // Fino all'impaginazione 2 si stampava solo il codice fiscale come "C.F. e
+  // P.I.": quei contratti restano così. Dalla 3 (e nelle anteprime) C.F. e
+  // P.I. vanno su righe separate quando sono diversi.
+  const layout = contract.documentLayout ?? CURRENT_DOCUMENT_LAYOUT;
+  const vatId = String(company.vatId || "").trim();
+  const taxId = co("taxId");
+  const taxIdLines = layout >= 3 && vatId && vatId.toUpperCase() !== taxId.trim().toUpperCase()
+    ? `${taxId ? `<div>C.F. ${e(taxId)}</div>` : ""}<div>P.I. ${e(vatId)}</div>`
+    : taxId ? `<div>C.F. e P.I. ${e(taxId)}</div>` : "";
   const field = (label: string, value: unknown, sampleValue = "", full = false) => {
     const v = value === undefined || value === null ? "" : String(value).trim();
     const shown = v || (sample ? sampleValue : "");
@@ -491,7 +509,7 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
       <div class="doc-company">
         ${company.logoUrl ? `<div class="name">${e(co("companyName"))}</div>` : ""}
         ${addressLine ? `<div>${e(addressLine)}</div>` : ""}
-        ${co("taxId") ? `<div>C.F. e P.I. ${e(co("taxId"))}</div>` : ""}
+        ${taxIdLines}
         ${co("uniqueCode") ? `<div>Codice univoco ${e(co("uniqueCode"))}</div>` : ""}
         ${co("pec") ? `<div>PEC ${e(co("pec"))}</div>` : ""}
       </div>

@@ -67,7 +67,7 @@ test("contratti creati insieme ricevono numeri distinti e consecutivi per aziend
   const batch = await Promise.all([1, 2, 3, 4, 5].map((n) => makeContract(sellerA, n)));
   const numbers = batch.map((c) => c.contractNumber).sort();
   assert.deepEqual(numbers, [1, 2, 3, 4, 5].map((n) => `${year}-${String(n).padStart(4, "0")}`));
-  for (const c of batch) assert.equal(c.documentLayout, 2, "i nuovi contratti usano l'impaginazione attuale");
+  for (const c of batch) assert.equal(c.documentLayout, 3, "i nuovi contratti usano l'impaginazione attuale");
 });
 
 test("ogni azienda ha la sua numerazione", async () => {
