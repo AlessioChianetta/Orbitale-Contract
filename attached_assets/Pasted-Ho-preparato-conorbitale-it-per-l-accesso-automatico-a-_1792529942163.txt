@@ -1,0 +1,25 @@
+Ho preparato conorbitale.it per l'accesso automatico a Orbitale Contract. Si attiva solo quando aggiungi la chiave segreta sul server pubblicato.
+
+**Cosa ho fatto**
+- **Pagina Orbitale Contract** (`/consultant/tools/contract`): a ogni apertura il server crea un link nuovo, che scade dopo 60 secondi e vale una volta sola, ed entra con l'email di chi è collegato. Se a guardare è un dipendente, usa l'email del dipendente e non la tua.
+- **«Apri in nuova tab»**: genera un link diverso da quello della pagina, al momento del click, come chiede la loro guida.
+- **Safari**: compare una riga che dice di usare «Apri in nuova tab», perché Safari blocca l'accesso dentro la pagina.
+- **Se manca la chiave o qualcosa va storto**: compare il motivo in una striscia gialla e sotto resta la pagina di accesso normale, con email e password.
+- La chiave resta sul server: non arriva mai al browser e non entra nel codice.
+
+**Verifiche**
+- I 4 test automatici del link firmato passano: formato, firma, scadenza a 60 secondi, un link diverso a ogni richiesta.
+- Senza chiave il server risponde con il messaggio «non configurato», come previsto.
+- Non ho provato l'accesso vero dentro Orbitale Contract: serve la chiave, e il loro sito accetta solo conorbitale.it, non l'ambiente di sviluppo.
+
+**Cosa devi fare tu, nell'ordine**
+1. Sul server di Orbitale Contract: segui le istruzioni del file (aggiorna, crea la chiave, aggiungi le due righe al `.env`, riavvia).
+2. Sul server di conorbitale.it: aggiungi la stessa chiave al `.env` con il nome `ORBITALE_CONTRACT_SSO_SECRET`. Poi riavvia solo il processo di conorbitale.it, non tutti i siti del server.
+3. Pubblica, apri Orbitale Contract dal menu su Chrome e controlla che entri senza password.
+
+**Risposta per lo sviluppatore di Orbitale Contract**, da mandare dopo la prova:
+- conorbitale.it è fatto in Node.js (Express) lato server e React lato browser.
+- L'accesso su Chrome nell'iframe: da scrivere dopo la tua prova.
+- Messaggi d'errore: quelli che vedi nella striscia gialla o dentro la pagina, copiati così come sono.
+
+Quando hai fatto la prova su Chrome, mi giri l'esito e scrivo io la risposta completa?
