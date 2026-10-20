@@ -7,6 +7,8 @@ import { z } from "zod";
 import { insertContractTemplateSchema, insertContractSchema, insertCompanySettingsSchema, insertContractPresetSchema, type InsertCoFillSession, type User } from "@shared/schema";
 import { resolveSelectedSections, renderSectionsHtml, parseSelectedIds, parseSections, SECTIONS_MARKER } from "@shared/sections";
 import { isOrbitalPackagesTemplate } from "@shared/orbital-packages";
+import { requiresSpecificApproval } from "@shared/contract-document";
+import { templateVarReplacements, isTemplateVarKey, humanizeTemplateVarKey } from "@shared/template-vars";
 import { getMissingClientFields, getClientType, SYNCED_FIELD_KEYS, getContractPartyDisplayName, getSignerGreetingName, ALL_CLIENT_FIELDS } from "@shared/client-fields";
 import {
   getMissingProcacciatoreFields,
@@ -442,8 +444,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           missing: unresolved,
           missingLabels: unresolved.map((k) => ({
             key: k,
-            label: PLACEHOLDER_LABELS[k]?.label || k,
-            hint: PLACEHOLDER_LABELS[k]?.hint,
+            label: placeholderInfo(k)?.label || k,
+            hint: placeholderInfo(k)?.hint,
           })),
         },
       };
@@ -591,8 +593,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           missing: emailUnresolved,
           missingLabels: emailUnresolved.map((k) => ({
             key: k,
-            label: PLACEHOLDER_LABELS[k]?.label || k,
-            hint: PLACEHOLDER_LABELS[k]?.hint,
+            label: placeholderInfo(k)?.label || k,
+            hint: placeholderInfo(k)?.hint,
           })),
         });
       }
@@ -1641,8 +1643,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             missing: unresolved,
             missingLabels: unresolved.map((k) => ({
               key: k,
-              label: PLACEHOLDER_LABELS[k]?.label || k,
-              hint: PLACEHOLDER_LABELS[k]?.hint,
+              label: placeholderInfo(k)?.label || k,
+              hint: placeholderInfo(k)?.hint,
             })),
           });
         }
@@ -1845,8 +1847,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             missing: unresolved,
             missingLabels: unresolved.map((k) => ({
               key: k,
-              label: PLACEHOLDER_LABELS[k]?.label || k,
-              hint: PLACEHOLDER_LABELS[k]?.hint,
+              label: placeholderInfo(k)?.label || k,
+              hint: placeholderInfo(k)?.hint,
             })),
           });
         }
@@ -2130,7 +2132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const blocking = unresolved.filter((k) => !BULK_SELF_FILL_EXEMPT_KEYS.has(k));
           if (blocking.length > 0) {
             eligible = false;
-            reason = `variabili non compilate: ${blocking.map((k) => PLACEHOLDER_LABELS[k]?.label || k).join(", ")}`;
+            reason = `variabili non compilate: ${blocking.map((k) => placeholderInfo(k)?.label || k).join(", ")}`;
           }
         }
         recipients.push({
@@ -2212,7 +2214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const unresolved = findUnresolvedPlaceholders(c.generatedContent || "");
           const blocking = unresolved.filter((k) => !BULK_SELF_FILL_EXEMPT_KEYS.has(k));
           if (blocking.length > 0) {
-            failed.push({ id, error: `variabili non compilate: ${blocking.map((k) => PLACEHOLDER_LABELS[k]?.label || k).join(", ")}` });
+            failed.push({ id, error: `variabili non compilate: ${blocking.map((k) => placeholderInfo(k)?.label || k).join(", ")}` });
             continue;
           }
           await sendContractEmail(c, c.contractCode, email);
@@ -2709,7 +2711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // vanno compilati, altrimenti il documento firmato mostrerebbe `{{...}}`.
         const leftover = findUnresolvedPlaceholders(contract.generatedContent || "");
         if (leftover.length > 0) {
-          const labels = leftover.map((k) => PLACEHOLDER_LABELS[k]?.label || ALL_CLIENT_FIELDS.find((f) => f.key === k)?.label || k);
+          const labels = leftover.map((k) => placeholderInfo(k)?.label || ALL_CLIENT_FIELDS.find((f) => f.key === k)?.label || k);
           return res.status(400).json({
             message: `Per ricevere il codice di firma completa anche: ${labels.join(", ")}.`,
             code: "CLIENT_DATA_INCOMPLETE",
@@ -3015,6 +3017,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Devi accettare l'informativa privacy per procedere con la firma." });
       }
 
+      // Testo con clausole da approvare specificamente (artt. 1341-1342 c.c.):
+      // serve la seconda firma, separata da quella del contratto.
+      const needsSpecificApproval = requiresSpecificApproval(contract.generatedContent);
+      if (needsSpecificApproval) {
+        const approval = signatures?.clausole;
+        if (typeof approval !== "string" || !approval.trim()) {
+          return res.status(400).json({ message: "Manca la firma per l'approvazione specifica delle clausole." });
+        }
+      }
+
       // ---------- LOCKOUT ANTI-BRUTEFORCE PER CONTRATTO ----------
       // Politica esplicita richiesta per l'incidente #75:
       //   - 5 tentativi OTP falliti in una finestra di 10 minuti → trigger
@@ -3273,6 +3285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           verifiedContact: verifiedContact,
           // Impronta del testo contrattuale firmato (stampata nel registro).
           contentSha256: crypto.createHash("sha256").update(contract.generatedContent || "", "utf8").digest("hex"),
+          ...(needsSpecificApproval ? { specificApproval: true } : {}),
         } as Record<string, any>,
         timestamp: now,
       };
@@ -4266,10 +4279,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 // risolvere. Quando l'utility findUnresolvedPlaceholders trova un
 // segnaposto rimasto, il client le usa per dire al venditore "manca X"
 // in italiano invece di mostrare la chiave grezza.
+/** Etichetta di una variabile rimasta nel testo, comprese le `{{var_*}}` del template. */
+export function placeholderInfo(k: string): { label: string; hint?: string } | undefined {
+  if (PLACEHOLDER_LABELS[k]) return PLACEHOLDER_LABELS[k];
+  if (isTemplateVarKey(k)) return { label: humanizeTemplateVarKey(k), hint: "Sezione Prezzo & Durata → Dati specifici del contratto" };
+  return undefined;
+}
+
 export const PLACEHOLDER_LABELS: Record<string, { label: string; hint?: string }> = {
   livello_accesso: { label: "Livello di accesso", hint: "Sezione Prezzo & Durata → Variabili contratto" },
   canone_mensile: { label: "Canone mensile", hint: "Sezione Prezzo & Durata → Variabili contratto" },
   costo_attivazione: { label: "Costo di attivazione", hint: "Sezione Prezzo & Durata → Variabili contratto" },
+  prezzo_totale_eur: { label: "Prezzo totale", hint: "Sezione Prezzo & Durata → Valore del contratto" },
   // --- Contratto Procacciatore d'Affari ---
   azienda_ragione_sociale: { label: "Ragione sociale azienda", hint: "Impostazioni Azienda → Dati aziendali" },
   azienda_piva: { label: "P.IVA azienda", hint: "Impostazioni Azienda → Dati aziendali" },
@@ -4571,6 +4592,9 @@ async function generateContractContent(
     is_percentage_partnership: isPercentagePartnership || false,
     partnership_percentage: partnershipPercentage || null,
     prezzo_totale: totalValue ? (totalValue / 100).toFixed(2) : null,
+    ...(totalValue ? { prezzo_totale_eur: formatEur(totalValue / 100) } : {}),
+    // Dati specifici del contratto ({{var_*}}): solo i campi compilati.
+    ...templateVarReplacements(clientData.template_vars),
     // Value text based on partnership mode
     valore_text: isPercentagePartnership && partnershipPercentage ? 
       `Partnership al ${partnershipPercentage}% sul fatturato TOTALE` :
@@ -4769,6 +4793,8 @@ function buildEnhancedClientData(
     is_percentage_partnership: isPercentagePartnership || false,
     partnership_percentage: partnershipPercentage || null,
     prezzo_totale: totalValue ? (totalValue / 100).toFixed(2) : null,
+    ...(totalValue ? { prezzo_totale_eur: formatEur(totalValue / 100) } : {}),
+    ...templateVarReplacements(data.template_vars),
     valore_text: isPercentagePartnership && partnershipPercentage
       ? `Partnership al ${partnershipPercentage}% sul fatturato TOTALE`
       : totalValue ? `EUR ${(totalValue / 100).toFixed(2)}` : '',

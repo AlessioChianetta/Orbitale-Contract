@@ -6,8 +6,10 @@
  *   npx tsx --require ./server/loadEnv.cjs scripts/onboard-company.ts onboarding/cliente.json --dry-run
  *   npx tsx --require ./server/loadEnv.cjs scripts/onboard-company.ts onboarding/cliente.json
  *
- * Esempio di file: scripts/onboard-company.example.json. I percorsi
- * (htmlPath, logoPath, privacyPolicyTextPath) sono relativi al file JSON.
+ * Esempio di file: scripts/onboard-company.example.json (un template) o
+ * scripts/onboarding/vigliano/config.json (più template, ciascuno con il suo
+ * preset). I percorsi (htmlPath, logoPath, privacyPolicyTextPath) sono
+ * relativi al file JSON.
  *
  * Idempotente: rilanciato con lo stesso file non duplica nulla e non tocca
  * la password dell'admin; se l'HTML del contratto è cambiato aggiorna il
@@ -40,10 +42,13 @@ async function main() {
   if (r.temporaryPassword) {
     console.log(`Password temporanea (da comunicare, cambio obbligatorio al primo accesso): ${r.temporaryPassword}`);
   }
-  if (r.template) {
-    const label = { created: "creato", updated: "aggiornato", unchanged: "invariato" }[r.template.action];
-    console.log(`Template contratto: ${id(r.template.id, r.template.action === "created")} (${label})`);
-    console.log(`Segnaposto nel contratto: ${r.placeholders.length ? r.placeholders.join(", ") : "nessuno"}`);
+  const label = { created: "creato", updated: "aggiornato", unchanged: "invariato" } as const;
+  for (const t of r.templates) {
+    console.log(`Template "${t.name}": ${id(t.id, t.action === "created")} (${label[t.action]})`);
+    console.log(`  Segnaposto: ${t.placeholders.length ? t.placeholders.join(", ") : "nessuno"}`);
+    if (t.preset) {
+      console.log(`  Preset "${t.preset.name}": ${id(t.preset.id, t.preset.action === "created")} (${label[t.preset.action]})`);
+    }
   }
   for (const w of r.warnings) console.log(`ATTENZIONE: ${w}`);
   console.log("");

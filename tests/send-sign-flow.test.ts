@@ -204,3 +204,59 @@ test("il cliente compila: un campo facoltativo usato nel testo blocca l'OTP finc
   assert.equal((await client.post(`/api/client/contracts/${contract.contractCode}/client-data`, { clientData: { ...base, pec: "anna@pec.it" } })).status, 200);
   assert.equal((await client.post(`/api/client/contracts/${contract.contractCode}/send-otp`, {})).status, 200);
 });
+
+test("dati specifici del contratto e seconda firma per le clausole (artt. 1341-1342)", async () => {
+  const { storage } = await import("../server/storage");
+  const tpl = await storage.createTemplate({
+    name: `${tag} A con approvazione`,
+    content: [
+      "<!-- VAR var_mercati | Mercati | testo lungo -->",
+      "<p>{{societa}} – mercati:</p><p>{{var_mercati}}</p><p>Totale {{prezzo_totale_eur}}</p>",
+      "<!-- APPROVAZIONE_SPECIFICA --><p>Approvo le clausole 4.7 e 9.3.</p><!-- /APPROVAZIONE_SPECIFICA -->",
+    ].join("\n"),
+    createdBy: A.adminId,
+  } as any);
+  const seller = new Agent(app.baseUrl, freshIp());
+  await seller.login(A.sellerUsername, TEST_PASSWORD);
+  const email = `${tag}-clausole@example.invalid`;
+  const clientData = {
+    tipo_cliente: "azienda", societa: "Export Srl", cliente_nome: "Paola Neri", email,
+    sede: "Napoli", indirizzo: "Via Toledo 5", p_iva: "09876543210",
+  };
+
+  // Variabile vuota: anteprima bloccata con l'etichetta dichiarata nel template.
+  const blocked = await seller.post("/api/contracts/preview", { templateId: tpl.id, clientData, totalValue: 150000, sendToEmail: email });
+  assert.equal(blocked.status, 400, blocked.text);
+  assert.equal(blocked.json.code, "UNRESOLVED_PLACEHOLDERS");
+  assert.ok(blocked.json.missing.includes("var_mercati"));
+
+  const contract = await createAndSend(
+    seller, { ...A, templateId: tpl.id },
+    { ...clientData, template_vars: { var_mercati: "Emirati Arabi Uniti\nRegno <Unito>" } },
+    { totalValue: 150000 }, // in centesimi, come lo invia il form
+  );
+  const { rows: [row] } = await pool.query(`SELECT generated_content FROM contracts WHERE id = $1`, [contract.id]);
+  assert.ok(row.generated_content.includes("Emirati Arabi Uniti<br>Regno &lt;Unito&gt;"), "a capo e HTML neutralizzato");
+  assert.match(row.generated_content, /EUR\s1\.?500,00/); // it-IT non separa le migliaia sotto 10.000
+
+  const client = new Agent(app.baseUrl, freshIp());
+  assert.equal((await client.post(`/api/client/contracts/${contract.contractCode}/send-otp`, {})).status, 200);
+  const code = await latestOtp(contract.id);
+  const missing = await client.post(`/api/client/contracts/${contract.contractCode}/sign`, {
+    otpCode: code, consents: { privacy: true }, signatures: {},
+  });
+  assert.equal(missing.status, 400, "senza la seconda firma la firma è rifiutata");
+  assert.match(missing.json.message, /approvazione specifica/);
+  const { rows: open } = await pool.query(`SELECT is_used FROM otp_codes WHERE contract_id = $1 AND code = $2`, [contract.id, code]);
+  assert.equal(open[0].is_used, false, "il codice non viene consumato dal rifiuto");
+
+  const sig = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  const signed = await client.post(`/api/client/contracts/${contract.contractCode}/sign`, {
+    otpCode: code, consents: { privacy: true }, signatures: { marketing: sig, clausole: sig },
+  });
+  assert.equal(signed.status, 200, signed.text);
+  const { rows: audit } = await pool.query(`SELECT metadata FROM audit_logs WHERE contract_id = $1 AND action = 'signed'`, [contract.id]);
+  assert.equal(audit[0].metadata.specificApproval, true);
+  const { rows: [done] } = await pool.query(`SELECT pdf_path FROM contracts WHERE id = $1`, [contract.id]);
+  assert.equal((await readFile(done.pdf_path)).subarray(0, 4).toString(), "%PDF");
+});

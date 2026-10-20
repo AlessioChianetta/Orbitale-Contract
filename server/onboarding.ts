@@ -16,6 +16,29 @@ import { ensureTenantSchema } from "./tenant-schema";
 
 const fileOrText = z.string().trim().min(1);
 
+/**
+ * Preset dell'offerta collegato al template: valori di partenza del form
+ * (prezzo, durata, autorinnovo) che il venditore può sempre cambiare.
+ */
+const presetSchema = z.object({
+  name: z.string().trim().min(2),
+  description: z.string().trim().optional(),
+  /** prezzo totale in euro; assente = da inserire a ogni contratto */
+  totalValue: z.number().positive().optional(),
+  defaultDurationMonths: z.number().int().min(1).max(120).optional(),
+  autoRenewal: z.boolean().default(false),
+});
+
+const templateSchema = z.object({
+  name: z.string().trim().min(2),
+  /** percorso del file HTML del contratto (con i segnaposto {{...}}) */
+  htmlPath: fileOrText,
+  recipientType: z.enum(["cliente", "procacciatore"]).default("cliente"),
+  category: z.string().trim().default("Clienti"),
+  description: z.string().trim().optional(),
+  preset: presetSchema.optional(),
+});
+
 export const onboardingConfigSchema = z.object({
   company: z.object({
     companyName: z.string().trim().min(2),
@@ -40,16 +63,27 @@ export const onboardingConfigSchema = z.object({
     email: z.string().trim().email(),
     fullName: z.string().trim().min(2),
   }),
-  template: z.object({
-    name: z.string().trim().min(2),
-    /** percorso del file HTML del contratto (con i segnaposto {{...}}) */
-    htmlPath: fileOrText,
-    recipientType: z.enum(["cliente", "procacciatore"]).default("cliente"),
-    category: z.string().trim().default("Clienti"),
-  }).optional(),
+  /** un solo template (forma storica) */
+  template: templateSchema.optional(),
+  /** più template, ciascuno con il suo eventuale preset */
+  templates: z.array(templateSchema).optional(),
+}).superRefine((cfg, ctx) => {
+  const names = [cfg.template, ...(cfg.templates || [])].filter(Boolean).map((t) => t!.name.toLowerCase());
+  const dup = names.find((n, i) => names.indexOf(n) !== i);
+  if (dup) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["templates"], message: `Template ripetuto: "${dup}"` });
 });
 
 export type OnboardingConfig = z.infer<typeof onboardingConfigSchema>;
+
+type UpsertAction = "created" | "updated" | "unchanged";
+
+export interface OnboardingTemplateResult {
+  name: string;
+  id: number;
+  action: UpsertAction;
+  placeholders: string[];
+  preset: { name: string; id: number; action: UpsertAction } | null;
+}
 
 export interface OnboardingResult {
   companyId: number;
@@ -58,8 +92,10 @@ export interface OnboardingResult {
   adminCreated: boolean;
   /** solo se l'admin è stato creato ora: va comunicata una volta e poi cambiata */
   temporaryPassword: string | null;
-  template: { id: number; action: "created" | "updated" | "unchanged" } | null;
+  /** primo template (compatibilità con la forma storica a template singolo) */
+  template: { id: number; action: UpsertAction } | null;
   placeholders: string[];
+  templates: OnboardingTemplateResult[];
   warnings: string[];
 }
 
@@ -93,14 +129,22 @@ export async function onboardCompany(
   const cfg = onboardingConfigSchema.parse(rawConfig);
   const warnings: string[] = [];
   const c = cfg.company;
+  // Campi lasciati da completare nel file (es. "INSERIRE_PEC"): meglio
+  // fermarsi che stampare un segnaposto nei contratti.
+  const todo = Object.entries(c).filter(([, v]) => typeof v === "string" && /^INSERIRE/i.test(v)).map(([k]) => k);
+  if (todo.length) throw new Error(`Completa nel file di configurazione: ${todo.join(", ")}.`);
 
   // File letti prima di toccare il DB: un percorso sbagliato non lascia lavori a metà.
   const logoUrl = c.logoPath ? readLogo(c.logoPath, opts.baseDir) : undefined;
   const privacyText = c.privacyPolicyTextPath
     ? readFileSync(path.resolve(opts.baseDir, c.privacyPolicyTextPath), "utf8").trim()
     : undefined;
-  const html = cfg.template ? readFileSync(path.resolve(opts.baseDir, cfg.template.htmlPath), "utf8") : null;
-  if (html !== null && !html.trim()) throw new Error("Il file HTML del contratto è vuoto.");
+  const templateCfgs = [cfg.template, ...(cfg.templates || [])].filter((t): t is NonNullable<typeof t> => !!t);
+  const templateFiles = templateCfgs.map((t) => {
+    const html = readFileSync(path.resolve(opts.baseDir, t.htmlPath), "utf8");
+    if (!html.trim()) throw new Error(`Il file HTML del contratto "${t.name}" è vuoto.`);
+    return { cfg: t, html };
+  });
   if (!privacyText && !c.privacyPolicyUrl) {
     warnings.push("Informativa privacy non impostata: il cliente finale deve accettarla senza poterla leggere. Aggiungila (testo o link) prima di inviare contratti.");
   }
@@ -185,32 +229,88 @@ export async function onboardCompany(
       }
     }
 
-    // --- template del contratto
-    let template: OnboardingResult["template"] = null;
-    if (cfg.template && html !== null) {
+    // --- template dei contratti (+ preset)
+    const templates: OnboardingTemplateResult[] = [];
+    let presetsAvailable: boolean | null = null;
+    for (const { cfg: t, html } of templateFiles) {
       const { rows } = await db.query(
-        `SELECT t.id, t.content FROM contract_templates t
+        `SELECT t.id, t.content, t.description, t.category, t.recipient_type FROM contract_templates t
            JOIN public.users u ON u.id = t.created_by
           WHERE u.company_id = $1 AND t.name = $2
           ORDER BY t.id`,
-        [companyId, cfg.template.name],
+        [companyId, t.name],
       );
-      if (rows.length > 1) warnings.push(`Più template "${cfg.template.name}" nell'azienda: aggiornato il primo (id ${rows[0].id}).`);
+      if (rows.length > 1) warnings.push(`Più template "${t.name}" nell'azienda: aggiornato il primo (id ${rows[0].id}).`);
+      let templateId: number;
+      let action: UpsertAction;
       if (!rows[0]) {
         const { rows: ins } = await db.query(
-          `INSERT INTO contract_templates (name, content, recipient_type, category, created_by, is_active)
-           VALUES ($1, $2, $3, $4, $5, true) RETURNING id`,
-          [cfg.template.name, html, cfg.template.recipientType, cfg.template.category, adminId],
+          `INSERT INTO contract_templates (name, description, content, recipient_type, category, created_by, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING id`,
+          [t.name, t.description ?? null, html, t.recipientType, t.category, adminId],
         );
-        template = { id: ins[0].id, action: "created" };
-      } else if (rows[0].content !== html) {
-        // I contratti già creati hanno il loro testo (generated_content): non cambiano.
-        await db.query(`UPDATE contract_templates SET content = $2, recipient_type = $3, updated_at = now() WHERE id = $1`,
-          [rows[0].id, html, cfg.template.recipientType]);
-        template = { id: rows[0].id, action: "updated" };
+        templateId = ins[0].id;
+        action = "created";
       } else {
-        template = { id: rows[0].id, action: "unchanged" };
+        templateId = rows[0].id;
+        const changed = rows[0].content !== html
+          || rows[0].recipient_type !== t.recipientType
+          || (t.description !== undefined && rows[0].description !== t.description);
+        if (changed) {
+          // I contratti già creati hanno il loro testo (generated_content): non cambiano.
+          await db.query(
+            `UPDATE contract_templates SET content = $2, recipient_type = $3, description = COALESCE($4, description), updated_at = now() WHERE id = $1`,
+            [templateId, html, t.recipientType, t.description ?? null],
+          );
+          action = "updated";
+        } else {
+          action = "unchanged";
+        }
       }
+
+      let preset: OnboardingTemplateResult["preset"] = null;
+      if (t.preset) {
+        if (presetsAvailable === null) {
+          const { rows: reg } = await db.query(`SELECT to_regclass('contract_presets') AS t`);
+          presetsAvailable = !!reg[0]?.t;
+        }
+        if (!presetsAvailable) {
+          warnings.push(`Preset "${t.preset.name}" non creato: in questo database manca la tabella dei preset.`);
+        } else {
+          const p = t.preset;
+          const values = [p.description ?? null, templateId, p.totalValue ?? null, p.autoRenewal, p.defaultDurationMonths ?? null];
+          const { rows: ex } = await db.query(
+            `SELECT id, description, template_id, total_value, auto_renewal, default_duration_months
+               FROM contract_presets WHERE company_id = $1 AND name = $2 ORDER BY id`,
+            [companyId, p.name],
+          );
+          if (!ex[0]) {
+            const { rows: ins } = await db.query(
+              `INSERT INTO contract_presets
+                 (company_id, created_by, name, description, visibility, template_id, total_value, auto_renewal, default_duration_months)
+               VALUES ($1, $2, $3, $4, 'shared', $5, $6, $7, $8) RETURNING id`,
+              [companyId, adminId, p.name, ...values],
+            );
+            preset = { name: p.name, id: ins[0].id, action: "created" };
+          } else {
+            const cur = ex[0];
+            const same = (cur.description ?? null) === values[0]
+              && cur.template_id === templateId
+              && (cur.total_value === null ? null : Number(cur.total_value)) === values[2]
+              && cur.auto_renewal === p.autoRenewal
+              && (cur.default_duration_months ?? null) === values[4];
+            if (!same) {
+              await db.query(
+                `UPDATE contract_presets SET description = $2, template_id = $3, total_value = $4, auto_renewal = $5,
+                   default_duration_months = $6, visibility = 'shared', updated_at = now() WHERE id = $1`,
+                [cur.id, ...values],
+              );
+            }
+            preset = { name: p.name, id: cur.id, action: same ? "unchanged" : "updated" };
+          }
+        }
+      }
+      templates.push({ name: t.name, id: templateId, action, placeholders: listPlaceholders(html), preset });
     }
 
     if (opts.dryRun) {
@@ -224,8 +324,9 @@ export async function onboardCompany(
       adminId,
       adminCreated,
       temporaryPassword: opts.dryRun ? null : tempPassword,
-      template,
-      placeholders: html ? listPlaceholders(html) : [],
+      template: templates[0] ? { id: templates[0].id, action: templates[0].action } : null,
+      placeholders: templates[0]?.placeholders ?? [],
+      templates,
       warnings,
     };
   } catch (e) {

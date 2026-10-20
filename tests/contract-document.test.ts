@@ -116,3 +116,38 @@ test("partnership: testo ristorazione solo per l'azienda proprietaria", () => {
   const owner = renderContractDocument({ ...input, company: { ...input.company, isOwner: true }, contract }, { mode: "pdf" }).html;
   assert.ok(owner.includes("cibo e bevande"));
 });
+
+test("approvazione specifica (artt. 1341-1342): sezione e seconda firma solo se il testo la prevede", async () => {
+  const { APPROVAL_SIGNATURE_SLOT_ATTR, requiresSpecificApproval } = await import("../shared/contract-document");
+  // Testo senza blocco: nessuna sezione in più (i contratti esistenti restano identici).
+  const plain = renderContractDocument(input, { mode: "pdf", signature });
+  assert.ok(!plain.html.includes("approvazione-clausole"));
+  assert.equal(requiresSpecificApproval(input.template.content), false);
+
+  const content = "<p>Articolo 1</p><!-- APPROVAZIONE_SPECIFICA --><p>Approvo 4.7 e 9.3</p><!-- /APPROVAZIONE_SPECIFICA --><p>Allegato</p>";
+  const withApproval: ContractDocumentInput = { ...input, contract: { ...input.contract, status: "sent", signedAt: null }, template: { ...input.template, content } };
+  assert.equal(requiresSpecificApproval(content), true);
+
+  const page = renderContractDocument(withApproval, { mode: "sign", signature: null });
+  assert.ok(page.html.includes('data-section="approvazione-clausole"'));
+  assert.ok(page.html.includes(APPROVAL_SIGNATURE_SLOT_ATTR), "area per la seconda firma");
+  const body = page.html.split('data-section="approvazione-clausole"')[0];
+  assert.ok(!body.includes("Approvo 4.7"), "il blocco non resta nel corpo del contratto");
+  assert.ok(body.includes("Allegato"));
+
+  const signedInput: ContractDocumentInput = { ...withApproval, contract: { ...withApproval.contract, status: "signed", signedAt: "2026-10-16T10:00:00Z" } };
+  const second = "data:image/png;base64,BBBB";
+  const pdf = renderContractDocument(signedInput, { mode: "pdf", signature, approvalSignature: second });
+  const signedPage = renderContractDocument(signedInput, { mode: "sign", signature, approvalSignature: second });
+  assert.equal(signedPage.html, pdf.html, "dopo la firma pagina e PDF coincidono");
+  assert.ok(pdf.html.includes(second));
+  assert.ok(!pdf.html.includes(APPROVAL_SIGNATURE_SLOT_ATTR));
+});
+
+test("date delle rate già in formato italiano (gg/mm/aaaa): stampate così come sono", async () => {
+  const { formatShortDate } = await import("../shared/contract-document");
+  assert.equal(formatShortDate("07/04/2026"), "07/04/2026", "non va letta come 4 luglio");
+  assert.equal(formatShortDate("2026-04-07"), "07/04/2026");
+  const doc = renderContractDocument({ ...input, client: { ...input.client, rata_list: [], payment_plan: [{ rata_importo: "500.00", rata_scadenza: "01/11/2026" }] } }, { mode: "pdf", signature });
+  assert.ok(doc.html.includes("<td>01/11/2026</td>"));
+});

@@ -250,6 +250,9 @@ function renderSignedConsents(m: Record<string, any>): string[] {
   if (m.marketingConsentOffered === true && typeof m.consents?.marketing === "boolean") {
     out.push(line("Comunicazioni commerciali", m.consents.marketing ? "consenso dato" : "consenso non dato"));
   }
+  if (m.specificApproval === true) {
+    out.push(line("Approvazione specifica delle clausole (artt. 1341 e 1342 c.c.)", "seconda firma apposta"));
+  }
   return out;
 }
 

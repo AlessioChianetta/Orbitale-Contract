@@ -10,7 +10,10 @@
 //    alla firma; il resto (totale − attivazione) si divide nelle rate, la
 //    prima un mese dopo la firma e le successive alla frequenza scelta;
 //  - sconto prima rata (solo abbonamento): si applica alla prima rata
-//    ordinaria, mai al costo di attivazione; riduce il totale da pagare.
+//    ordinaria, mai al costo di attivazione; riduce il totale da pagare;
+//  - numero di rate: per contratti di 12 mesi o più resta quello storico
+//    (12 mensili, 4 trimestrali, 2 semestrali, 1 annuale); per contratti
+//    più brevi segue la durata (es. 3 mesi → 3 rate mensili, 1 trimestrale).
 import { addMonths, format } from "date-fns";
 
 export type PlanFrequency = "monthly" | "quarterly" | "semiannual" | "annual";
@@ -36,6 +39,8 @@ export interface BuildPlanInput {
   discount?: PlanDiscount | null;
   activationFee?: number | null;
   includeActivation?: boolean;
+  /** Durata del contratto in mesi (vedi `contractDurationMonths`). */
+  durationMonths?: number | null;
 }
 
 export interface BuildPlanResult {
@@ -53,7 +58,41 @@ export interface BuildPlanResult {
 export const ACTIVATION_LABEL = "Attivazione";
 
 const PERIOD_MONTHS: Record<PlanFrequency, number> = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 };
-const COUNT: Record<PlanFrequency, number> = { monthly: 12, quarterly: 4, semiannual: 2, annual: 1 };
+
+/** Numero di rate per frequenza e durata (≥ 12 mesi: valori storici). */
+export function installmentCount(frequency: PlanFrequency, durationMonths?: number | null): number {
+  const d = Number(durationMonths);
+  const months = Number.isFinite(d) && d >= 1 && d < 12 ? Math.round(d) : 12;
+  if (frequency === "annual") return 1;
+  return Math.max(1, Math.ceil(months / PERIOD_MONTHS[frequency]));
+}
+
+/**
+ * Durata in mesi tra due date (YYYY-MM-DD), arrotondata al mese più vicino
+ * (20/10 → 19/01 vale 3 mesi). undefined se le date mancano o non sono valide.
+ */
+export function contractDurationMonths(start?: string | null, end?: string | null): number | undefined {
+  const re = /^(\d{4})-(\d{2})-(\d{2})/;
+  const a = re.exec(String(start ?? ""));
+  const b = re.exec(String(end ?? ""));
+  if (!a || !b) return undefined;
+  const months = (Number(b[1]) - Number(a[1])) * 12 + (Number(b[2]) - Number(a[2])) + (Number(b[3]) - Number(a[3])) / 30;
+  const rounded = Math.round(months);
+  return rounded >= 1 ? rounded : undefined;
+}
+
+/** Frequenza più probabile di un piano salvato con `n` rate ordinarie. */
+export function inferPlanFrequency(n: number, durationMonths?: number | null): PlanFrequency {
+  if (n > 1) {
+    for (const f of ["monthly", "quarterly", "semiannual"] as PlanFrequency[]) {
+      if (installmentCount(f, durationMonths) === n) return f;
+    }
+  }
+  if (n >= 12) return "monthly";
+  if (n >= 4) return "quarterly";
+  if (n >= 2) return "semiannual";
+  return "annual";
+}
 
 export const toCents = (v: unknown): number => {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
@@ -63,7 +102,7 @@ const euros = (cents: number) => (cents / 100).toFixed(2);
 
 export function buildAutomaticPlan(input: BuildPlanInput): BuildPlanResult {
   const start = input.startDate ?? new Date();
-  const count = COUNT[input.frequency];
+  const count = installmentCount(input.frequency, input.durationMonths);
   const totalCents = toCents(input.total);
   const empty: BuildPlanResult = {
     plan: [], totalToPay: 0, installmentsCount: count, regularInstallment: 0, activationIncluded: 0, discountAmount: 0,

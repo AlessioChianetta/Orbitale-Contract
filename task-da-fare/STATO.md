@@ -4,7 +4,7 @@ Aggiornato al: **20/10/2026**. Chi lavora su una task aggiorna questa tabella e 
 
 | Task | Titolo | Stato | Prossimo passo |
 |------|--------|-------|----------------|
-| 001 | Onboarding prima cliente (multi-azienda) | Sviluppo completato il 20/10/2026 (Fasi A–D, test verdi). In attesa delle azioni del proprietario | HTML del contratto; sul VPS: aggiornamento, controllo `is_owner`, script `scripts/onboard-company.ts`; SMTP con la cliente; prova reale (vedi §8 della task) |
+| 001 | Onboarding prima cliente (multi-azienda) | Sviluppo completato il 20/10/2026 (Fasi A–D, test verdi), template della cliente pronti (`scripts/onboarding/vigliano/`). In attesa delle azioni del proprietario | Codice fiscale e PEC della cliente nel file; sul VPS: aggiornamento, controllo `is_owner`, script con `scripts/onboarding/vigliano/config.json`; SMTP con la cliente; prova reale (vedi §8 della task) |
 | 003 | Registro attività e log del sistema | Da fare: analisi del 16/10/2026 | Fase 1 subito: togliere il codice di verifica e gli altri dati riservati dai log |
 
 ## Task completate (in `task-da-fare/fatti/`)

@@ -148,7 +148,24 @@ export async function generatePreviewPDF(contractData: any, companySettings: any
   return renderPdf(0, contractData.generatedContent || '', undefined, contractData, companySettings, true);
 }
 
-async function renderPdf(
+// Con `--single-process` Chromium a volte perde la pagina ("Navigating frame
+// was detached"): succede, per esempio, generando un PDF con immagini (firma
+// disegnata) dopo uno senza immagini, come per un'azienda senza logo
+// (anteprima → firma). In quel caso si riavvia il browser e si riprova una volta.
+const BROWSER_LOST_RE = /detached|Target closed|Session closed|Connection closed|Protocol error/i;
+
+async function renderPdf(...args: Parameters<typeof renderPdfOnce>): Promise<Buffer> {
+  try {
+    return await renderPdfOnce(...args);
+  } catch (err: any) {
+    if (!BROWSER_LOST_RE.test(String(err?.message || err))) throw err;
+    console.warn(`[PDF] Browser perso (${err?.message || err}): riavvio e nuovo tentativo.`);
+    await closePdfBrowser();
+    return renderPdfOnce(...args);
+  }
+}
+
+async function renderPdfOnce(
   contractId: number,
   htmlContent: string,
   auditLogs: AuditLog[] | undefined,
@@ -255,7 +272,11 @@ function generateClientViewIdenticalHtml(contractData: any, companySettings: any
         regenerationNotice: contractData.regenerationNotice || null,
       },
     },
-    { mode: 'pdf', signature: isSigned ? (contractData.signatures?.marketing || null) : null },
+    {
+      mode: 'pdf',
+      signature: isSigned ? (contractData.signatures?.marketing || null) : null,
+      approvalSignature: isSigned ? (contractData.signatures?.clausole || null) : null,
+    },
   );
 
   return `<!DOCTYPE html>

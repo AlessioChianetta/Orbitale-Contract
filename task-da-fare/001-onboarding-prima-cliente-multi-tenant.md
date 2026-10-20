@@ -178,3 +178,22 @@ L'app è incorporata in un'altra app. Oggi non c'è alcuna integrazione (nessun 
 4. Con la cliente: configurare la casella email in Impostazioni Azienda e inviare l'email di prova.
 5. Prova reale end-to-end con una casella di test (contratto privato e azienda) prima di consegnare.
 
+
+### 20/10/2026 — Contratti della cliente (Elvira Vigliano – TALES&TONGUES)
+La cliente ha mandato il suo contratto di collaborazione (Punti di Vista) e la nota di revisione. Non è counseling: è consulenza per lo sviluppo commerciale internazionale. Nessun template di counseling è stato inventato.
+- **Due template** in `scripts/onboarding/vigliano/`, generalizzati dal contratto (niente riferimenti a Punti di Vista, UAE/UK, Montaji, SCPN; "Metodo TALES" senza ®):
+  1. *Collaborazione sviluppo commerciale internazionale (3 mesi)*: testo completo, 3 fasi, Allegati A e B, approvazione specifica.
+  2. *Analisi preliminare di mercato (1 mese)*: solo la prima fase, consegna di analisi/shortlist/report.
+  Ognuno ha un **preset** condiviso ("Percorso export 3 mesi": 1.500 € + IVA, 3 mesi, senza rinnovo; "Analisi preliminare 1 mese": 1 mese, senza rinnovo, prezzo da inserire).
+- **Dati specifici del contratto (`{{var_*}}`):** variabili libere decise da chi scrive il template (es. mercati, attività dell'azienda). Il form mostra un campo per ciascuna ("Dati specifici del contratto"); etichetta e tipo si dichiarano con `<!-- VAR var_x | Etichetta | testo lungo | suggerimento -->`. Un campo vuoto blocca l'invio. Nuovo segnaposto `{{prezzo_totale_eur}}` ("EUR 1500,00"). La sezione "Variabili contratto" (canone, attivazione, livello) compare solo se il template le usa.
+- **Seconda firma per le clausole (artt. 1341-1342 c.c.):** il testo tra `<!-- APPROVAZIONE_SPECIFICA -->` e `<!-- /APPROVAZIONE_SPECIFICA -->` diventa una sezione dopo la firma, con un secondo riquadro firma. Senza quella firma il server rifiuta (400) e il codice OTP non si consuma; il registro segna `specificApproval`. I contratti senza il blocco restano identici.
+- **Rate in base alla durata:** sotto i 12 mesi il numero di rate segue la durata (3 mesi → 3 rate mensili); da 12 mesi in su resta tutto come prima.
+- **Script:** accetta `templates` (più template, ciascuno con il suo preset), resta compatibile con `template`. Si ferma se nel file restano campi "INSERIRE_...".
+- **Informativa privacy** della cliente: `scripts/onboarding/vigliano/informativa-privacy.txt` (testo standard, da far verificare).
+- **Correzioni trovate durante il lavoro:**
+  - PDF: con `--single-process` Chromium perdeva la pagina generando un PDF con immagini dopo uno senza (succede a un'azienda senza logo: anteprima e poi firma) → firma rifiutata con errore. Ora il browser si riavvia e si riprova una volta.
+  - Date delle rate: dal 16/10 il documento leggeva "07/04/2026" all'americana (4 luglio). Ripristinata la stampa così com'è. Nessun contratto firmato nel DB di Replit nel periodo; sul VPS controllare i firmati dopo l'aggiornamento del 16/10, se c'è stato.
+  - `package-lock.json`: un pacchetto puntava al proxy interno di Replit e `npm install` sul VPS falliva. Corretto; `scripts/post-merge.sh` lo ripulisce dopo ogni installazione e un test lo controlla.
+- `npm test` 68/68, `npm run test:pdf` OK, PDF di prova dei due template controllati.
+
+**Da completare prima di lanciare lo script per la cliente:** codice fiscale (il documento stampa "C.F. e P.I." dal codice fiscale) e PEC in `scripts/onboarding/vigliano/config.json`; codice univoco se diverso da 0000000; logo se vuole. Poi sul VPS: `npx tsx --require ./server/loadEnv.cjs scripts/onboard-company.ts scripts/onboarding/vigliano/config.json --dry-run`, poi senza `--dry-run`.

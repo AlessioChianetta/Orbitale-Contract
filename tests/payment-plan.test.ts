@@ -92,3 +92,32 @@ test("documento: la riga Attivazione non consuma un numero; i piani storici rest
     { rata_numero: 2, rata_importo: "500.00", rata_scadenza: "2026-02-01" },
   ]);
 });
+
+test("durata del contratto: sotto i 12 mesi le rate seguono la durata, da 12 in su restano quelle storiche", async () => {
+  const { installmentCount, contractDurationMonths, inferPlanFrequency } = await import("../client/src/lib/payment-plan");
+  // 3 mesi a 1500 €: 3 rate mensili da 500, una trimestrale, unica soluzione
+  const monthly = buildAutomaticPlan({ total: 1500, frequency: "monthly", startDate: start, durationMonths: 3 });
+  assert.deepEqual(monthly.plan.map((p) => [p.rata_importo, p.rata_scadenza]),
+    [["500.00", "20/10/2026"], ["500.00", "20/11/2026"], ["500.00", "20/12/2026"]]);
+  assert.equal(buildAutomaticPlan({ total: 1500, frequency: "quarterly", startDate: start, durationMonths: 3 }).plan.length, 1);
+  assert.equal(buildAutomaticPlan({ total: 1500, frequency: "annual", startDate: start, durationMonths: 3 }).plan.length, 1);
+  assert.equal(installmentCount("quarterly", 7), 3);
+  assert.equal(installmentCount("semiannual", 7), 2);
+  for (const months of [12, 24, 36, undefined, null, 0, NaN]) {
+    assert.deepEqual(
+      (["monthly", "quarterly", "semiannual", "annual"] as const).map((f) => installmentCount(f, months)),
+      [12, 4, 2, 1], String(months),
+    );
+  }
+  assert.equal(contractDurationMonths("2026-10-20", "2027-01-20"), 3);
+  assert.equal(contractDurationMonths("2026-10-20", "2027-01-19"), 3);
+  assert.equal(contractDurationMonths("2026-10-20", "2027-10-20"), 12);
+  assert.equal(contractDurationMonths("2026-10-20", "2026-10-20"), undefined);
+  assert.equal(contractDurationMonths("", "2027-01-20"), undefined);
+  // Riapertura di una bozza: frequenza dedotta da rate e durata
+  assert.equal(inferPlanFrequency(3, 3), "monthly");
+  assert.equal(inferPlanFrequency(1, 3), "annual");
+  assert.equal(inferPlanFrequency(12, 12), "monthly");
+  assert.equal(inferPlanFrequency(4), "quarterly");
+  assert.equal(inferPlanFrequency(2, 12), "semiannual");
+});

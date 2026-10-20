@@ -37,7 +37,8 @@ import {
 import SectionPreviewDialog from "./section-preview-dialog";
 import ContractRecapPanel, { type ContractRecapData } from "./contract-recap-panel";
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
-import { ACTIVATION_LABEL, buildAutomaticPlan, sumPlanCents, toCents } from "@/lib/payment-plan";
+import { ACTIVATION_LABEL, buildAutomaticPlan, sumPlanCents, toCents, contractDurationMonths, inferPlanFrequency } from "@/lib/payment-plan";
+import { listTemplateVars } from "@shared/template-vars";
 
 function getTemplateSections(t: unknown): ModularSection[] {
   return parseSections((t as { sections?: unknown } | null | undefined)?.sections);
@@ -98,6 +99,10 @@ const contractFormSchema = z.object({
     giorni_pagamento: z.string().optional(),
     mesi_coda_provvigionale: z.string().optional(),
     giorni_preavviso: z.string().optional(),
+
+    // Dati specifici del contratto: valori dei segnaposto {{var_*}} del
+    // template (vedi shared/template-vars.ts).
+    template_vars: z.record(z.string()).optional(),
 
     // Dynamic sections
     bonus_list: z.array(z.object({
@@ -510,10 +515,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
     // (esclusa la riga dell'attivazione), altrimenti annuale.
     const plan = (contract as any)?.clientData?.payment_plan;
     const n = Array.isArray(plan) ? plan.filter((p: any) => p && !p.rata_descrizione).length : 0;
-    if (n >= 12) return 'monthly';
-    if (n >= 4) return 'quarterly';
-    if (n >= 2) return 'semiannual';
-    return 'annual';
+    const toDay = (v: any) => (v ? new Date(v).toISOString().split("T")[0] : undefined);
+    return inferPlanFrequency(n, contractDurationMonths(toDay((contract as any)?.contractStartDate), toDay((contract as any)?.contractEndDate)));
   });
   const [paymentCalcIsSubscription, setPaymentCalcIsSubscription] = useState(false);
   const [paymentCalcFirstMonthDiscount, setPaymentCalcFirstMonthDiscount] = useState<{
@@ -552,6 +555,7 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
       discount: paymentCalcFirstMonthDiscount,
       activationFee: values.activationFee,
       includeActivation: paymentCalcIncludeActivation,
+      durationMonths: contractDurationMonths(values.contractStartDate, values.contractEndDate),
     });
     if (calc.error) return calc.error;
     const sum = sumPlanCents(plan);
@@ -658,6 +662,22 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
   const recipientKind: "cliente" | "procacciatore" =
     (selectedTemplate as any)?.recipientType === "procacciatore" ? "procacciatore" : "cliente";
   const isProcacciatore = recipientKind === "procacciatore";
+
+  // Testo del template selezionato (corpo + sezioni modulari): serve a
+  // sapere quali variabili chiedere al venditore.
+  const selectedTemplateText = useMemo(() => {
+    const t: any = selectedTemplate;
+    if (!t) return "";
+    return [t.content || "", ...getTemplateSections(t).map((sec) => sec.content || "")].join("\n");
+  }, [selectedTemplate]);
+  const templateVarDefs = useMemo(() => listTemplateVars(selectedTemplateText), [selectedTemplateText]);
+  // Variabili-prodotto: si chiedono solo se il template le usa davvero.
+  const usedProductVars = useMemo(() => ({
+    accessLevel: selectedTemplateText.includes("{{livello_accesso}}"),
+    monthlyFee: selectedTemplateText.includes("{{canone_mensile}}"),
+    activationFee: selectedTemplateText.includes("{{costo_attivazione}}"),
+  }), [selectedTemplateText]);
+  const usedProductVarCount = Object.values(usedProductVars).filter(Boolean).length;
 
   const form = useForm<ContractForm>({
     resolver: zodResolver(contractFormSchema),
@@ -2836,15 +2856,17 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                     {{costo_attivazione}} del template orbitale. Se
                     lasciate vuote la rete di sicurezza lato server
                     blocca l'invio al cliente. */}
+                {usedProductVarCount > 0 && (
                 <div id="section-product-vars" className="rounded-xl border-2 border-indigo-200 bg-indigo-50/30 p-5">
                   <h4 className="text-base font-semibold text-slate-900 mb-1">
                     Variabili contratto
                   </h4>
                   <p className="text-sm text-slate-500 mb-4">
-                    Compila questi tre campi: vengono inseriti automaticamente nel testo del contratto.
+                    {usedProductVarCount === 1 ? "Compila questo campo: viene inserito" : "Compila questi campi: vengono inseriti"} automaticamente nel testo del contratto.
                     Se lasci un campo vuoto, l'invio al cliente verrà bloccato.
                   </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className={`grid grid-cols-1 gap-4 ${usedProductVarCount === 3 ? "md:grid-cols-3" : usedProductVarCount === 2 ? "md:grid-cols-2" : ""}`}>
+                    {usedProductVars.accessLevel && (
                     <div>
                       <Label htmlFor="accessLevel" className={labelClass}>
                         Livello di accesso *
@@ -2888,6 +2910,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         </p>
                       )}
                     </div>
+                    )}
+                    {usedProductVars.monthlyFee && (
                     <div>
                       <Label htmlFor="monthlyFee" className={labelClass}>
                         Canone mensile *
@@ -2907,6 +2931,8 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         />
                       </div>
                     </div>
+                    )}
+                    {usedProductVars.activationFee && (
                     <div>
                       <Label htmlFor="activationFee" className={labelClass}>
                         Costo di attivazione *
@@ -2926,8 +2952,51 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         />
                       </div>
                     </div>
+                    )}
                   </div>
                 </div>
+                )}
+
+                {/* Dati specifici del contratto: un campo per ogni segnaposto
+                    {{var_*}} del template. Vuoto → invio bloccato. */}
+                {templateVarDefs.length > 0 && (
+                  <div id="section-template-vars" className="rounded-xl border-2 border-indigo-200 bg-indigo-50/30 p-5" data-testid="section-template-vars">
+                    <h4 className="text-base font-semibold text-slate-900 mb-1">
+                      Dati specifici del contratto
+                    </h4>
+                    <p className="text-sm text-slate-500 mb-4">
+                      Questi testi vengono inseriti nel contratto al posto giusto. Se lasci un campo vuoto, l'invio al cliente verrà bloccato.
+                    </p>
+                    <div className="space-y-4">
+                      {templateVarDefs.map((def) => (
+                        <div key={def.key}>
+                          <Label htmlFor={`tv-${def.key}`} className={labelClass}>
+                            {def.label} *
+                          </Label>
+                          {def.multiline ? (
+                            <textarea
+                              id={`tv-${def.key}`}
+                              data-testid={`input-${def.key}`}
+                              rows={4}
+                              {...form.register(`clientData.template_vars.${def.key}` as any)}
+                              disabled={createContractMutation.isPending}
+                              className={`${inputClass} min-h-[110px] py-3`}
+                            />
+                          ) : (
+                            <Input
+                              id={`tv-${def.key}`}
+                              data-testid={`input-${def.key}`}
+                              {...form.register(`clientData.template_vars.${def.key}` as any)}
+                              disabled={createContractMutation.isPending}
+                              className={inputClass}
+                            />
+                          )}
+                          {def.hint && <p className="text-xs text-slate-400 mt-1.5">{def.hint}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Partnership Mode Toggle - iOS style */}
                 <div
@@ -3134,10 +3203,11 @@ export default function ContractForm({ onClose, contract }: ContractFormProps) {
                         activationFee={form.watch("activationFee")}
                         includeActivation={paymentCalcIncludeActivation}
                         onIncludeActivationChange={setPaymentCalcIncludeActivation}
+                        durationMonths={contractDurationMonths(form.watch("contractStartDate"), form.watch("contractEndDate"))}
                       />
                       <p className="text-sm text-slate-500 mt-4 flex items-center">
                         <Info className="h-3.5 w-3.5 mr-1.5 text-slate-400 flex-shrink-0" />
-                        Le rate vengono calcolate automaticamente in base alla frequenza selezionata.
+                        Le rate vengono calcolate automaticamente in base alla frequenza selezionata e, per i contratti più brevi di un anno, alla durata.
                       </p>
                     </div>
                   )}

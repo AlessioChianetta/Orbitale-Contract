@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Calculator, Calendar, Euro, Gift, Percent, Edit3, Save, X, RotateCcw } from "lucide-react";
 import { formatCurrency } from "@/lib/validation-utils";
-import { buildAutomaticPlan, sumPlanCents, toCents } from "@/lib/payment-plan";
+import { buildAutomaticPlan, sumPlanCents, toCents, installmentCount, inferPlanFrequency } from "@/lib/payment-plan";
 
 interface PaymentPlan {
   rata_importo: string;
@@ -40,13 +40,8 @@ interface PaymentCalculatorAdvancedProps {
   /** Se vero l'attivazione è compresa nel prezzo totale: primo pagamento alla firma. */
   includeActivation?: boolean;
   onIncludeActivationChange?: (value: boolean) => void;
-}
-
-function inferFrequencyFromCount(n: number): Frequency {
-  if (n >= 12) return 'monthly';
-  if (n >= 4) return 'quarterly';
-  if (n >= 2) return 'semiannual';
-  return 'annual';
+  /** Durata del contratto in mesi: sotto i 12 mesi decide il numero di rate. */
+  durationMonths?: number | null;
 }
 
 export default function PaymentCalculatorAdvanced({
@@ -63,11 +58,16 @@ export default function PaymentCalculatorAdvanced({
   activationFee,
   includeActivation = false,
   onIncludeActivationChange,
+  durationMonths,
 }: PaymentCalculatorAdvancedProps) {
+  // Mesi che contano per il numero di rate (12 per i contratti di un anno o più).
+  const planMonths = installmentCount('monthly', durationMonths);
   const activationValue = Number.isFinite(Number(activationFee)) ? Number(activationFee) : 0;
   const hasInitialPlan = Array.isArray(initialPlan) && initialPlan.length > 0;
   const [paymentFrequency, setPaymentFrequency] = useState<Frequency>(
-    initialFrequency ?? (hasInitialPlan ? inferFrequencyFromCount(initialPlan!.length) : 'annual'),
+    initialFrequency ?? (hasInitialPlan
+      ? inferPlanFrequency(initialPlan!.filter((p: any) => !p?.rata_descrizione).length, planMonths)
+      : 'annual'),
   );
   // Marca per saltare la prima rigenerazione automatica del piano quando
   // riapriamo una bozza con un piano già salvato: altrimenti l'effetto
@@ -115,6 +115,7 @@ export default function PaymentCalculatorAdvanced({
     discount: firstMonthDiscount,
     activationFee: activationValue,
     includeActivation,
+    durationMonths: planMonths,
   });
 
   const generatePlan = (): PaymentPlan[] => buildFor(paymentFrequency).plan;
@@ -140,7 +141,7 @@ export default function PaymentCalculatorAdvanced({
     setHasManualEdits(false);
     onPaymentPlanChangeRef.current(newPlan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalAmount, paymentFrequency, isSubscription, firstMonthDiscount.enabled, firstMonthDiscount.type, firstMonthDiscount.value, includeActivation, activationValue]);
+  }, [totalAmount, paymentFrequency, isSubscription, firstMonthDiscount.enabled, firstMonthDiscount.type, firstMonthDiscount.value, includeActivation, activationValue, planMonths]);
 
   const handleFrequencyChange = (value: Frequency) => {
     if (hasManualEdits) {
@@ -356,10 +357,10 @@ export default function PaymentCalculatorAdvanced({
               className="grid grid-cols-1 sm:grid-cols-2 gap-3"
             >
               {([
-                { id: 'annual', label: 'Annuale', sub: 'Unico pagamento' },
-                { id: 'semiannual', label: 'Semestrale', sub: '2 rate' },
-                { id: 'quarterly', label: 'Trimestrale', sub: '4 rate' },
-                { id: 'monthly', label: 'Mensile', sub: '12 rate' },
+                { id: 'annual', label: planMonths < 12 ? 'Unica soluzione' : 'Annuale', sub: 'Unico pagamento' },
+                { id: 'semiannual', label: 'Semestrale', sub: `${installmentCount('semiannual', planMonths)} ${installmentCount('semiannual', planMonths) === 1 ? 'rata' : 'rate'}` },
+                { id: 'quarterly', label: 'Trimestrale', sub: `${installmentCount('quarterly', planMonths)} ${installmentCount('quarterly', planMonths) === 1 ? 'rata' : 'rate'}` },
+                { id: 'monthly', label: 'Mensile', sub: `${installmentCount('monthly', planMonths)} ${installmentCount('monthly', planMonths) === 1 ? 'rata' : 'rate'}` },
               ] as const).map((opt) => {
                 const installment = buildFor(opt.id).regularInstallment;
                 return (

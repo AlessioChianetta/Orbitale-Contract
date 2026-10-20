@@ -12,3 +12,6 @@
 - [Document layout versioning](document-layout-versioning.md) — renderer changes must leave documentLayout 1 identical; new rules go to a new layout version, never mutate old flags.
 - [Route-level tests](route-tests.md) — full app + fake SMTP + throwaway tenants; close Chromium in after(), one X-Forwarded-For per simulated browser.
 - [Payment plan rules](payment-plan-rules.md) — cents math, sum = total enforced, activation optionally first payment; npm test must run serially.
+- [Template markers](template-markers.md) — {{var_*}} free fields + APPROVAZIONE_SPECIFICA block for 1341/1342 second signature; tenant templates ship via onboarding config.
+- [Chromium PDF quirk](pdf-chromium-single-process.md) — single-process Chromium loses the page on image-after-plain PDFs; renderPdf retries with a fresh browser.
+- [Lockfile registry](lockfile-registry.md) — Replit npm proxy URLs leak into package-lock and break VPS installs; always rewrite to registry.npmjs.org.

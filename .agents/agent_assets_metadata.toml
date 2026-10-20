@@ -28,3 +28,31 @@ mtime_ms = 1792182432774
 storage_uri = "gcs://replit-rams-assets-kira/rams/assets/repl:5ac9a40f-e9c7-4639-aaf4-53f9531a583f/b42a356a-aeeb-46d1-80fa-495df5176904/9afddd02-b6ba-4fae-8575-b43d9c163d66"
 storage_version_token = "1792182452168607"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "7wN_rmRn4qLhLpFFpHF4b"
+uri = "file://generated-artifacts/vigliano-export.pdf"
+type = "pdf"
+title = "Anteprima: Collaborazione sviluppo commerciale (3 mesi)"
+description = "Esempio con dati di prova: 3 rate mensili, mercati compilati, seconda firma per le clausole."
+logical_id = "1959404a-650a-4874-a4b4-28b316dea5be"
+content_hash = "sha256:2f05df8ce3c65cc99dd1cf207dd22123259c7ca0bf9c2957e1632b5124089e6d"
+size = 176466
+mtime_ms = 1792493347839
+storage_uri = "gcs://replit-rams-assets-kira/rams/assets/repl:69dda42e-54a9-4d2d-b62f-e83b80c05912/1959404a-650a-4874-a4b4-28b316dea5be/c75a4774-fa18-4404-b249-a4545bb42111"
+storage_version_token = "1792493915727469"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "6AvsWlb7ljz5S-68nGzNs"
+uri = "file://generated-artifacts/vigliano-analisi.pdf"
+type = "pdf"
+title = "Anteprima: Analisi preliminare di mercato (1 mese)"
+description = "Versione breve: solo la prima fase."
+logical_id = "cc4473f0-fd0a-4f59-8699-90e1be655912"
+content_hash = "sha256:2b373dfd9002709a031d9add1151945ea43f6ef63818a853846e46c0ce7eefb2"
+size = 129660
+mtime_ms = 1792493547163
+storage_uri = "gcs://replit-rams-assets-kira/rams/assets/repl:69dda42e-54a9-4d2d-b62f-e83b80c05912/cc4473f0-fd0a-4f59-8699-90e1be655912/227d6ea9-4517-4437-8d79-81c9a276b50f"
+storage_version_token = "1792493916507052"
+content_type = "application/pdf"

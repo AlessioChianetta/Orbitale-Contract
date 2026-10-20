@@ -5,6 +5,7 @@ import {
   renderContractDocument,
   CONTRACT_DOCUMENT_CSS,
   SIGNATURE_SLOT_ATTR,
+  APPROVAL_SIGNATURE_SLOT_ATTR,
 } from "@shared/contract-document";
 import {
   FileText,
@@ -89,6 +90,10 @@ interface ProfessionalContractDocumentProps {
   signatureValue?: string | null;
   /** Area firma interattiva, montata nella riga di firma del documento. */
   signatureArea?: React.ReactNode;
+  /** Firma già apposta per l'approvazione specifica delle clausole. */
+  approvalSignatureValue?: string | null;
+  /** Area firma interattiva per l'approvazione specifica delle clausole. */
+  approvalSignatureArea?: React.ReactNode;
   beforeDocumentContent?: React.ReactNode;
   afterDocumentContent?: React.ReactNode;
   /**
@@ -110,6 +115,7 @@ const SECTION_ICONS: Record<string, any> = {
   validita: Calendar,
   autorinnovo: Shield,
   firma: PenLine,
+  "approvazione-clausole": PenLine,
 };
 
 export default function ProfessionalContractDocument({
@@ -124,6 +130,8 @@ export default function ProfessionalContractDocument({
   sections: modularSections,
   signatureValue,
   signatureArea,
+  approvalSignatureValue,
+  approvalSignatureArea,
   beforeDocumentContent,
   afterDocumentContent,
   hidePlaceholders,
@@ -132,6 +140,7 @@ export default function ProfessionalContractDocument({
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [signatureSlot, setSignatureSlot] = useState<HTMLElement | null>(null);
+  const [approvalSlot, setApprovalSlot] = useState<HTMLElement | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<HTMLDivElement>(null);
 
@@ -154,11 +163,13 @@ export default function ProfessionalContractDocument({
           mode: isPreview ? "preview" : "sign",
           placeholders: isPreview && !hidePlaceholders,
           signature: signatureValue || null,
+          approvalSignature: approvalSignatureValue || null,
         },
       ),
     [
       companySettings, clientData, template, contract, paymentPlan, bonusList,
       usingCustomInstallments, modularSections, isPreview, hidePlaceholders, signatureValue,
+      approvalSignatureValue,
     ],
   );
 
@@ -167,6 +178,8 @@ export default function ProfessionalContractDocument({
   useLayoutEffect(() => {
     const el = docRef.current?.querySelector<HTMLElement>(`[${SIGNATURE_SLOT_ATTR}]`) ?? null;
     if (el !== signatureSlot) setSignatureSlot(el);
+    const approvalEl = docRef.current?.querySelector<HTMLElement>(`[${APPROVAL_SIGNATURE_SLOT_ATTR}]`) ?? null;
+    if (approvalEl !== approvalSlot) setApprovalSlot(approvalEl);
   });
 
   useEffect(() => {
@@ -206,6 +219,7 @@ export default function ProfessionalContractDocument({
       <style>{CONTRACT_DOCUMENT_CSS}</style>
       <div ref={docRef} dangerouslySetInnerHTML={{ __html: doc.html }} />
       {!isPreview && signatureArea && signatureSlot && createPortal(signatureArea, signatureSlot)}
+      {!isPreview && approvalSignatureArea && approvalSlot && createPortal(approvalSignatureArea, approvalSlot)}
     </div>
   );
 

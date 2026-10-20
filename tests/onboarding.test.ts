@@ -36,6 +36,7 @@ after(async () => {
   try {
     const ids = Array.from(companies);
     if (ids.length) {
+      await pool.query(`DELETE FROM contract_presets WHERE company_id = ANY($1::int[])`, [ids]);
       await pool.query(
         `DELETE FROM contract_templates WHERE created_by IN (SELECT id FROM public.users WHERE company_id = ANY($1::int[]))`, [ids]);
       await pool.query(`DELETE FROM public.users WHERE company_id = ANY($1::int[])`, [ids]);
@@ -123,4 +124,54 @@ test("file mancante: errore prima di toccare il DB", async () => {
 
 test("segnaposto: esclude i blocchi {{#...}} e {{/...}}", () => {
   assert.deepEqual(listPlaceholders("{{#payment_plan}}{{rata_numero}}{{/payment_plan}} {{nome}} {{nome}}"), ["nome", "rata_numero"]);
+});
+
+test("più template, ciascuno con il suo preset condiviso; idempotente", async () => {
+  writeFileSync(path.join(dir, "export.html"), "<p>{{societa}} {{var_mercati}}</p>");
+  writeFileSync(path.join(dir, "analisi.html"), "<p>{{societa}}</p>");
+  const base = config({
+    company: { companyName: `${tag} Multi` },
+    admin: { email: `${tag}-multi@example.invalid`, username: `${tag}-multi` },
+  });
+  const cfg = {
+    company: base.company, admin: base.admin,
+    templates: [
+      { name: "Percorso export", htmlPath: "export.html", description: "3 mesi",
+        preset: { name: "Export 3 mesi", totalValue: 1500, defaultDurationMonths: 3 } },
+      { name: "Analisi", htmlPath: "analisi.html", preset: { name: "Analisi 1 mese", defaultDurationMonths: 1 } },
+    ],
+  };
+  const r = await onboardCompany(cfg, { baseDir: dir });
+  companies.add(r.companyId);
+  assert.deepEqual(r.templates.map((t) => [t.name, t.action, t.preset?.action]), [
+    ["Percorso export", "created", "created"], ["Analisi", "created", "created"],
+  ]);
+  assert.deepEqual(r.templates[0].placeholders, ["societa", "var_mercati"]);
+  assert.equal(r.template?.id, r.templates[0].id, "compatibilità: primo template");
+
+  const { rows: presets } = await pool.query(
+    `SELECT name, visibility, template_id, total_value, auto_renewal, default_duration_months FROM contract_presets WHERE company_id = $1 ORDER BY id`,
+    [r.companyId]);
+  assert.deepEqual(presets.map((p) => [p.name, p.visibility, p.template_id, p.total_value === null ? null : Number(p.total_value), p.auto_renewal, p.default_duration_months]), [
+    ["Export 3 mesi", "shared", r.templates[0].id, 1500, false, 3],
+    ["Analisi 1 mese", "shared", r.templates[1].id, null, false, 1],
+  ]);
+
+  const again = await onboardCompany(cfg, { baseDir: dir });
+  assert.deepEqual(again.templates.map((t) => [t.action, t.preset?.action]), [["unchanged", "unchanged"], ["unchanged", "unchanged"]]);
+
+  cfg.templates[0].preset.totalValue = 1800;
+  const changed = await onboardCompany(cfg, { baseDir: dir });
+  assert.equal(changed.templates[0].preset?.action, "updated");
+  const { rows: n } = await pool.query(`SELECT count(*)::int AS n FROM contract_presets WHERE company_id = $1`, [r.companyId]);
+  assert.equal(n[0].n, 2, "nessun doppione");
+});
+
+test("campi da completare (INSERIRE_...) e template ripetuti: errore senza toccare il DB", async () => {
+  const cfg = config({ company: { companyName: `${tag} Todo`, pec: "INSERIRE_PEC" } });
+  await assert.rejects(onboardCompany(cfg, { baseDir: dir }), /Completa nel file di configurazione: pec/);
+  const dup = { ...config({ company: { companyName: `${tag} Todo` } }), templates: [{ name: "Contratto cliente", htmlPath: "contratto.html" }] };
+  await assert.rejects(onboardCompany(dup, { baseDir: dir }), /ripetuto/);
+  const { rowCount } = await pool.query(`SELECT 1 FROM company_settings WHERE company_name = $1`, [`${tag} Todo`]);
+  assert.equal(rowCount, 0);
 });

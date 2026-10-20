@@ -1,0 +1,50 @@
+{
+  "company": {
+    "companyName": "Elvira Vigliano – TALES&TONGUES",
+    "address": "Viella dei Ricciardi 11, Centurano",
+    "city": "Caserta (CE)",
+    "postalCode": "81100",
+    "taxId": "INSERIRE_CODICE_FISCALE",
+    "vatId": "04549600619",
+    "uniqueCode": "0000000",
+    "pec": "INSERIRE_PEC",
+    "contractTitle": "Contratto di collaborazione professionale",
+    "priceVatMode": "plus_vat",
+    "privacyPolicyTextPath": "informativa-privacy.txt",
+    "marketingConsentEnabled": false
+  },
+  "admin": {
+    "username": "elvira.vigliano",
+    "email": "evigliano.counseling@gmail.com",
+    "fullName": "Elvira Vigliano"
+  },
+  "templates": [
+    {
+      "name": "Collaborazione sviluppo commerciale internazionale (3 mesi)",
+      "htmlPath": "collaborazione-sviluppo-export.html",
+      "recipientType": "cliente",
+      "category": "Clienti",
+      "description": "Percorso di 3 mesi in tre fasi (analisi, contatto, attivazione) con Metodo TALES. Per aziende.",
+      "preset": {
+        "name": "Percorso export 3 mesi",
+        "description": "3 mesi, 1.500 € + IVA, senza rinnovo automatico. Scegli 'Mensile' (3 rate) o 'Unica soluzione' nel piano pagamenti.",
+        "totalValue": 1500,
+        "defaultDurationMonths": 3,
+        "autoRenewal": false
+      }
+    },
+    {
+      "name": "Analisi preliminare di mercato (1 mese)",
+      "htmlPath": "analisi-preliminare-mercato.html",
+      "recipientType": "cliente",
+      "category": "Clienti",
+      "description": "Solo la prima fase: analisi, verifica requisiti, shortlist e report. Per aziende.",
+      "preset": {
+        "name": "Analisi preliminare 1 mese",
+        "description": "1 mese, senza rinnovo automatico. Inserisci il prezzo concordato.",
+        "defaultDurationMonths": 1,
+        "autoRenewal": false
+      }
+    }
+  ]
+}

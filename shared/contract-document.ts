@@ -103,6 +103,11 @@ export interface ContractDocumentOptions {
   placeholders?: boolean;
   /** firma da stampare (data:image… oppure testo). In "sign" senza firma → area interattiva */
   signature?: string | null;
+  /**
+   * Seconda firma per l'approvazione specifica delle clausole (artt. 1341 e
+   * 1342 c.c.), solo se il testo contiene il blocco APPROVAZIONE_SPECIFICA.
+   */
+  approvalSignature?: string | null;
 }
 
 export interface ContractDocumentResult {
@@ -124,6 +129,38 @@ export function contractDisplayNumber(c?: { contractNumber?: string | null; id?:
 
 /** Elemento in cui la pagina cliente monta l'area firma interattiva. */
 export const SIGNATURE_SLOT_ATTR = "data-signature-slot";
+/** Come sopra, per la firma di approvazione specifica delle clausole. */
+export const APPROVAL_SIGNATURE_SLOT_ATTR = "data-approval-signature-slot";
+
+/**
+ * Blocco del testo del contratto con le clausole da approvare
+ * specificamente (artt. 1341 e 1342 c.c.). Chi scrive il template lo
+ * racchiude tra questi due commenti: il documento lo stampa dopo la firma,
+ * con una seconda firma dedicata, e la firma del contratto la richiede.
+ * Il blocco vive nel testo del contratto (congelato alla creazione), quindi
+ * i contratti esistenti, che non lo contengono, restano identici.
+ */
+export const SPECIFIC_APPROVAL_START = "<!-- APPROVAZIONE_SPECIFICA -->";
+export const SPECIFIC_APPROVAL_END = "<!-- /APPROVAZIONE_SPECIFICA -->";
+
+/** Separa dal testo il blocco di approvazione specifica (se presente). */
+export function extractSpecificApproval(content?: string | null): { body: string; approvalHtml: string | null } {
+  const raw = String(content ?? "");
+  const start = raw.indexOf(SPECIFIC_APPROVAL_START);
+  if (start === -1) return { body: raw, approvalHtml: null };
+  const end = raw.indexOf(SPECIFIC_APPROVAL_END, start + SPECIFIC_APPROVAL_START.length);
+  const inner = end === -1
+    ? raw.slice(start + SPECIFIC_APPROVAL_START.length)
+    : raw.slice(start + SPECIFIC_APPROVAL_START.length, end);
+  const after = end === -1 ? "" : raw.slice(end + SPECIFIC_APPROVAL_END.length);
+  if (!inner.trim()) return { body: raw.slice(0, start) + after, approvalHtml: null };
+  return { body: raw.slice(0, start) + after, approvalHtml: inner.trim() };
+}
+
+/** true se il testo del contratto richiede la firma di approvazione specifica. */
+export function requiresSpecificApproval(content?: string | null): boolean {
+  return extractSpecificApproval(content).approvalHtml !== null;
+}
 
 // --------------------------------------------------------------- utilità
 
@@ -172,6 +209,9 @@ export function formatShortDate(value?: string | Date | null): string {
   if (typeof value === "string") {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
     if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    // Già in formato italiano (come le scrive il calcolatore rate): si lascia
+    // com'è. new Date("07/04/2026") la leggerebbe all'americana (4 luglio).
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(value.trim())) return value.trim();
   }
   const d = typeof value === "string" ? new Date(value) : value;
   if (isNaN(d.getTime())) return "";
@@ -384,7 +424,9 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
   const modularHtml = modular.length
     ? renderSectionsHtml(modular.map((s) => ({ id: s.id, title: s.title, content: s.content, defaultEnabled: true, required: false, order: 0 })) as ModularSection[])
     : "";
-  const rawContent = template.content || "";
+  const approvalSplit = extractSpecificApproval(template.content || "");
+  const rawContent = approvalSplit.body;
+  const approvalHtml = approvalSplit.approvalHtml;
   const contentHasMarker = rawContent.includes(SECTIONS_MARKER);
   const content = contentHasMarker ? rawContent.split(SECTIONS_MARKER).join(modularHtml) : rawContent;
   const showModularBlock = modular.length > 0 && !contentHasMarker;
@@ -425,6 +467,15 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
   const signatureArea = opts.mode === "sign" && !opts.signature
     ? `<div class="sign-area" ${SIGNATURE_SLOT_ATTR}></div>`
     : `<div class="sign-area">${signatureInner}</div>`;
+
+  const approvalInner = opts.approvalSignature
+    ? (opts.approvalSignature.startsWith("data:image")
+        ? `<img src="${e(opts.approvalSignature)}" alt="Firma per approvazione specifica" />`
+        : `<div class="sign-text">${e(opts.approvalSignature)}</div>`)
+    : "";
+  const approvalSignatureArea = opts.mode === "sign" && !opts.approvalSignature
+    ? `<div class="sign-area" ${APPROVAL_SIGNATURE_SLOT_ATTR}></div>`
+    : `<div class="sign-area">${approvalInner}</div>`;
 
   const parts: string[] = [];
 
@@ -648,6 +699,28 @@ export function renderContractDocument(input: ContractDocumentInput, opts: Contr
       </div>
     </div>
   </section>`);
+
+  // 12. Approvazione specifica delle clausole (solo testi che la prevedono)
+  if (approvalHtml) {
+    parts.push(`
+  <section data-section="approvazione-clausole" style="page-break-inside: avoid;">
+    ${section("approvazione-clausole", "Approvazione specifica delle clausole")}
+    <div class="template-content">${sanitizeHtml(approvalHtml)}</div>
+    <div class="sign">
+      <div class="sign-date">
+        <div class="f-label">Data</div>
+        <div class="f-value">${e(formatShortDate(contract.signedAt || new Date()))}</div>
+      </div>
+      <div class="sign-box">
+        ${approvalSignatureArea}
+        <div class="sign-caption">
+          <span>Firma per approvazione specifica (artt. 1341 e 1342 c.c.)</span>
+          ${signerName ? `<span class="who">${e(signerName)}</span>` : ""}
+        </div>
+      </div>
+    </div>
+  </section>`);
+  }
 
   // Avviso di rigenerazione (solo PDF rigenerati dopo la firma)
   const rn = contract.regenerationNotice;

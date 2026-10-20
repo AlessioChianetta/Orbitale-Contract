@@ -26,6 +26,7 @@ import ProfessionalContractDocument from "@/components/professional-contract-doc
 import PrivacyPolicyLink from "@/components/privacy-policy-link";
 import { getMissingClientFields, getClientType } from "@/lib/required-client-fields";
 import { getMissingProcacciatoreFields, formatDateItalian } from "@shared/procacciatore-fields";
+import { requiresSpecificApproval } from "@shared/contract-document";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import {
   ValidatedCityField,
@@ -347,23 +348,31 @@ function SignatureArea({
               )}
             </div>
 
-            <p className="text-sm text-gray-700 mb-6 text-center">
-              Vuoi utilizzare questa firma per tutti i campi del contratto o solo per questo campo specifico?
-            </p>
+            {onGlobalSign ? (
+              <p className="text-sm text-gray-700 mb-6 text-center">
+                Vuoi utilizzare questa firma per tutti i campi del contratto o solo per questo campo specifico?
+              </p>
+            ) : (
+              <p className="text-sm text-gray-700 mb-6 text-center">
+                Confermi questa firma per l'approvazione specifica delle clausole?
+              </p>
+            )}
 
             {/* Pulsanti di scelta */}
             <div className="space-y-3">
-              <button
-                onClick={() => confirmSignature(true)}
-                className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                📝 Applica a tutti i campi firma
-              </button>
+              {onGlobalSign && (
+                <button
+                  onClick={() => confirmSignature(true)}
+                  className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  📝 Applica a tutti i campi firma
+                </button>
+              )}
               <button
                 onClick={() => confirmSignature(false)}
                 className="w-full py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                ✏️ Solo per questo campo
+                {onGlobalSign ? "✏️ Solo per questo campo" : "Conferma la firma"}
               </button>
               <button
                 onClick={() => {
@@ -885,6 +894,8 @@ export default function ClientView() {
     contract: "",
     privacy: "",
     marketing: "",
+    // firma per l'approvazione specifica delle clausole (artt. 1341-1342 c.c.)
+    clausole: "",
   });
 
   // Destructure toast from useToast hook
@@ -892,11 +903,12 @@ export default function ClientView() {
 
   // Funzione per applicare la firma al campo del marketing
   const handleGlobalSignature = (signature: string) => {
-    setSignatures({
+    setSignatures((prev) => ({
+      ...prev,
       contract: "",
       privacy: "",
       marketing: signature,
-    });
+    }));
   };
 
   const { data: contract, isLoading } = useQuery({
@@ -907,6 +919,10 @@ export default function ClientView() {
   const clientData = contract?.clientData || {}; // Added default empty object
   const clientCode = contract?.contractCode || ""; // Added contractCode
   const companySettings = contract?.companySettings; // Extracted companySettings
+  // Il testo può chiedere una seconda firma per le clausole da approvare
+  // specificamente: senza entrambe le firme non si passa all'OTP.
+  const needsApprovalSignature = requiresSpecificApproval((contract as any)?.template?.content);
+  const allSignaturesDone = !!signatures.marketing && (!needsApprovalSignature || !!signatures.clausole);
 
   // Titolo della scheda: il nome dell'azienda che manda il contratto, mai il
   // marchio della piattaforma (il cliente finale non la conosce).
@@ -1058,6 +1074,10 @@ export default function ClientView() {
       if (!signatures.marketing) {
         console.log("❌ Mancanza firma");
         throw new Error("Devi apporre la firma per procedere");
+      }
+
+      if (needsApprovalSignature && !signatures.clausole) {
+        throw new Error("Devi apporre anche la firma per l'approvazione specifica delle clausole");
       }
 
       console.log("✅ Tutti i requisiti soddisfatti, invio richiesta di firma...");
@@ -1226,6 +1246,20 @@ export default function ClientView() {
           ? ((contract as { signatures?: Record<string, string> | null }).signatures?.marketing ?? null)
           : null
       }
+      approvalSignatureValue={
+        (contract as { status?: string }).status === "signed"
+          ? ((contract as { signatures?: Record<string, string> | null }).signatures?.clausole ?? null)
+          : null
+      }
+      approvalSignatureArea={
+        isClientFillPending || !needsApprovalSignature ? undefined : (
+          <SignatureArea
+            signatureId="clausole"
+            onSign={(signature) => setSignatures(prev => ({ ...prev, clausole: signature }))}
+            disabled={(contract as { status?: string }).status === 'signed'}
+          />
+        )
+      }
       beforeDocumentContent={
         isClientFillPending ? (
           <Card className="border border-indigo-200 bg-indigo-50 shadow-sm mb-6">
@@ -1274,7 +1308,7 @@ export default function ClientView() {
       afterDocumentContent={
         isClientFillPending ? null : (
         <>
-          {contract.status !== "signed" && !signatures.marketing && (
+          {contract.status !== "signed" && !allSignaturesDone && (
             <Card className="border border-orange-200 bg-orange-50 shadow-lg">
               <CardContent className="pt-6 text-center">
                 <div className="animate-in fade-in duration-500">
@@ -1283,7 +1317,9 @@ export default function ClientView() {
                     Firma Richiesta nel Documento
                   </h3>
                   <p className="text-lg text-gray-600 mb-6">
-                    Prima di procedere con la firma digitale, è necessario apporre la firma nel documento sopra.
+                    {needsApprovalSignature
+                      ? "Prima di procedere con la firma digitale, è necessario apporre nel documento sopra due firme: quella del contratto e quella per l'approvazione specifica delle clausole."
+                      : "Prima di procedere con la firma digitale, è necessario apporre la firma nel documento sopra."}
                   </p>
                   <div className="bg-orange-100 border border-orange-200 rounded-lg p-4 text-sm text-orange-800">
                     <p className="font-medium mb-2">Come procedere:</p>
@@ -1299,7 +1335,7 @@ export default function ClientView() {
             </Card>
           )}
 
-          {contract.status === "viewed" && !signatures.marketing && (
+          {contract.status === "viewed" && !allSignaturesDone && (
             <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
               <h3 className="text-lg font-semibold mb-4 flex items-center">
                 <Shield className="mr-2 h-5 w-5" />
@@ -1409,7 +1445,7 @@ export default function ClientView() {
             </div>
           )}
 
-          {contract.status !== "signed" && signatures.marketing && (
+          {contract.status !== "signed" && allSignaturesDone && (
             <Card className="border border-gray-300 shadow-lg bg-white">
               <CardHeader className="bg-gray-50 border-b border-gray-200 p-4 sm:p-6">
                 <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
@@ -1643,7 +1679,7 @@ export default function ClientView() {
                         !showOtpInput ||
                         otpCode.length !== 6 ||
                         !consents.privacy ||
-                        !signatures.marketing ||
+                        !allSignaturesDone ||
                         signContractMutation.isPending
                       }
                       className="w-full bg-gray-800 hover:bg-gray-900 text-white py-5 text-lg font-bold min-h-[60px] rounded-lg"
