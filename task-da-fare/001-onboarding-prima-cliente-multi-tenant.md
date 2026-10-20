@@ -237,3 +237,4 @@ La cliente ha mandato il suo contratto di collaborazione (Punti di Vista) e la n
 - `GET /sso?token=…`: lasciapassare firmato (HMAC con `EMBED_SSO_SECRET`), max 5 minuti, una volta sola (tabella `sso_used_nonces`), account attivo con quell'email. La sessione così aperta ha il cookie valido nei riquadri (SameSite=None; Secure; Partitioned), non chiede il cambio password, e rifiuta le modifiche partite da altri siti. Il login normale non cambia.
 - `EMBED_ALLOWED_ORIGINS`: quali siti possono mostrare Orbitale Contract in un riquadro.
 - Istruzioni per lo sviluppatore di conorbitale.it: `docs/accesso-automatico.md`. Safari blocca l'accesso nei riquadri di altri domini: serve il link "Apri in una nuova scheda".
+- 20/10/2026: attivato in produzione e provato dal proprietario su Chrome (riquadro in conorbitale.it, Node/Express + React): accesso senza password, nessun errore. Su Safari conorbitale.it mostra l'avviso e il link «Apri in nuova tab».
