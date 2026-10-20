@@ -100,6 +100,14 @@ export async function ensureTenantSchema(): Promise<void> {
       )`);
     await client.query(`CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx ON password_reset_tokens (user_id, created_at)`);
 
+    // Accesso automatico dall'altro software: ogni lasciapassare vale una volta.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sso_used_nonces (
+        nonce TEXT PRIMARY KEY,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`);
+
     await client.query("COMMIT");
     console.log("[TENANT] Schema ready (is_owner, is_active, document_layout, contract_number, privacy, password).");
   } catch (e) {

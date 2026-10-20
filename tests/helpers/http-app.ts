@@ -44,7 +44,8 @@ export async function startTestApp(opts: { frontend?: boolean } = {}): Promise<T
 export class Agent {
   private cookie = "";
   /** `ip`: indirizzo simulato (X-Forwarded-For) per non condividere i limiti per IP. */
-  constructor(private baseUrl: string, private ip?: string) {}
+  /** `headers`: intestazioni aggiunte a ogni richiesta (es. x-forwarded-proto). */
+  constructor(private baseUrl: string, private ip?: string, public headers: Record<string, string> = {}) {}
 
   async request(method: string, path: string, body?: unknown): Promise<{ status: number; json: any; text: string; headers: Headers }> {
     const res = await fetch(this.baseUrl + path, {
@@ -53,6 +54,7 @@ export class Agent {
         ...(body !== undefined ? { "content-type": "application/json" } : {}),
         ...(this.cookie ? { cookie: this.cookie } : {}),
         ...(this.ip ? { "x-forwarded-for": this.ip } : {}),
+        ...this.headers,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
       redirect: "manual",

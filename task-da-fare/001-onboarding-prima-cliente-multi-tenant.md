@@ -232,3 +232,8 @@ La cliente ha mandato il suo contratto di collaborazione (Punti di Vista) e la n
 - **Sul VPS lo script era già stato lanciato** (admin `elvira.vigliano` con l'email principale già esistente). File adattato: admin `elvira.vigliano` (evigliano.counseling@gmail.com), venditore nuovo `elvira.vendite` (evigliano.counseling+vendite@gmail.com). Nuova opzione `--nuove-password`: genera password temporanee nuove anche per gli account già esistenti (le vecchie smettono di valere).
 - **Scoperto (20/10/2026): il database di Replit è lo stesso del sito.** L'azienda 176 è quella vera di Elvira. Pulizia fatta: tolti i due template Orbitale creati per errore dal sito non aggiornato, tolte le credenziali email del proprietario, email dell'admin = quella di Elvira, venditori di prova disattivati, contratti di prova 2026-0001/0002 archiviati. Il default DB dell'impaginazione resta 2 (il codice nuovo mette 3).
 - **Da fare sul VPS:** `npm install`, `npm run build`, riavvio: il sito gira con codice vecchio (crea i template Orbitale in ogni azienda).
+
+### 20/10/2026 — Accesso automatico da conorbitale.it (riquadro)
+- `GET /sso?token=…`: lasciapassare firmato (HMAC con `EMBED_SSO_SECRET`), max 5 minuti, una volta sola (tabella `sso_used_nonces`), account attivo con quell'email. La sessione così aperta ha il cookie valido nei riquadri (SameSite=None; Secure; Partitioned), non chiede il cambio password, e rifiuta le modifiche partite da altri siti. Il login normale non cambia.
+- `EMBED_ALLOWED_ORIGINS`: quali siti possono mostrare Orbitale Contract in un riquadro.
+- Istruzioni per lo sviluppatore di conorbitale.it: `docs/accesso-automatico.md`. Safari blocca l'accesso nei riquadri di altri domini: serve il link "Apri in una nuova scheda".

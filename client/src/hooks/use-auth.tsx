@@ -9,7 +9,11 @@ import { getQueryFn, apiRequest, queryClient, getErrorMessage } from "../lib/que
 import { useToast } from "@/hooks/use-toast";
 
 /** Utente collegato; `impersonator` c'è quando un admin usa l'account di un suo venditore. */
-export type AuthUser = SelectUser & { impersonator?: { id: number; fullName: string } | null };
+export type AuthUser = SelectUser & {
+  impersonator?: { id: number; fullName: string } | null;
+  /** entrato con l'accesso automatico dall'altro software (niente password) */
+  embedded?: boolean;
+};
 
 type AuthContextType = {
   user: AuthUser | null;

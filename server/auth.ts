@@ -6,6 +6,10 @@ import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import { hashPassword, comparePasswords, registerPasswordRoutes } from "./password";
+import { pool } from "./db";
+import {
+  verifySsoToken, consumeSsoNonce, markEmbedSession, frameAncestorsMiddleware, embedCsrfGuard, ssoErrorPage,
+} from "./embed-sso";
 
 declare global {
   namespace Express {
@@ -17,6 +21,8 @@ declare module "express-session" {
   interface SessionData {
     /** admin che sta usando l'account di un suo venditore ("Entra come venditore") */
     impersonatorId?: number;
+    /** sessione aperta con il lasciapassare dell'altro software (riquadro) */
+    viaSso?: boolean;
   }
 }
 
@@ -62,9 +68,11 @@ export function setupAuth(app: Express) {
   };
 
   app.set("trust proxy", 1);
+  app.use(frameAncestorsMiddleware());
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+  app.use("/api", embedCsrfGuard);
 
   // Password temporanea: finché non viene cambiata, l'utente collegato può
   // solo leggere il proprio profilo, cambiare password o uscire.
@@ -86,8 +94,9 @@ export function setupAuth(app: Express) {
 
   app.use("/api", (req, res, next) => {
     // Un admin che usa l'account di un venditore non deve cambiarne la
-    // password: lo farà il venditore al suo primo accesso.
-    if (req.isAuthenticated() && req.user.mustChangePassword && !req.session.impersonatorId && !ALLOWED_WITH_TEMP_PASSWORD.has(req.originalUrl.split("?")[0])) {
+    // password: lo farà il venditore al suo primo accesso. Chi entra con il
+    // lasciapassare dell'altro software non usa la password.
+    if (req.isAuthenticated() && req.user.mustChangePassword && !req.session.impersonatorId && !req.session.viaSso && !ALLOWED_WITH_TEMP_PASSWORD.has(req.originalUrl.split("?")[0])) {
       return res.status(403).json({ message: "Devi cambiare la password temporanea prima di continuare.", code: "MUST_CHANGE_PASSWORD" });
     }
     next();
@@ -147,12 +156,57 @@ export function setupAuth(app: Express) {
     });
   });
 
-  function userPayload(user: SelectUser, impersonator: SelectUser | null) {
+  function userPayload(req: Request, user: SelectUser, impersonator: SelectUser | null) {
     return {
       ...sanitizeUser(user),
       impersonator: impersonator ? { id: impersonator.id, fullName: impersonator.fullName } : null,
+      embedded: !!req.session.viaSso,
     };
   }
+
+  // Accesso automatico dall'altro software (vedi server/embed-sso.ts).
+  app.get("/sso", async (req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    const fail = (status: number, message: string) => res.status(status).type("html").send(ssoErrorPage(message));
+    const secret = process.env.EMBED_SSO_SECRET || "";
+    if (secret.length < 32) return fail(503, "L'accesso automatico non è configurato su questo sito.");
+    try {
+      const v = verifySsoToken(String(req.query.token || ""), secret);
+      if (!v.ok) {
+        console.warn(`[SSO] Lasciapassare rifiutato: ${v.reason}`);
+        return fail(401, "Il collegamento non è valido o è scaduto: ricarica la pagina del gestionale.");
+      }
+      if (!req.secure) {
+        console.error("[SSO] Richiesta non https: il proxy deve inviare X-Forwarded-Proto (nginx: proxy_set_header X-Forwarded-Proto $scheme;)");
+        return fail(400, "Il sito deve essere aperto in https per l'accesso automatico.");
+      }
+      if (!(await consumeSsoNonce(v.claims.nonce, v.claims.exp))) {
+        return fail(401, "Questo collegamento è già stato usato: ricarica la pagina del gestionale.");
+      }
+      const { rows } = await pool.query(`SELECT id FROM public.users WHERE lower(email) = lower($1)`, [v.claims.email]);
+      const user = rows.length === 1 ? await storage.getUser(rows[0].id) : undefined;
+      if (!user || !user.isActive) {
+        console.warn(`[SSO] Nessun account attivo per l'email indicata dal lasciapassare`);
+        return fail(403, "Nessun account attivo con questa email: contatta l'amministratore.");
+      }
+      const nextParam = typeof req.query.next === "string" ? req.query.next : "";
+      const target = /^\/(?!\/)[^\\\s]*$/.test(nextParam) && !nextParam.startsWith("/sso")
+        ? nextParam
+        : user.role === "admin" ? "/admin" : "/seller";
+      req.logIn(user, (err) => {
+        if (err) return next(err);
+        markEmbedSession(req);
+        req.session.save((saveErr) => {
+          if (saveErr) return next(saveErr);
+          console.log(`[SSO] Accesso automatico utente ${user.id} (azienda ${user.companyId})`);
+          res.redirect(302, target);
+        });
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
 
   app.get("/api/user", async (req, res, next) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -161,7 +215,7 @@ export function setupAuth(app: Express) {
       if (impersonator === "invalid") {
         return req.logout((err) => (err ? next(err) : res.sendStatus(401)));
       }
-      res.json(userPayload(req.user, impersonator));
+      res.json(userPayload(req, req.user, impersonator));
     } catch (err) {
       next(err);
     }
@@ -183,14 +237,16 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Il venditore è disattivato: riattivalo prima di entrare nel suo account" });
       }
       const admin = req.user;
+      const embedded = !!req.session.viaSso;
       req.logIn(target, (err) => {
         if (err) return next(err);
-        // logIn rigenera la sessione: l'admin si salva dopo.
+        // logIn rigenera la sessione: l'admin (e il riquadro) si salvano dopo.
         req.session.impersonatorId = admin.id;
+        if (embedded) markEmbedSession(req);
         req.session.save((saveErr) => {
           if (saveErr) return next(saveErr);
           console.log(`[AUTH] Admin ${admin.id} entra come venditore ${target.id} (azienda ${target.companyId})`);
-          res.json(userPayload(target, admin));
+          res.json(userPayload(req, target, admin));
         });
       });
     } catch (err) {
@@ -208,10 +264,15 @@ export function setupAuth(app: Express) {
         return req.logout((err) => (err ? next(err) : res.status(401).json({ message: "Sessione scaduta: accedi di nuovo" })));
       }
       const sellerId = req.user.id;
+      const embedded = !!req.session.viaSso;
       req.logIn(admin, (err) => {
         if (err) return next(err);
-        console.log(`[AUTH] Admin ${admin.id} torna al suo account (era nel venditore ${sellerId})`);
-        res.json(userPayload(admin, null));
+        if (embedded) markEmbedSession(req);
+        req.session.save((saveErr) => {
+          if (saveErr) return next(saveErr);
+          console.log(`[AUTH] Admin ${admin.id} torna al suo account (era nel venditore ${sellerId})`);
+          res.json(userPayload(req, admin, null));
+        });
       });
     } catch (err) {
       next(err);
