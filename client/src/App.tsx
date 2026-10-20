@@ -6,22 +6,55 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "./lib/protected-route";
 import NotFound from "@/pages/not-found";
-import AuthPage from "@/pages/auth-page";
-import LandingPage from "@/pages/landing-page";
-import AdminDashboard from "@/pages/admin-dashboard";
-import AdminPresetsPage from "@/pages/admin-presets";
-import SellerDashboard from "@/pages/seller-dashboard";
-import ClientView from "@/pages/client-view";
-import CompanySettings from "./pages/company-settings";
-import UserManagement from "./pages/user-management";
-import ContractView from "./pages/contract-view";
-import CoFillPage from "@/pages/co-fill-page";
-import ChangePasswordPage from "@/pages/change-password";
-import ForgotPasswordPage from "@/pages/forgot-password";
-import ResetPasswordPage from "@/pages/reset-password";
+import { Loader2 } from "lucide-react";
+import { lazy, Suspense, type ComponentType } from "react";
+
+/**
+ * Ogni pagina è un file JavaScript a parte, scaricato solo quando serve: il
+ * cliente che apre il link di firma non scarica dashboard, editor e
+ * impostazioni. Se un file non si trova più (pagina aperta prima di un
+ * aggiornamento del sito) si ricarica la pagina una volta sola.
+ */
+function page<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) {
+  return lazy(() =>
+    load().catch((err) => {
+      const key = "tc-chunk-reload";
+      const last = Number(sessionStorage.getItem(key) || 0);
+      if (Date.now() - last > 60_000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+        return new Promise<{ default: T }>(() => {});
+      }
+      throw err;
+    }),
+  );
+}
+
+const AuthPage = page(() => import("@/pages/auth-page"));
+const LandingPage = page(() => import("@/pages/landing-page"));
+const AdminDashboard = page(() => import("@/pages/admin-dashboard"));
+const AdminPresetsPage = page(() => import("@/pages/admin-presets"));
+const SellerDashboard = page(() => import("@/pages/seller-dashboard"));
+const ClientView = page(() => import("@/pages/client-view"));
+const CompanySettings = page(() => import("./pages/company-settings"));
+const UserManagement = page(() => import("./pages/user-management"));
+const ContractView = page(() => import("./pages/contract-view"));
+const CoFillPage = page(() => import("@/pages/co-fill-page"));
+const ChangePasswordPage = page(() => import("@/pages/change-password"));
+const ForgotPasswordPage = page(() => import("@/pages/forgot-password"));
+const ResetPasswordPage = page(() => import("@/pages/reset-password"));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <Loader2 className="h-8 w-8 animate-spin text-border" />
+    </div>
+  );
+}
 
 function Router() {
   return (
+    <Suspense fallback={<PageLoader />}>
     <Switch>
       <Route path="/" component={LandingPage} />
       <ProtectedRoute path="/admin" component={AdminDashboard} />
@@ -39,6 +72,7 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 
