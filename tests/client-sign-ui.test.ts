@@ -25,6 +25,9 @@ async function shot(page: Page, name: string) {
   await new Promise((r) => setTimeout(r, 400));
   await page.screenshot({ path: `${process.env.UI_SHOTS}/${name}.png` });
 }
+// La pagina accompagna il cliente scorrendo da sola al passaggio successivo:
+// prima di cliccare si aspetta che lo scorrimento sia finito.
+const settle = (ms = 1000) => new Promise((r) => setTimeout(r, ms));
 const freshIp = () => `10.98.${Math.floor(Math.random() * 200)}.${ipCounter++}`;
 
 const APPROVAL_TEMPLATE = [
@@ -126,6 +129,7 @@ async function finishSigning(page: Page, contractId: number) {
   const step = async (id: string) => page.$eval(`[data-testid="${id}"]`, (e) => e.getAttribute("data-state"));
   assert.equal(await step("sign-step-document"), "done");
   assert.equal(await step("sign-step-otp"), "current");
+  await settle();
 
   await (await page.waitForSelector('[data-testid="button-send-otp"]', { visible: true }))!.click();
   await page.waitForSelector("input[data-input-otp]", { timeout: 20_000 });
@@ -134,6 +138,7 @@ async function finishSigning(page: Page, contractId: number) {
   assert.ok(rows[0], "codice creato");
   await page.focus("input[data-input-otp]");
   await page.keyboard.type(rows[0].code);
+  await settle();
   await shot(page, `${contractId}-codice`);
   assert.equal(await step("sign-step-confirm"), "current");
 
@@ -141,9 +146,23 @@ async function finishSigning(page: Page, contractId: number) {
   assert.equal(await page.$eval(signBtn, (b) => (b as HTMLButtonElement).disabled), true, "senza privacy non si firma");
   await page.click('[data-testid="checkbox-privacy"]');
   await page.waitForFunction((s) => !(document.querySelector(s) as HTMLButtonElement)?.disabled, {}, signBtn);
+  // La schermata "Stiamo registrando la tua firma" deve comparire durante
+  // l'attesa (sessionStorage sopravvive al passaggio alla pagina di conferma).
+  await page.evaluate(() => {
+    sessionStorage.removeItem("sawSigningOverlay");
+    new MutationObserver(() => {
+      if (document.querySelector('[data-testid="signing-progress-overlay"]')) sessionStorage.setItem("sawSigningOverlay", "1");
+    }).observe(document.body, { childList: true, subtree: true });
+  });
   await Promise.all([
     page.waitForNavigation({ timeout: 90_000 }).catch(() => null),
     page.click(signBtn),
+    process.env.UI_SHOTS
+      ? page.waitForSelector('[data-testid="signing-progress-overlay"]', { timeout: 5000 })
+          .then(() => settle(1500))
+          .then(() => page.screenshot({ path: `${process.env.UI_SHOTS}/${contractId}-attesa.png` }))
+          .catch(() => null)
+      : null,
   ]);
   for (let i = 0; i < 60; i++) {
     const { rows: [r] } = await pool.query(`SELECT status FROM contracts WHERE id = $1`, [contractId]);
@@ -152,6 +171,12 @@ async function finishSigning(page: Page, contractId: number) {
   }
   const { rows: [done] } = await pool.query(`SELECT status, signatures FROM contracts WHERE id = $1`, [contractId]);
   assert.equal(done.status, "signed");
+  await page.waitForSelector('[data-testid="signed-confirmation"]', { timeout: 30_000 });
+  assert.equal(await page.evaluate(() => sessionStorage.getItem("sawSigningOverlay")), "1", "attesa della firma mostrata");
+  if (process.env.UI_SHOTS) {
+    await settle(1800);
+    await page.screenshot({ path: `${process.env.UI_SHOTS}/${contractId}-confermato.png` });
+  }
   return done.signatures as Record<string, string>;
 }
 

@@ -1,3 +1,12 @@
+import {
+  emailLayout,
+  emailParagraph,
+  emailButton,
+  emailInfoBox,
+  emailSteps,
+  emailCode,
+  emailFallbackLink,
+} from "./email-layout";
 import * as fs from 'fs';
 import * as path from 'path';
 import nodemailer, { Transporter } from 'nodemailer';
@@ -164,6 +173,8 @@ export function getBaseUrl(): string {
 export interface ContractRequestEmailContent {
   subject: string;
   html: string;
+  /** versione solo testo (alternativa all'HTML) */
+  text: string;
   fromName: string;
   fromEmail: string;
   fromHeader: string;
@@ -215,10 +226,19 @@ export async function buildContractRequestEmail(opts: {
     senderName: fromName,
     otpChannel: (settings as any).otpMethod === "twilio" ? "sms" : "email",
   });
-  const subject = `Nuovo contratto da firmare — ${fromName}`;
+  const text = renderContractRequestText({
+    clientName,
+    contractUrl: signLink,
+    contractCode: opts.contractCode,
+    contractNumber: opts.contract.contractNumber ?? null,
+    senderName: fromName,
+    otpChannel: (settings as any).otpMethod === "twilio" ? "sms" : "email",
+  });
+  const subject = `Contratto da firmare — ${fromName}`;
   return {
     subject,
     html,
+    text,
     fromName,
     fromEmail,
     fromHeader: buildFrom(fromName, fromEmail),
@@ -254,6 +274,7 @@ export async function sendContractEmail(
       to: built.to,
       subject: built.subject,
       html: built.html,
+      text: built.text,
     });
     console.log("✅ Email contratto inviata, messageId:", info.messageId);
   } catch (error: any) {
@@ -329,42 +350,24 @@ export async function sendOtpLockoutAlertEmail(opts: {
 
   const safeClient = (clientName || "").trim() || "Cliente";
   const subject = `Promemoria firma — possibile difficoltà del cliente sul contratto ${contractCode}`;
-  const html = `
-    <!DOCTYPE html>
-    <html><head><style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { background-color: #4F46E5; color: white; padding: 20px; text-align: center; }
-      .content { padding: 20px; background-color: #f9f9f9; }
-      .meta { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:12px 16px; margin:16px 0; font-size:14px; }
-      .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
-    </style></head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h2 style="margin:0;">${escapeHtml(fromName)}</h2>
-          <p style="margin:4px 0 0;">Promemoria firma cliente</p>
-        </div>
-        <div class="content">
-          <p>Ciao,</p>
-          <p>il cliente <strong>${escapeHtml(safeClient)}</strong> sta provando a firmare il contratto <strong>${escapeHtml(contractCode)}</strong> ma ha inserito un codice OTP errato per <strong>${failedAttempts}</strong> volte negli ultimi <strong>${detectionWindowMinutes} minuti</strong>.</p>
-          <p>Per sicurezza la pagina di firma è stata temporaneamente bloccata per circa <strong>${lockoutMinutes} minuti</strong>. Probabilmente il cliente ha bisogno di aiuto: contattalo per verificare che abbia ricevuto il codice corretto e accompagnarlo nella firma.</p>
-          <div class="meta">
-            <div><strong>Codice contratto:</strong> ${escapeHtml(contractCode)}</div>
-            <div><strong>Link al contratto:</strong> <a href="${escapeHtml(contractLink)}">${escapeHtml(contractLink)}</a></div>
-            <div><strong>IP dell'ultimo tentativo:</strong> ${escapeHtml(attemptIp)}</div>
-            <div><strong>Tentativi falliti:</strong> ${failedAttempts}</div>
-            <div><strong>Finestra di rilevazione:</strong> ${detectionWindowMinutes} minuti</div>
-            <div><strong>Durata blocco:</strong> ${lockoutMinutes} minuti</div>
-          </div>
-          <p style="font-size:12px;color:#666;">Il blocco si rimuove automaticamente trascorsa la finestra. Il cliente potrà richiedere un nuovo codice e completare la firma.</p>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} ${escapeHtml(fromName)}</p>
-        </div>
-      </div>
-    </body></html>
-  `;
+  const html = emailLayout({
+    senderName: fromName,
+    eyebrow: "Promemoria firma",
+    title: `${safeClient} potrebbe avere bisogno di aiuto`,
+    bodyHtml: [
+      emailParagraph(`Il cliente <strong>${escapeHtml(safeClient)}</strong> sta provando a firmare il contratto <strong>${escapeHtml(contractCode)}</strong> ma ha inserito un codice errato per <strong>${failedAttempts}</strong> volte negli ultimi <strong>${detectionWindowMinutes} minuti</strong>.`),
+      emailParagraph(`Per sicurezza la pagina di firma è bloccata per circa <strong>${lockoutMinutes} minuti</strong>. Contattalo per verificare che abbia ricevuto il codice giusto e accompagnarlo nella firma.`),
+      emailInfoBox([
+        { label: "Codice contratto", value: contractCode },
+        { label: "IP dell'ultimo tentativo", value: attemptIp },
+        { label: "Tentativi falliti", value: String(failedAttempts) },
+        { label: "Durata blocco", value: `${lockoutMinutes} minuti` },
+      ]),
+      emailButton(contractLink, "Apri il contratto"),
+      emailParagraph("Il blocco si rimuove da solo: poi il cliente potrà chiedere un nuovo codice e firmare.", { muted: true, small: true }),
+    ].join(""),
+  });
+
 
   try {
     const info = await transporter.sendMail({
@@ -383,37 +386,18 @@ export async function sendOtpLockoutAlertEmail(opts: {
 
 function renderCoFillLinkHtml(opts: { clientName: string; link: string; senderName: string }): string {
   const { clientName, link, senderName } = opts;
-  return `
-    <!DOCTYPE html>
-    <html><head><style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { background-color: #4F46E5; color: white; padding: 20px; text-align: center; }
-      .content { padding: 20px; background-color: #f9f9f9; }
-      .button { display: inline-block; background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-      .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
-    </style></head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>${escapeHtml(senderName)}</h1>
-          <p>Compila i tuoi dati in pochi minuti</p>
-        </div>
-        <div class="content">
-          <h2>Ciao ${escapeHtml(clientName)},</h2>
-          <p>Per preparare il tuo contratto abbiamo bisogno di alcuni dati. Apri il link qui sotto dal tuo dispositivo e compila i campi richiesti: vedremo le informazioni in tempo reale e potremo aiutarti se serve.</p>
-          <div style="text-align: center;">
-            <a href="${escapeHtml(link)}" class="button">Compila i miei dati</a>
-          </div>
-          <p style="font-size: 12px; word-break: break-all;">Se il pulsante non funziona, copia e incolla questo link nel browser:<br/><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>
-          <p><em>Questo link è personale e sicuro. Non condividerlo con altre persone.</em></p>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} ${escapeHtml(senderName)}. Tutti i diritti riservati.</p>
-        </div>
-      </div>
-    </body></html>
-  `;
+  return emailLayout({
+    senderName,
+    eyebrow: "I tuoi dati",
+    title: `Ciao ${clientName}, completa i tuoi dati`,
+    preheader: `${senderName} ti chiede alcuni dati per preparare il contratto.`,
+    bodyHtml: [
+      emailParagraph("Per preparare il tuo contratto servono alcuni dati. Apri il link e compila i campi richiesti: vedremo le informazioni in tempo reale e potremo aiutarti se serve."),
+      emailButton(link, "Compila i miei dati"),
+      emailFallbackLink(link),
+      emailParagraph("Il link è personale: non condividerlo con altre persone.", { muted: true, small: true }),
+    ].join(""),
+  });
 }
 
 export async function sendTestEmail(companyId: number, to: string): Promise<{ messageId?: string }> {
@@ -479,33 +463,19 @@ function enrichSmtpError(error: any, host: string, port: number): Error {
 
 function renderTestEmailHtml(opts: { senderName: string; host: string; port: number }): string {
   const { senderName, host, port } = opts;
-  return `
-    <!DOCTYPE html>
-    <html><head><style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { background-color: #10B981; color: white; padding: 20px; text-align: center; }
-      .content { padding: 20px; background-color: #f9f9f9; }
-      .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
-    </style></head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Email di prova</h1>
-          <p>${escapeHtml(senderName)}</p>
-        </div>
-        <div class="content">
-          <p>Questa è un'<strong>email di prova</strong> inviata dalle Impostazioni Azienda → Configurazione Email.</p>
-          <p>Se la stai leggendo, la configurazione SMTP funziona correttamente.</p>
-          <p><strong>Server:</strong> ${escapeHtml(host)}:${port}</p>
-          <p><strong>Inviata il:</strong> ${new Date().toLocaleString("it-IT")}</p>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} ${escapeHtml(senderName)}.</p>
-        </div>
-      </div>
-    </body></html>
-  `;
+  return emailLayout({
+    senderName,
+    eyebrow: "Configurazione email",
+    success: true,
+    title: "Email di prova",
+    bodyHtml: [
+      emailParagraph("Se stai leggendo questa email, la configurazione SMTP funziona correttamente."),
+      emailInfoBox([
+        { label: "Server", value: `${host}:${port}` },
+        { label: "Inviata il", value: new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" }) },
+      ]),
+    ].join(""),
+  });
 }
 
 export async function sendOTPEmail(email: string, otpCode: string, companyId?: number): Promise<void> {
@@ -702,25 +672,17 @@ export async function sendPasswordResetEmail(opts: {
   const settings = await loadSettingsForCompany(opts.companyId);
   if (!settings) throw new Error("Impostazioni azienda non trovate.");
   const { transporter, fromAddress, fromName } = getTransporterForCompany(settings);
-  const html = `
-    <!DOCTYPE html>
-    <html><head><style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .content { padding: 20px; background-color: #f9f9f9; }
-      .button { display: inline-block; background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 16px 0; }
-    </style></head>
-    <body>
-      <div class="container">
-        <div class="content">
-          <p>Ciao ${escapeHtml(opts.fullName || "")},</p>
-          <p>abbiamo ricevuto una richiesta di nuova password per il tuo account del gestionale contratti di <strong>${escapeHtml(fromName)}</strong>.</p>
-          <p style="text-align:center;"><a href="${escapeHtml(opts.link)}" class="button">Scegli una nuova password</a></p>
-          <p>Il link vale ${opts.validMinutes} minuti e si può usare una sola volta. Se non hai chiesto tu il cambio, ignora questa email: la password attuale resta valida.</p>
-        </div>
-      </div>
-    </body></html>
-  `;
+  const html = emailLayout({
+    senderName: fromName,
+    eyebrow: "Account",
+    title: "Scegli una nuova password",
+    bodyHtml: [
+      emailParagraph(`Ciao ${escapeHtml(opts.fullName || "")}, abbiamo ricevuto una richiesta di nuova password per il tuo account del gestionale contratti di <strong>${escapeHtml(fromName)}</strong>.`),
+      emailButton(opts.link, "Scegli una nuova password"),
+      emailParagraph(`Il link vale ${opts.validMinutes} minuti e si può usare una sola volta. Se non hai chiesto tu il cambio, ignora questa email: la password attuale resta valida.`, { muted: true, small: true }),
+    ].join(""),
+  });
+
   await transporter.sendMail({
     from: buildFrom(fromName, fromAddress),
     to: opts.to,
@@ -745,36 +707,24 @@ export function renderOperatorSignedHtml(opts: {
   const when = d && !isNaN(d.getTime())
     ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Rome" }).format(d) + " (ora italiana)"
     : null;
-  return `
-    <!DOCTYPE html>
-    <html><head><style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { background-color: #10B981; color: white; padding: 20px; text-align: center; }
-      .content { padding: 20px; background-color: #f9f9f9; }
-      .meta { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:12px 16px; margin:16px 0; font-size:14px; }
-    </style></head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h2 style="margin:0;">Contratto firmato</h2>
-          <p style="margin:4px 0 0;">${escapeHtml(opts.senderName)}</p>
-        </div>
-        <div class="content">
-          <p><strong>${escapeHtml(opts.party)}</strong> ha firmato il contratto.</p>
-          <div class="meta">
-            ${opts.contractNumber ? `<div><strong>Contratto n.:</strong> ${escapeHtml(opts.contractNumber)}</div>` : ""}
-            <div><strong>Codice contratto:</strong> ${escapeHtml(opts.contractCode)}</div>
-            ${when ? `<div><strong>Firmato il:</strong> ${escapeHtml(when)}</div>` : ""}
-            <div><strong>Inviato da:</strong> ${escapeHtml(opts.sellerName)}</div>
-          </div>
-          <p>${opts.hasAttachment ? "In allegato il PDF firmato, con il registro delle operazioni. " : ""}Il contratto è visibile nella dashboard: <a href="${escapeHtml(opts.dashboardUrl)}">${escapeHtml(opts.dashboardUrl)}</a></p>
-        </div>
-      </div>
-    </body></html>
-  `;
+  return emailLayout({
+    senderName: opts.senderName,
+    eyebrow: "Contratto firmato",
+    success: true,
+    title: `${opts.party} ha firmato`,
+    preheader: `${opts.party} ha firmato il contratto${opts.contractNumber ? ` n. ${opts.contractNumber}` : ""}.`,
+    bodyHtml: [
+      emailInfoBox([
+        { label: "Contratto n.", value: opts.contractNumber },
+        { label: "Codice contratto", value: opts.contractCode },
+        { label: "Firmato il", value: when },
+        { label: "Inviato da", value: opts.sellerName },
+      ]),
+      opts.hasAttachment ? emailParagraph("In allegato il PDF firmato, con il registro delle operazioni.") : "",
+      emailButton(opts.dashboardUrl, "Apri la dashboard"),
+    ].join(""),
+  });
 }
-
 
 export function renderContractRequestHtml(opts: {
   clientName: string;
@@ -788,81 +738,75 @@ export function renderContractRequestHtml(opts: {
 }): string {
   const { clientName, contractUrl, contractCode, senderName, otpChannel } = opts;
   const otpStep = otpChannel === "sms"
-    ? "Ricevere un codice di verifica via SMS sul tuo cellulare"
-    : "Ricevere un codice di verifica via email";
-  return `
-    <!DOCTYPE html>
-    <html><head><style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { background-color: #3B82F6; color: white; padding: 20px; text-align: center; }
-      .content { padding: 20px; background-color: #f9f9f9; }
-      .button { display: inline-block; background-color: #3B82F6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-      .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
-    </style></head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>${escapeHtml(senderName)}</h1>
-          <p>Sistema di gestione contratti</p>
-        </div>
-        <div class="content">
-          <h2>Ciao ${escapeHtml(clientName)},</h2>
-          <p>Hai ricevuto un nuovo contratto da firmare. Per procedere alla visualizzazione e alla firma elettronica, clicca sul pulsante qui sotto:</p>
-          <div style="text-align: center;">
-            <a href="${contractUrl}" class="button">Visualizza e firma il contratto</a>
-          </div>
-          ${opts.contractNumber ? `<p><strong>Contratto n.</strong> ${escapeHtml(opts.contractNumber)}</p>` : ""}
-          <p><strong>Codice contratto:</strong> ${escapeHtml(contractCode)}</p>
-          <p>La firma è completamente digitale. Ti verrà richiesto di:</p>
-          <ul>
-            <li>Leggere il documento completo</li>
-            <li>${otpStep}</li>
-            <li>Inserire il codice ricevuto</li>
-            <li>Apporre la firma elettronica</li>
-          </ul>
-          <p><em>Questo link è personale e sicuro. Non condividerlo con altre persone.</em></p>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} ${escapeHtml(senderName)}. Tutti i diritti riservati.</p>
-          <p>Email generata automaticamente dal sistema.</p>
-        </div>
-      </div>
-    </body></html>
-  `;
+    ? "Ricevi un codice di verifica via SMS sul tuo cellulare."
+    : "Ricevi un codice di verifica via email.";
+  const body = [
+    emailParagraph(`${escapeHtml(senderName)} ti ha inviato un contratto da firmare. Puoi leggerlo e firmarlo online, dal computer o dallo smartphone: bastano pochi minuti.`),
+    emailButton(contractUrl, "Leggi e firma il contratto"),
+    emailInfoBox([
+      { label: "Contratto n.", value: opts.contractNumber ?? null },
+      { label: "Codice contratto", value: contractCode },
+    ]),
+    emailSteps("Come funziona", [
+      "Leggi il contratto e firma nei riquadri indicati.",
+      otpStep,
+      "Inserisci il codice e conferma: riceverai una copia del contratto firmato.",
+    ]),
+    emailFallbackLink(contractUrl),
+    emailParagraph("Il link è personale: non inoltrare questa email ad altre persone.", { muted: true, small: true }),
+  ].join("");
+  return emailLayout({
+    senderName,
+    eyebrow: "Contratto da firmare",
+    title: `Ciao ${clientName}, c'è un contratto per te`,
+    preheader: `${senderName} ti ha inviato un contratto da leggere e firmare online.`,
+    bodyHtml: body,
+    footerNote: "Hai ricevuto questa email perché ti è stato inviato un contratto da firmare.",
+  });
+}
+
+/** Testo semplice della richiesta di firma (alternativa all'HTML, aiuta la consegna). */
+export function renderContractRequestText(opts: {
+  clientName: string;
+  contractUrl: string;
+  contractCode: string;
+  contractNumber?: string | null;
+  senderName: string;
+  otpChannel: "sms" | "email";
+}): string {
+  return [
+    `Ciao ${opts.clientName},`,
+    "",
+    `${opts.senderName} ti ha inviato un contratto da firmare. Puoi leggerlo e firmarlo online qui:`,
+    opts.contractUrl,
+    "",
+    ...(opts.contractNumber ? [`Contratto n. ${opts.contractNumber}`] : []),
+    `Codice contratto: ${opts.contractCode}`,
+    "",
+    "Come funziona:",
+    "1. Leggi il contratto e firma nei riquadri indicati.",
+    `2. ${opts.otpChannel === "sms" ? "Ricevi un codice di verifica via SMS sul tuo cellulare." : "Ricevi un codice di verifica via email."}`,
+    "3. Inserisci il codice e conferma: riceverai una copia del contratto firmato.",
+    "",
+    "Il link è personale: non inoltrare questa email ad altre persone.",
+    "",
+    opts.senderName,
+  ].join("\n");
 }
 
 function renderOtpHtml(otpCode: string, senderName: string): string {
-  return `
-    <!DOCTYPE html>
-    <html><head><style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { background-color: #3B82F6; color: white; padding: 20px; text-align: center; }
-      .content { padding: 20px; background-color: #f9f9f9; text-align: center; }
-      .otp-code { display: inline-block; background-color: #F3F4F6; color: #1F2937; padding: 20px 30px; font-size: 32px; font-weight: bold; letter-spacing: 8px; border-radius: 10px; margin: 20px 0; border: 2px dashed #3B82F6; }
-      .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
-      .warning { background-color: #FEF3C7; color: #92400E; padding: 15px; border-radius: 5px; margin: 20px 0; }
-    </style></head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Codice di verifica</h1>
-          <p>${escapeHtml(senderName)}</p>
-        </div>
-        <div class="content">
-          <h2>Il tuo codice OTP</h2>
-          <p>Utilizza il seguente codice per completare la firma del contratto:</p>
-          <div class="otp-code">${escapeHtml(otpCode)}</div>
-          <div class="warning"><strong>Importante:</strong> il codice è valido per 10 minuti e può essere utilizzato una sola volta.</div>
-          <p><small>Se non hai richiesto questo codice, ignora questa email.</small></p>
-        </div>
-        <div class="footer">
-          <p>© ${new Date().getFullYear()} ${escapeHtml(senderName)}. Tutti i diritti riservati.</p>
-        </div>
-      </div>
-    </body></html>
-  `;
+  return emailLayout({
+    senderName,
+    eyebrow: "Codice di verifica",
+    title: "Il tuo codice per firmare",
+    preheader: `Codice di verifica: ${otpCode}. Vale 10 minuti.`,
+    bodyHtml: [
+      emailParagraph("Inserisci questo codice nella pagina del contratto per completare la firma:"),
+      emailCode(otpCode),
+      emailParagraph("Il codice vale 10 minuti e si può usare una sola volta. Non comunicarlo a nessuno."),
+      emailParagraph(`Se non stai firmando un contratto di ${escapeHtml(senderName)}, ignora questa email.`, { muted: true, small: true }),
+    ].join(""),
+  });
 }
 
 export function renderSignedHtml(opts: { clientName: string; senderName: string; signedAt: Date | string | null; hasAttachment: boolean; contractNumber?: string | null }): string {
@@ -874,36 +818,23 @@ export function renderSignedHtml(opts: { clientName: string; senderName: string;
         hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Rome",
       }).format(signedAtDate) + " (ora italiana)"
     : null;
-  return `
-    <!DOCTYPE html>
-    <html><head><style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-      .header { background-color: #10B981; color: white; padding: 20px; text-align: center; }
-      .content { padding: 20px; background-color: #f9f9f9; }
-    </style></head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Contratto firmato</h1>
-          <p>${escapeHtml(senderName)}</p>
-        </div>
-        <div class="content">
-          <h2>Gentile ${escapeHtml(clientName)},</h2>
-          <p>ti confermiamo che il contratto${opts.contractNumber ? ` n. ${escapeHtml(opts.contractNumber)}` : ""} è stato firmato.</p>
-          <p><strong>Dettagli della firma:</strong></p>
-          <ul>
-            ${signedAtText ? `<li>Data e ora: ${escapeHtml(signedAtText)}</li>` : ""}
-            <li>Metodo: firma elettronica con codice di verifica monouso (OTP)</li>
-          </ul>
-          ${opts.hasAttachment
-            ? `<p>In allegato trovi il PDF del contratto firmato, con in coda il registro delle operazioni. Conservalo per i tuoi archivi.</p>`
-            : `<p>La copia firmata in PDF ti verrà inviata separatamente.</p>`}
-          <p>${escapeHtml(senderName)}</p>
-        </div>
-      </div>
-    </body></html>
-  `;
+  return emailLayout({
+    senderName,
+    eyebrow: "Firma completata",
+    success: true,
+    title: "Contratto firmato",
+    preheader: `Il contratto${opts.contractNumber ? ` n. ${opts.contractNumber}` : ""} è stato firmato.`,
+    bodyHtml: [
+      emailParagraph(`Gentile ${escapeHtml(clientName)}, ti confermiamo che il contratto${opts.contractNumber ? ` n. <span style="white-space:nowrap">${escapeHtml(opts.contractNumber)}</span>` : ""} è stato firmato.`),
+      emailInfoBox([
+        { label: "Data e ora", value: signedAtText },
+        { label: "Metodo", value: "Firma elettronica con codice di verifica monouso (OTP)" },
+      ]),
+      opts.hasAttachment
+        ? emailParagraph("In allegato trovi il PDF del contratto firmato, con in coda il registro delle operazioni. Conservalo per i tuoi archivi.")
+        : emailParagraph("La copia firmata in PDF ti verrà inviata separatamente."),
+    ].join(""),
+  });
 }
 
 function escapeHtml(s: string): string {

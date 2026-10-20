@@ -16,3 +16,4 @@
 - [Chromium PDF quirk](pdf-chromium-single-process.md) — single-process Chromium loses the page on image-after-plain PDFs; renderPdf retries with a fresh browser.
 - [Lockfile registry](lockfile-registry.md) — Replit npm proxy URLs leak into package-lock and break VPS installs; always rewrite to registry.npmjs.org.
 - [Real email tests](dev-email-tests.md) — .env BASE_URL is prod; run a 2nd server with BASE_URL=dev domain to send test contracts; test tenant 176 uses owner SMTP.
+- [Email design](email-design.md) — all emails share one neutral layout (company name, black button, no platform branding); new emails must reuse it.

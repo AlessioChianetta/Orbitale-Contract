@@ -2938,8 +2938,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const signedAt = contract.signedAt
         ? new Date(contract.signedAt).toLocaleString("it-IT", {
             day: "2-digit", month: "2-digit", year: "numeric",
-            hour: "2-digit", minute: "2-digit",
-          })
+            hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome",
+          }) + " (ora italiana)"
         : "—";
       // IP del firmatario: lo recuperiamo dall'audit log "signed" del contratto.
       // Serve come prova legale visibile al cliente sulla pagina di conferma
@@ -2962,32 +2962,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   <meta name="google" content="notranslate">
   <title>Contratto firmato — ${escapeHtml(senderName)}</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#f3f4f6; margin:0; padding:24px; color:#111827; }
-    .card { max-width:560px; margin:48px auto; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:32px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
-    .check { width:64px; height:64px; border-radius:50%; background:#10b981; color:#fff; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:36px; font-weight:bold; }
-    h1 { text-align:center; margin:0 0 8px; font-size:22px; }
-    p.lead { text-align:center; color:#4b5563; margin:0 0 24px; }
-    dl { margin:0; border-top:1px solid #e5e7eb; }
-    dt { font-size:12px; color:#6b7280; text-transform:uppercase; letter-spacing:.04em; margin-top:16px; }
-    dd { margin:4px 0 0; font-size:15px; color:#111827; word-break:break-word; }
-    .footer { text-align:center; margin-top:24px; font-size:12px; color:#6b7280; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background:#f5f5f7; margin:0; padding:24px 16px; color:#1d1d1f; -webkit-font-smoothing:antialiased; }
+    .wrap { max-width:520px; margin:40px auto; }
+    .brand { font-size:15px; font-weight:600; letter-spacing:-.01em; margin:0 4px 16px; }
+    .card { background:#fff; border:1px solid #e8e8ed; border-radius:20px; padding:36px 28px 28px; text-align:center; animation: rise .6s cubic-bezier(.2,.8,.2,1) both; }
+    .check { width:72px; height:72px; margin:0 auto 20px; }
+    .check circle { fill:#059669; transform-origin:center; animation: pop .5s cubic-bezier(.2,.8,.2,1) .15s both; }
+    .check path { fill:none; stroke:#fff; stroke-width:4; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:40; stroke-dashoffset:40; animation: draw .45s ease-out .55s forwards; }
+    h1 { margin:0 0 8px; font-size:26px; font-weight:600; letter-spacing:-.02em; }
+    p.lead { color:#6e6e73; margin:0 auto 28px; font-size:15px; line-height:1.55; max-width:380px; }
+    .next { text-align:left; margin:0 0 24px; padding:0; list-style:none; }
+    .next li { display:flex; gap:12px; align-items:flex-start; font-size:14px; line-height:1.5; color:#424245; padding:6px 0; opacity:0; animation: fade .5s ease-out forwards; }
+    .next li:nth-child(1) { animation-delay:.8s; } .next li:nth-child(2) { animation-delay:.95s; } .next li:nth-child(3) { animation-delay:1.1s; }
+    .dot { flex:0 0 18px; height:18px; border-radius:50%; background:#1d1d1f; color:#fff; font-size:11px; line-height:18px; text-align:center; margin-top:1px; }
+    dl { margin:0; text-align:left; background:#f5f5f7; border-radius:14px; padding:4px 18px 16px; }
+    dt { font-size:11px; font-weight:600; color:#86868b; text-transform:uppercase; letter-spacing:.06em; margin-top:14px; }
+    dd { margin:2px 0 0; font-size:15px; color:#1d1d1f; word-break:break-word; }
+    .footer { text-align:center; margin-top:20px; font-size:12px; color:#86868b; }
+    @keyframes rise { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+    @keyframes pop { from { transform:scale(.4); opacity:0; } to { transform:scale(1); opacity:1; } }
+    @keyframes draw { to { stroke-dashoffset:0; } }
+    @keyframes fade { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .card, .check circle, .next li { animation:none; opacity:1; }
+      .check path { animation:none; stroke-dashoffset:0; }
+    }
   </style>
 </head>
 <body class="notranslate" translate="no">
-  <div class="card">
-    <div class="check" aria-hidden="true">&#10003;</div>
-    <h1>Contratto firmato con successo</h1>
-    <p class="lead">Grazie! La firma è stata registrata. Riceverai una copia del contratto via email.</p>
-    <dl>
-      <dt>Codice contratto</dt>
-      <dd>${escapeHtml(contract.contractCode)}</dd>
-      <dt>Firmato il</dt>
-      <dd>${escapeHtml(signedAt)}</dd>
-      <dt>IP del firmatario</dt>
-      <dd>${escapeHtml(signerIp)}</dd>
-      ${clientEmail ? `<dt>Copia inviata a</dt><dd>${escapeHtml(clientEmail)}</dd>` : ""}
-    </dl>
-    <p class="footer">${escapeHtml(senderName)}</p>
+  <div class="wrap">
+    <div class="brand">${escapeHtml(senderName)}</div>
+    <div class="card" data-testid="signed-confirmation">
+      <svg class="check" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="36"/><path d="M22 37.5l9.5 9.5L51 27"/></svg>
+      <h1>Contratto firmato</h1>
+      <p class="lead">Grazie, è tutto a posto: la tua firma è stata registrata. Puoi chiudere questa pagina.</p>
+      <ul class="next">
+        <li><span class="dot">&#10003;</span><span>${clientEmail ? `Riceverai via email a <strong>${escapeHtml(clientEmail)}</strong> una copia del contratto firmato in PDF.` : "Riceverai via email una copia del contratto firmato in PDF."}</span></li>
+        <li><span class="dot">&#10003;</span><span>Il contratto firmato è conservato insieme al registro delle operazioni.</span></li>
+        <li><span class="dot">&#10003;</span><span>${escapeHtml(senderName)} riceve la conferma della firma.</span></li>
+      </ul>
+      <dl>
+        <dt>Codice contratto</dt>
+        <dd>${escapeHtml(contract.contractCode)}</dd>
+        <dt>Firmato il</dt>
+        <dd>${escapeHtml(signedAt)}</dd>
+        <dt>IP del firmatario</dt>
+        <dd>${escapeHtml(signerIp)}</dd>
+      </dl>
+    </div>
+    <p class="footer">Se hai domande sul contratto, rispondi all'email che hai ricevuto da ${escapeHtml(senderName)}.</p>
   </div>
 </body>
 </html>`);

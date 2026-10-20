@@ -27,6 +27,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import ProfessionalContractDocument from "@/components/professional-contract-document";
 import PrivacyPolicyLink from "@/components/privacy-policy-link";
 import { SignStep, SignatureCheckRow, type SignStepState } from "@/components/sign-step";
+import { SigningProgress } from "@/components/signing-progress";
 import { getMissingClientFields, getClientType } from "@/lib/required-client-fields";
 import { getMissingProcacciatoreFields, formatDateItalian } from "@shared/procacciatore-fields";
 import { requiresSpecificApproval } from "@shared/contract-document";
@@ -203,13 +204,13 @@ function SignatureArea({
         data-signed={signed ? "true" : "false"}
         className={`
           border border-dashed border-[#d2d2d7] bg-[#f5f5f7] p-4 rounded-lg text-center min-h-[84px] flex items-center justify-center cursor-pointer transition-colors
-          ${!disabled && !signed ? 'hover:border-[#86868b]' : ''}
+          ${!disabled && !signed ? 'hover:border-[#86868b] hover:bg-[#f0f0f3]' : ''}
           ${signed ? 'border-solid bg-white' : ''}
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
         {signed ? (
-          <div className="text-[#1d1d1f]">
+          <div className="text-[#1d1d1f] motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-500">
             {signatureDataUrl ? (
               <img src={signatureDataUrl} alt="Firma" className="max-h-20 mx-auto mb-3" style={{minHeight: '60px'}} />
             ) : (
@@ -230,8 +231,8 @@ function SignatureArea({
 
       {/* Modal per la firma */}
       {showSignatureModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 touch-none">
-          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-2xl w-full mx-2 sm:mx-4 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 touch-none motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-2xl w-full mx-2 sm:mx-4 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-2 motion-safe:duration-300">
             <h3 className="text-xl font-bold mb-4 text-center">Apponi la tua firma</h3>
 
             {/* Selettore modalità */}
@@ -907,6 +908,40 @@ export default function ClientView() {
   );
   const allSignaturesDone = !!signatures.marketing && (!needsApprovalSignature || !!signatures.clausole);
 
+  // Accompagna il cliente al passaggio successivo, così non deve cercarlo:
+  // dopo la prima firma va al riquadro delle clausole, dopo tutte le firme al
+  // codice di verifica, con il codice completo alla firma finale. Scatta
+  // solo quando lo stato cambia, mai al primo caricamento.
+  const guideRef = useRef({ marketing: false, all: false, otpShown: false, otpFull: false });
+  useEffect(() => {
+    const prev = guideRef.current;
+    const now = {
+      marketing: !!signatures.marketing,
+      all: allSignaturesDone,
+      otpShown: showOtpInput,
+      otpFull: otpCode.length === 6,
+    };
+    guideRef.current = now;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const scrollTo = (selector: string, delay: number) => {
+      const t = setTimeout(() => {
+        document.querySelector(selector)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+      }, delay);
+      return () => clearTimeout(t);
+    };
+    if (now.all && !prev.all) return scrollTo('[data-testid="sign-step-otp"]', 450);
+    if (now.marketing && !prev.marketing && needsApprovalSignature && !signatures.clausole) {
+      return scrollTo('[data-signature-area="clausole"]', 450);
+    }
+    if (now.otpShown && !prev.otpShown) {
+      const t = setTimeout(() => {
+        document.querySelector<HTMLInputElement>("input[data-input-otp]")?.focus({ preventScroll: true });
+      }, 100);
+      return () => clearTimeout(t);
+    }
+    if (now.otpFull && !prev.otpFull) return scrollTo('[data-testid="sign-step-confirm"]', 250);
+  }, [signatures.marketing, signatures.clausole, allSignaturesDone, showOtpInput, otpCode, needsApprovalSignature]);
+
   // Titolo della scheda: il nome dell'azienda che manda il contratto, mai il
   // marchio della piattaforma (il cliente finale non la conosce).
   useEffect(() => {
@@ -1191,6 +1226,8 @@ export default function ClientView() {
     contract.status !== "signed";
 
   return (
+    <>
+    <SigningProgress open={signContractMutation.isPending} />
     <ProfessionalContractDocument
       mode="sign"
       companySettings={companySettings}
@@ -1321,7 +1358,9 @@ export default function ClientView() {
                       <h3 className="mt-1 text-[22px] font-semibold tracking-tight text-[#1d1d1f]">
                         Firma il contratto
                       </h3>
-                      <p className="mt-1 text-sm text-[#6e6e73]">Tre passaggi, circa un minuto.</p>
+                      <p className="mt-1 text-sm leading-relaxed text-[#6e6e73]">
+                        Tre passaggi, circa un minuto. Nulla è definitivo finché non premi “Firma il contratto”.
+                      </p>
                     </div>
                     <span
                       className="shrink-0 rounded-full bg-[#f5f5f7] px-3 py-1 text-xs font-medium text-[#424245]"
@@ -1382,8 +1421,8 @@ export default function ClientView() {
                     title="Verifica la tua identità"
                     description={
                       isEmailOtp
-                        ? "Riceverai un codice di 6 cifre via email."
-                        : "Riceverai un codice di 6 cifre via SMS."
+                        ? "Ti mandiamo un codice di 6 cifre via email: serve a confermare che sei tu."
+                        : "Ti mandiamo un codice di 6 cifre via SMS: serve a confermare che sei tu."
                     }
                   >
                     {!showOtpInput ? (
@@ -1445,6 +1484,9 @@ export default function ClientView() {
                             ))}
                           </InputOTPGroup>
                         </InputOTP>
+                        <p className="text-xs leading-relaxed text-[#86868b]">
+                          Il codice vale 10 minuti.{isEmailOtp ? " Se non lo trovi, controlla anche la cartella spam." : ""}
+                        </p>
                         <button
                           type="button"
                           onClick={handleSendOtp}
@@ -1516,7 +1558,7 @@ export default function ClientView() {
                           signContractMutation.isPending
                         }
                         data-testid="button-sign-contract"
-                        className="mt-2 h-12 w-full rounded-full bg-[#1d1d1f] text-base font-semibold text-white hover:bg-black disabled:bg-[#c7c7cc]"
+                        className="mt-2 h-12 w-full rounded-full bg-[#1d1d1f] text-base font-semibold text-white transition-all duration-300 hover:bg-black active:scale-[0.98] enabled:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.45)] disabled:bg-[#c7c7cc]"
                       >
                         {signContractMutation.isPending ? (
                           <>
@@ -1530,9 +1572,13 @@ export default function ClientView() {
                           </>
                         )}
                       </Button>
-                      {otpCode.length !== 6 && (
-                        <p className="text-center text-xs text-[#86868b]">Inserisci il codice di 6 cifre per firmare.</p>
-                      )}
+                      <p className="text-center text-xs leading-relaxed text-[#86868b]">
+                        {otpCode.length !== 6
+                          ? "Inserisci il codice di 6 cifre per firmare."
+                          : !consents.privacy
+                          ? "Spunta l'informativa privacy per firmare."
+                          : "Subito dopo riceverai via email una copia del contratto firmato."}
+                      </p>
                     </div>
                   </SignStep>
                 </ol>
@@ -1582,5 +1628,6 @@ export default function ClientView() {
         )
       }
     />
+    </>
   );
 }
