@@ -175,3 +175,43 @@ test("campi da completare (INSERIRE_...) e template ripetuti: errore senza tocca
   const { rowCount } = await pool.query(`SELECT 1 FROM company_settings WHERE company_name = $1`, [`${tag} Todo`]);
   assert.equal(rowCount, 0);
 });
+
+test("venditore: creato con password temporanea, non duplicato, mai in un'altra azienda", async () => {
+  const sTag = `${tag}-sv`;
+  const cfg = {
+    ...config({ company: { companyName: `${sTag} Studio` }, admin: { username: `${sTag}-admin`, email: `${sTag}+admin@example.invalid` } }),
+    seller: { username: `${sTag}-seller`, email: `${sTag}@example.invalid`, fullName: "Titolare Prova" },
+  };
+  const dry = await onboardCompany(cfg, { baseDir: dir, dryRun: true });
+  assert.equal(dry.seller?.created, true);
+  assert.equal(dry.seller?.temporaryPassword, null, "nessuna password in prova");
+
+  const r = await onboardCompany(cfg, { baseDir: dir });
+  companies.add(r.companyId);
+  assert.ok(r.seller?.created && r.seller.temporaryPassword);
+  const { rows: [u] } = await pool.query(`SELECT * FROM public.users WHERE id = $1`, [r.seller!.id]);
+  assert.equal(u.role, "seller");
+  assert.equal(u.company_id, r.companyId);
+  assert.equal(u.must_change_password, true);
+  assert.equal(u.is_active, true);
+  assert.ok(await comparePasswords(r.seller!.temporaryPassword!, u.password));
+
+  const again = await onboardCompany(cfg, { baseDir: dir });
+  assert.equal(again.seller?.id, r.seller!.id);
+  assert.equal(again.seller?.created, false);
+  assert.equal(again.seller?.temporaryPassword, null);
+
+  // Lo stesso venditore indicato per un'altra azienda: errore, nessuna modifica.
+  await assert.rejects(
+    onboardCompany({
+      ...config({ company: { companyName: `${sTag} Altro` }, admin: { username: `${sTag}-admin2`, email: `${sTag}-2@example.invalid` } }),
+      seller: cfg.seller,
+    }, { baseDir: dir }),
+    /altra azienda/,
+  );
+  // Venditore con la stessa email dell'admin: errore.
+  await assert.rejects(
+    onboardCompany({ ...cfg, seller: { ...cfg.seller, email: cfg.admin.email } }, { baseDir: dir }),
+    /diversi/,
+  );
+});

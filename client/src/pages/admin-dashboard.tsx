@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EnterAsSellerButton } from "@/components/impersonation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -230,6 +231,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="flex items-center gap-2">
+              <EnterAsSellerButton />
               <Link href="/admin/presets">
                 <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-900 hover:bg-black/[0.03] transition-all duration-200" data-testid="link-presets">
                   <Layers className="h-4 w-4 mr-2" />

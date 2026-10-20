@@ -1704,6 +1704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ipAddress: getRealClientIP(req),
             metadata: { 
               sentBy: req.user.id,
+              ...(req.session.impersonatorId ? { sentByAdminId: req.session.impersonatorId } : {}),
               sentToEmail: emailToSend,
               method: "email",
               action: "updated_and_sent"
@@ -1885,6 +1886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ipAddress: getRealClientIP(req),
             metadata: { 
               sentBy: req.user.id,
+              ...(req.session.impersonatorId ? { sentByAdminId: req.session.impersonatorId } : {}),
               sentToEmail: emailToSend,
               method: "email",
               fillMode,
@@ -2224,7 +2226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             action: "sent",
             userAgent: req.get("User-Agent"),
             ipAddress: getRealClientIP(req),
-            metadata: { sentBy: req.user.id, sentToEmail: email, method: "email", bulk: true },
+            metadata: { sentBy: req.user.id, ...(req.session.impersonatorId ? { sentByAdminId: req.session.impersonatorId } : {}), sentToEmail: email, method: "email", bulk: true },
           });
           sent.push(id);
         } catch (e: any) {

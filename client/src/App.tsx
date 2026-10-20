@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "./lib/protected-route";
 import NotFound from "@/pages/not-found";
 import { Loader2 } from "lucide-react";
+import { ImpersonationBanner } from "@/components/impersonation";
 import { lazy, Suspense, type ComponentType } from "react";
 
 /**
@@ -82,6 +83,7 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
+          <ImpersonationBanner />
           <Router />
         </TooltipProvider>
       </AuthProvider>

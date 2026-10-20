@@ -8,8 +8,11 @@ import { User as SelectUser, InsertUser } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient, getErrorMessage } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+/** Utente collegato; `impersonator` c'è quando un admin usa l'account di un suo venditore. */
+export type AuthUser = SelectUser & { impersonator?: { id: number; fullName: string } | null };
+
 type AuthContextType = {
-  user: SelectUser | null;
+  user: AuthUser | null;
   isLoading: boolean;
   error: Error | null;
   loginMutation: UseMutationResult<SelectUser, Error, LoginData>;
@@ -25,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     data: user,
     error,
     isLoading,
-  } = useQuery<SelectUser | undefined, Error>({
+  } = useQuery<AuthUser | undefined, Error>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useImpersonation } from "@/components/impersonation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -31,7 +32,8 @@ import {
   UserX,
   UserCheck,
   ArrowLeft,
-  UserPlus
+  UserPlus,
+  Store
 } from "lucide-react";
 import { queryClient, apiRequest, getErrorMessage } from "@/lib/queryClient";
 import { Link } from "wouter";
@@ -51,6 +53,7 @@ type CreateUserForm = z.infer<typeof createUserSchema>;
 
 export default function UserManagement() {
   const { user, logoutMutation } = useAuth();
+  const { enterAsSeller, pending: impersonationPending } = useImpersonation();
   const { toast } = useToast();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
@@ -379,6 +382,19 @@ export default function UserManagement() {
                         {new Date(userItem.createdAt).toLocaleDateString('it-IT')}
                       </TableCell>
                       <TableCell className="text-right">
+                        {userItem.role === "seller" && userItem.isActive !== false && !user?.impersonator && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => enterAsSeller(userItem.id)}
+                            disabled={impersonationPending}
+                            title={`Usa l'account venditore di ${userItem.fullName}`}
+                            data-testid={`button-enter-as-${userItem.id}`}
+                          >
+                            <Store className="h-4 w-4 mr-1" />
+                            Entra
+                          </Button>
+                        )}
                         {userItem.id !== user?.id && (
                           userItem.isActive === false ? (
                             <Button

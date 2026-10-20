@@ -1,6 +1,6 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { Express } from "express";
+import { Express, type Request } from "express";
 import session from "express-session";
 import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
@@ -10,6 +10,13 @@ import { hashPassword, comparePasswords, registerPasswordRoutes } from "./passwo
 declare global {
   namespace Express {
     interface User extends SelectUser {}
+  }
+}
+
+declare module "express-session" {
+  interface SessionData {
+    /** admin che sta usando l'account di un suo venditore ("Entra come venditore") */
+    impersonatorId?: number;
   }
 }
 
@@ -34,6 +41,18 @@ function isUniqueViolation(error: any): boolean {
   return Boolean(error && (error.code === "23505" || error?.cause?.code === "23505"));
 }
 
+/**
+ * Admin che sta usando l'account di un venditore, se ancora valido (attivo,
+ * admin, stessa azienda). Se non lo è più, la sessione viene chiusa.
+ */
+async function currentImpersonator(req: Request): Promise<SelectUser | null | "invalid"> {
+  const id = req.session.impersonatorId;
+  if (!id) return null;
+  const admin = await storage.getUser(id);
+  if (!admin || !admin.isActive || admin.role !== "admin" || admin.companyId !== req.user?.companyId) return "invalid";
+  return admin;
+}
+
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET!,
@@ -50,8 +69,25 @@ export function setupAuth(app: Express) {
   // Password temporanea: finché non viene cambiata, l'utente collegato può
   // solo leggere il proprio profilo, cambiare password o uscire.
   const ALLOWED_WITH_TEMP_PASSWORD = new Set(["/api/user", "/api/user/change-password", "/api/logout"]);
+  // Admin che usa l'account di un venditore: a ogni richiesta si controlla
+  // che sia ancora un admin attivo della stessa azienda, altrimenti la
+  // sessione si chiude.
+  app.use("/api", async (req, res, next) => {
+    if (!req.isAuthenticated() || !req.session.impersonatorId) return next();
+    try {
+      if ((await currentImpersonator(req)) === "invalid") {
+        return req.logout((err) => (err ? next(err) : res.status(401).json({ message: "Sessione scaduta: accedi di nuovo" })));
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
+
   app.use("/api", (req, res, next) => {
-    if (req.isAuthenticated() && req.user.mustChangePassword && !ALLOWED_WITH_TEMP_PASSWORD.has(req.originalUrl.split("?")[0])) {
+    // Un admin che usa l'account di un venditore non deve cambiarne la
+    // password: lo farà il venditore al suo primo accesso.
+    if (req.isAuthenticated() && req.user.mustChangePassword && !req.session.impersonatorId && !ALLOWED_WITH_TEMP_PASSWORD.has(req.originalUrl.split("?")[0])) {
       return res.status(403).json({ message: "Devi cambiare la password temporanea prima di continuare.", code: "MUST_CHANGE_PASSWORD" });
     }
     next();
@@ -111,9 +147,75 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/user", (req, res) => {
+  function userPayload(user: SelectUser, impersonator: SelectUser | null) {
+    return {
+      ...sanitizeUser(user),
+      impersonator: impersonator ? { id: impersonator.id, fullName: impersonator.fullName } : null,
+    };
+  }
+
+  app.get("/api/user", async (req, res, next) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(sanitizeUser(req.user));
+    try {
+      const impersonator = await currentImpersonator(req);
+      if (impersonator === "invalid") {
+        return req.logout((err) => (err ? next(err) : res.sendStatus(401)));
+      }
+      res.json(userPayload(req.user, impersonator));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // "Entra come venditore": l'admin usa l'account di un venditore della sua
+  // azienda (stessi contratti, stesse schermate) e torna al suo con un click.
+  app.post("/api/admin/impersonate/:id", async (req, res, next) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin" || req.session.impersonatorId) {
+      return res.status(403).json({ message: "Accesso riservato agli amministratori" });
+    }
+    try {
+      const targetId = parseInt(req.params.id, 10);
+      const target = Number.isInteger(targetId) ? await storage.getUser(targetId) : undefined;
+      if (!target || target.companyId !== req.user.companyId || target.role !== "seller") {
+        return res.status(404).json({ message: "Venditore non trovato nella tua azienda" });
+      }
+      if (!target.isActive) {
+        return res.status(400).json({ message: "Il venditore è disattivato: riattivalo prima di entrare nel suo account" });
+      }
+      const admin = req.user;
+      req.logIn(target, (err) => {
+        if (err) return next(err);
+        // logIn rigenera la sessione: l'admin si salva dopo.
+        req.session.impersonatorId = admin.id;
+        req.session.save((saveErr) => {
+          if (saveErr) return next(saveErr);
+          console.log(`[AUTH] Admin ${admin.id} entra come venditore ${target.id} (azienda ${target.companyId})`);
+          res.json(userPayload(target, admin));
+        });
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post("/api/admin/stop-impersonation", async (req, res, next) => {
+    if (!req.isAuthenticated() || !req.session.impersonatorId) {
+      return res.status(400).json({ message: "Non stai usando l'account di un venditore" });
+    }
+    try {
+      const admin = await currentImpersonator(req);
+      if (!admin || admin === "invalid") {
+        return req.logout((err) => (err ? next(err) : res.status(401).json({ message: "Sessione scaduta: accedi di nuovo" })));
+      }
+      const sellerId = req.user.id;
+      req.logIn(admin, (err) => {
+        if (err) return next(err);
+        console.log(`[AUTH] Admin ${admin.id} torna al suo account (era nel venditore ${sellerId})`);
+        res.json(userPayload(admin, null));
+      });
+    } catch (err) {
+      next(err);
+    }
   });
 
   // Admin-only endpoint to create users for their company

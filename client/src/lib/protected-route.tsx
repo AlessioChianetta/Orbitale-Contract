@@ -30,7 +30,8 @@ export function ProtectedRoute({
   }
 
   // Password temporanea: si va prima a sceglierne una nuova.
-  if (user.mustChangePassword && path !== "/cambia-password") {
+  // (non vale per l'admin che sta usando l'account di un venditore)
+  if (user.mustChangePassword && !user.impersonator && path !== "/cambia-password") {
     return (
       <Route path={path}>
         <Redirect to="/cambia-password" />

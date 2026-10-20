@@ -63,6 +63,12 @@ export const onboardingConfigSchema = z.object({
     email: z.string().trim().email(),
     fullName: z.string().trim().min(2),
   }),
+  /** account venditore (facoltativo): quello che invia i contratti */
+  seller: z.object({
+    username: z.string().trim().min(3),
+    email: z.string().trim().email(),
+    fullName: z.string().trim().min(2),
+  }).optional(),
   /** un solo template (forma storica) */
   template: templateSchema.optional(),
   /** più template, ciascuno con il suo eventuale preset */
@@ -92,6 +98,8 @@ export interface OnboardingResult {
   adminCreated: boolean;
   /** solo se l'admin è stato creato ora: va comunicata una volta e poi cambiata */
   temporaryPassword: string | null;
+  /** account venditore, se previsto nel file */
+  seller: { id: number; created: boolean; username: string; temporaryPassword: string | null } | null;
   /** primo template (compatibilità con la forma storica a template singolo) */
   template: { id: number; action: UpsertAction } | null;
   placeholders: string[];
@@ -229,6 +237,41 @@ export async function onboardCompany(
       }
     }
 
+    // --- venditore (facoltativo)
+    let seller: OnboardingResult["seller"] = null;
+    if (cfg.seller) {
+      const sc = cfg.seller;
+      if (sc.email.toLowerCase() === cfg.admin.email.toLowerCase() || sc.username.toLowerCase() === cfg.admin.username.toLowerCase()) {
+        throw new Error("Il venditore deve avere email e username diversi da quelli dell'admin.");
+      }
+      const { rows: existing } = await db.query(
+        `SELECT id, company_id, role, username FROM public.users WHERE lower(email) = lower($1) OR lower(username) = lower($2)`,
+        [sc.email, sc.username],
+      );
+      if (existing.length > 1) {
+        throw new Error("Email e username del venditore appartengono a due account diversi: correggi il file di configurazione.");
+      }
+      if (existing[0] && existing[0].company_id !== companyId) {
+        throw new Error(`L'account venditore ${sc.email} / ${sc.username} esiste già in un'altra azienda: scegli email e username diversi.`);
+      }
+      if (existing[0]) {
+        if (existing[0].role !== "seller") {
+          // Tipico se lo script era già stato lanciato con questa email come
+          // admin: non si cambia il ruolo di nascosto, ci si ferma.
+          throw new Error(`L'account ${sc.email} / ${sc.username} esiste già come ${existing[0].role} di questa azienda: per il venditore usa email e username diversi (es. nome+venditore@...).`);
+        }
+        seller = { id: existing[0].id, created: false, username: existing[0].username, temporaryPassword: null };
+      } else {
+        const pw = temporaryPassword();
+        const { rows } = await db.query(
+          `INSERT INTO public.users (username, password, role, email, full_name, company_id, is_active, must_change_password)
+           VALUES ($1, $2, 'seller', $3, $4, $5, true, true) RETURNING id`,
+          [sc.username, await hashPassword(pw), sc.email, sc.fullName, companyId],
+        );
+        seller = { id: rows[0].id, created: true, username: sc.username, temporaryPassword: pw };
+      }
+    }
+
     // --- template dei contratti (+ preset)
     const templates: OnboardingTemplateResult[] = [];
     let presetsAvailable: boolean | null = null;
@@ -324,6 +367,7 @@ export async function onboardCompany(
       adminId,
       adminCreated,
       temporaryPassword: opts.dryRun ? null : tempPassword,
+      seller: seller && opts.dryRun ? { ...seller, temporaryPassword: null } : seller,
       template: templates[0] ? { id: templates[0].id, action: templates[0].action } : null,
       placeholders: templates[0]?.placeholders ?? [],
       templates,

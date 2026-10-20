@@ -18,3 +18,4 @@
 - [Real email tests](dev-email-tests.md) — .env BASE_URL is prod; run a 2nd server with BASE_URL=dev domain to send test contracts; test tenant 176 uses owner SMTP.
 - [Email design](email-design.md) — all emails share one neutral layout (company name, black button, no platform branding); new emails must reuse it.
 - [Page and signing speed](page-speed.md) — Express gzips/caches assets (nginx does not), lazy routes, Chromium warmed on send-otp, emails after sign response.
+- [Admin "Entra come venditore"](impersonation.md) — admin→seller switch: same company, active only, re-validated per request; sentByAdminId in audit metadata.

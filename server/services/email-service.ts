@@ -613,11 +613,16 @@ export async function sendContractSignedOperatorNotification(contract: Contract)
   if (!settings) return { sentTo: [] };
 
   const colleagues = await storage.getUsersByCompany(seller.companyId);
-  const recipients = Array.from(new Set(
-    [seller, ...colleagues.filter((u) => u.role === "admin")]
-      .filter((u) => u.isActive && /.+@.+\..+/.test(u.email || ""))
-      .map((u) => u.email.trim().toLowerCase()),
-  ));
+  // Una sola copia per casella: "nome+admin@..." e "nome@..." arrivano nella
+  // stessa casella (es. admin e venditore della stessa persona).
+  const byMailbox = new Map<string, string>();
+  for (const u of [seller, ...colleagues.filter((u) => u.role === "admin")]) {
+    if (!u.isActive || !/.+@.+\..+/.test(u.email || "")) continue;
+    const email = u.email.trim().toLowerCase();
+    const mailbox = email.replace(/\+[^@]*@/, "@");
+    if (!byMailbox.has(mailbox)) byMailbox.set(mailbox, email);
+  }
+  const recipients = Array.from(byMailbox.values());
   if (!recipients.length) return { sentTo: [] };
 
   let transporter: Transporter, fromAddress: string, fromName: string;

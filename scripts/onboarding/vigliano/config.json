@@ -14,6 +14,11 @@
     "marketingConsentEnabled": false
   },
   "admin": {
+    "username": "elvira.admin",
+    "email": "evigliano.counseling+admin@gmail.com",
+    "fullName": "Elvira Vigliano"
+  },
+  "seller": {
     "username": "elvira.vigliano",
     "email": "evigliano.counseling@gmail.com",
     "fullName": "Elvira Vigliano"

@@ -1,6 +1,7 @@
 /**
  * Crea (o aggiorna) un'azienda cliente: dati fiscali, primo admin con
- * password temporanea, OTP via email, contratto HTML.
+ * password temporanea, eventuale venditore (anche lui con password
+ * temporanea), OTP via email, contratto HTML.
  *
  * Uso (sul VPS, dalla cartella del progetto):
  *   npx tsx --require ./server/loadEnv.cjs scripts/onboard-company.ts onboarding/cliente.json --dry-run
@@ -38,9 +39,15 @@ async function main() {
   console.log(dryRun ? "=== PROVA (nessuna modifica salvata) ===" : "=== Fatto ===");
   const id = (n: number, isNew: boolean) => (dryRun && isNew ? "nuovo" : `id ${n}`);
   console.log(`Azienda: ${id(r.companyId, r.companyCreated)} ${r.companyCreated ? "(creata)" : "(già esistente, dati aggiornati)"}`);
-  console.log(`Admin:   ${id(r.adminId, r.adminCreated)} ${r.adminCreated ? "(creato)" : "(già esistente, password invariata)"}`);
+  console.log(`Admin:   ${id(r.adminId, r.adminCreated)} ${r.adminCreated ? "(creato)" : "(già esistente, password invariata)"} — username ${config.admin?.username}`);
   if (r.temporaryPassword) {
-    console.log(`Password temporanea (da comunicare, cambio obbligatorio al primo accesso): ${r.temporaryPassword}`);
+    console.log(`Password temporanea admin (da comunicare, cambio obbligatorio al primo accesso): ${r.temporaryPassword}`);
+  }
+  if (r.seller) {
+    console.log(`Venditore: ${id(r.seller.id, r.seller.created)} ${r.seller.created ? "(creato)" : "(già esistente, password invariata)"} — username ${r.seller.username}`);
+    if (r.seller.temporaryPassword) {
+      console.log(`Password temporanea venditore (cambio obbligatorio al primo accesso): ${r.seller.temporaryPassword}`);
+    }
   }
   const label = { created: "creato", updated: "aggiornato", unchanged: "invariato" } as const;
   for (const t of r.templates) {

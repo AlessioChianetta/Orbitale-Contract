@@ -20,6 +20,11 @@
     "email": "indirizzo@esempio.it",
     "fullName": "Nome Cognome"
   },
+  "seller": {
+    "username": "nome.venditore",
+    "email": "indirizzo+venditore@esempio.it",
+    "fullName": "Nome Cognome"
+  },
   "template": {
     "name": "Contratto cliente",
     "htmlPath": "contratto.html",
