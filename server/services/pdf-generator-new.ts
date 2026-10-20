@@ -12,7 +12,7 @@ import { renderAuditTrailHtml, escapeHtml } from './audit-trail';
 let browserInstance: Browser | null = null;
 let browserLaunchPromise: Promise<Browser> | null = null;
 
-function resolveChromiumPath(): string | undefined {
+export function resolveChromiumPath(): string | undefined {
   if (process.env.CHROMIUM_PATH && existsSync(process.env.CHROMIUM_PATH)) {
     return process.env.CHROMIUM_PATH;
   }

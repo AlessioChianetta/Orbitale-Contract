@@ -11,7 +11,8 @@ export interface TestApp {
   close: () => Promise<void>;
 }
 
-export async function startTestApp(): Promise<TestApp> {
+/** `frontend`: serve anche le pagine React (Vite) per i test nel browser. */
+export async function startTestApp(opts: { frontend?: boolean } = {}): Promise<TestApp> {
   if (!process.env.SESSION_SECRET) process.env.SESSION_SECRET = "test-session-secret";
   const app = express();
   app.use(express.json({ limit: "50mb" }));
@@ -20,14 +21,22 @@ export async function startTestApp(): Promise<TestApp> {
   app.use((err: any, _req: any, res: any, _next: any) => {
     res.status(err.status || err.statusCode || 500).json({ message: err.message || "Errore" });
   });
+  let vite: { close: () => Promise<void> } | null = null;
+  if (opts.frontend) {
+    const { setupVite } = await import("../../server/vite");
+    vite = await setupVite(app, server);
+  }
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   return {
     baseUrl: `http://127.0.0.1:${port}`,
-    close: () => new Promise<void>((resolve) => {
-      server.closeAllConnections?.();
-      server.close(() => resolve());
-    }),
+    close: async () => {
+      await vite?.close();
+      await new Promise<void>((resolve) => {
+        server.closeAllConnections?.();
+        server.close(() => resolve());
+      });
+    },
   };
 }
 

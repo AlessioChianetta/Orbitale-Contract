@@ -18,12 +18,15 @@ import {
   MessageSquare,
   Mail,
   Loader2,
+  ArrowUp,
+  Check,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import ProfessionalContractDocument from "@/components/professional-contract-document";
 import PrivacyPolicyLink from "@/components/privacy-policy-link";
+import { SignStep, SignatureCheckRow, type SignStepState } from "@/components/sign-step";
 import { getMissingClientFields, getClientType } from "@/lib/required-client-fields";
 import { getMissingProcacciatoreFields, formatDateItalian } from "@shared/procacciatore-fields";
 import { requiresSpecificApproval } from "@shared/contract-document";
@@ -44,12 +47,10 @@ function SignatureArea({
   onSign,
   disabled = false,
   signatureId,
-  onGlobalSign
 }: {
   onSign: (signature: string) => void;
   disabled?: boolean;
   signatureId: string;
-  onGlobalSign?: (signature: string) => void;
 }) {
   const [signed, setSigned] = useState(false);
   const [signatureText, setSignatureText] = useState("");
@@ -162,16 +163,13 @@ function SignatureArea({
     setShowConfirmModal(true);
   };
 
-  const confirmSignature = (applyToAll: boolean) => {
+  // Ogni area firma vale solo per sé: la firma per l'approvazione specifica
+  // delle clausole (artt. 1341-1342 c.c.) deve restare un atto separato.
+  const confirmSignature = () => {
     setSigned(true);
     setShowConfirmModal(false);
     resetBodyStyles(); // Assicura che lo scroll sia ripristinato anche dopo la conferma
-
-    if (applyToAll && onGlobalSign) {
-      onGlobalSign(currentSignature);
-    } else {
-      onSign(currentSignature);
-    }
+    onSign(currentSignature);
   };
 
   const resetBodyStyles = () => {
@@ -201,6 +199,8 @@ function SignatureArea({
     <>
       <div
         onClick={handleClick}
+        data-signature-area={signatureId}
+        data-signed={signed ? "true" : "false"}
         className={`
           border border-dashed border-[#d2d2d7] bg-[#f5f5f7] p-4 rounded-lg text-center min-h-[84px] flex items-center justify-center cursor-pointer transition-colors
           ${!disabled && !signed ? 'hover:border-[#86868b]' : ''}
@@ -244,7 +244,7 @@ function SignatureArea({
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                ✏️ Disegna
+                Disegna
               </button>
               <button
                 onClick={() => setSignatureMode('type')}
@@ -254,7 +254,7 @@ function SignatureArea({
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                ✍️ Scrivi
+                Scrivi
               </button>
             </div>
 
@@ -288,7 +288,7 @@ function SignatureArea({
                   onClick={clearCanvas}
                   className="w-full mt-3 py-3 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg font-medium"
                 >
-                  🗑️ Cancella e ricomincia
+                  Cancella e ricomincia
                 </button>
               </div>
             ) : (
@@ -321,9 +321,9 @@ function SignatureArea({
                 disabled={
                   signatureMode === 'type' ? !typedSignature.trim() : false
                 }
-                className="flex-1 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-2 px-4 bg-[#1d1d1f] text-white rounded-lg hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Conferma Firma
+                Conferma firma
               </button>
             </div>
           </div>
@@ -348,31 +348,19 @@ function SignatureArea({
               )}
             </div>
 
-            {onGlobalSign ? (
-              <p className="text-sm text-gray-700 mb-6 text-center">
-                Vuoi utilizzare questa firma per tutti i campi del contratto o solo per questo campo specifico?
-              </p>
-            ) : (
-              <p className="text-sm text-gray-700 mb-6 text-center">
-                Confermi questa firma per l'approvazione specifica delle clausole?
-              </p>
-            )}
+            <p className="text-sm text-gray-700 mb-6 text-center">
+              {signatureId === "clausole"
+                ? "Confermi questa firma per l'approvazione specifica delle clausole?"
+                : "Confermi questa firma per il contratto?"}
+            </p>
 
-            {/* Pulsanti di scelta */}
             <div className="space-y-3">
-              {onGlobalSign && (
-                <button
-                  onClick={() => confirmSignature(true)}
-                  className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  📝 Applica a tutti i campi firma
-                </button>
-              )}
               <button
-                onClick={() => confirmSignature(false)}
-                className="w-full py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                onClick={confirmSignature}
+                data-testid={`button-confirm-signature-${signatureId}`}
+                className="w-full py-3 px-4 bg-[#1d1d1f] text-white rounded-lg hover:bg-black transition-colors"
               >
-                {onGlobalSign ? "✏️ Solo per questo campo" : "Conferma la firma"}
+                Conferma la firma
               </button>
               <button
                 onClick={() => {
@@ -385,7 +373,7 @@ function SignatureArea({
                 }}
                 className="w-full py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                ↩️ Torna indietro
+                Torna indietro
               </button>
             </div>
           </div>
@@ -902,15 +890,6 @@ export default function ClientView() {
   const { toast } = useToast();
 
   // Funzione per applicare la firma al campo del marketing
-  const handleGlobalSignature = (signature: string) => {
-    setSignatures((prev) => ({
-      ...prev,
-      contract: "",
-      privacy: "",
-      marketing: signature,
-    }));
-  };
-
   const { data: contract, isLoading } = useQuery({
     queryKey: [`/api/client/contracts/${code}`],
     enabled: !!code,
@@ -921,7 +900,11 @@ export default function ClientView() {
   const companySettings = contract?.companySettings; // Extracted companySettings
   // Il testo può chiedere una seconda firma per le clausole da approvare
   // specificamente: senza entrambe le firme non si passa all'OTP.
-  const needsApprovalSignature = requiresSpecificApproval((contract as any)?.template?.content);
+  // Stessa sorgente del server (generatedContent): il template "safe" del
+  // payload pubblico non include il testo, quindi da solo non basta.
+  const needsApprovalSignature = requiresSpecificApproval(
+    (contract as any)?.generatedContent ?? (contract as any)?.template?.content,
+  );
   const allSignaturesDone = !!signatures.marketing && (!needsApprovalSignature || !!signatures.clausole);
 
   // Titolo della scheda: il nome dell'azienda che manda il contratto, mai il
@@ -1300,7 +1283,6 @@ export default function ClientView() {
           <SignatureArea
             signatureId="marketing"
             onSign={(signature) => setSignatures(prev => ({ ...prev, marketing: signature }))}
-            onGlobalSign={handleGlobalSignature}
             disabled={contract.status === 'signed'}
           />
         )
@@ -1308,454 +1290,293 @@ export default function ClientView() {
       afterDocumentContent={
         isClientFillPending ? null : (
         <>
-          {contract.status !== "signed" && !allSignaturesDone && (
-            <Card className="border border-orange-200 bg-orange-50 shadow-lg">
-              <CardContent className="pt-6 text-center">
-                <div className="animate-in fade-in duration-500">
-                  <PenTool className="mx-auto h-16 w-16 text-orange-500 mb-4" />
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                    Firma Richiesta nel Documento
-                  </h3>
-                  <p className="text-lg text-gray-600 mb-6">
-                    {needsApprovalSignature
-                      ? "Prima di procedere con la firma digitale, è necessario apporre nel documento sopra due firme: quella del contratto e quella per l'approvazione specifica delle clausole."
-                      : "Prima di procedere con la firma digitale, è necessario apporre la firma nel documento sopra."}
-                  </p>
-                  <div className="bg-orange-100 border border-orange-200 rounded-lg p-4 text-sm text-orange-800">
-                    <p className="font-medium mb-2">Come procedere:</p>
-                    <ol className="text-left space-y-1 ml-4">
-                      <li>1. Scorri il documento sopra fino alla sezione firma</li>
-                      <li>2. Clicca sull'area "Clicca qui per firmare"</li>
-                      <li>3. Apponi la tua firma digitale</li>
-                      <li>4. Torna qui per completare il processo di autenticazione</li>
-                    </ol>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {contract.status === "viewed" && !allSignaturesDone && (
-            <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4 flex items-center">
-                <Shield className="mr-2 h-5 w-5" />
-                Verifica Identità
-              </h3>
-
-              {!showOtpInput ? (
-                <div className="space-y-4">
-                  {companySettings?.otpMethod === "email" ? (
+          {contract.status !== "signed" && (() => {
+            const isEmailOtp = companySettings?.otpMethod === "email";
+            const otpEmail = contract.sentToEmail || clientData.email || "";
+            const step1: SignStepState = allSignaturesDone ? "done" : "current";
+            const step2: SignStepState = !allSignaturesDone
+              ? "upcoming"
+              : showOtpInput && otpCode.length === 6 ? "done" : "current";
+            const step3: SignStepState = allSignaturesDone && showOtpInput ? "current" : "upcoming";
+            const doneCount = signContractMutation.isPending
+              ? 3
+              : (step1 === "done" ? 1 : 0) + (step2 === "done" ? 1 : 0);
+            const goToSignature = () => {
+              const target = !signatures.marketing ? "marketing" : "clausole";
+              document
+                .querySelector(`[data-signature-area="${target}"]`)
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+            };
+            return (
+              <section
+                className="overflow-hidden rounded-2xl border border-[#d2d2d7] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                data-testid="signing-panel"
+              >
+                <div className="border-b border-[#e8e8ed] px-5 pb-5 pt-6 sm:px-7">
+                  <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm text-gray-600 mb-4">
-                        Per procedere con la firma, riceverai un codice di verifica via email.
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868b]">
+                        Firma elettronica
                       </p>
-                      <div>
-                        <Label htmlFor="emailAddress">Email di Verifica</Label>
-                        <Input
-                          id="emailAddress"
-                          type="email"
-                          value={contract.sentToEmail || clientData.email || ""}
-                          readOnly
-                          className="mt-1 bg-gray-100 cursor-not-allowed"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Il codice OTP verrà inviato a questa email
-                        </p>
-                      </div>
-                      <Button
-                        onClick={handleSendOtp}
-                        disabled={isLoadingOtp}
-                        className="w-full"
-                      >
-                        {isLoadingOtp ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Invio in corso...
-                          </>
-                        ) : (
-                          <>
-                            <Mail className="mr-2 h-4 w-4" />
-                            Invia Codice OTP via Email
-                          </>
-                        )}
-                      </Button>
+                      <h3 className="mt-1 text-[22px] font-semibold tracking-tight text-[#1d1d1f]">
+                        Firma il contratto
+                      </h3>
+                      <p className="mt-1 text-sm text-[#6e6e73]">Tre passaggi, circa un minuto.</p>
                     </div>
-                  ) : (
-                    <div>
-                      <p className="text-sm text-gray-600 mb-4">
-                        Per procedere con la firma, è necessario verificare la tua identità tramite SMS.
-                      </p>
-                      <div>
-                        <Label htmlFor="phoneNumber">Numero di Telefono</Label>
-                        <Input
-                          id="phoneNumber"
-                          type="tel"
-                          value={phoneNumber}
-                          onChange={(e) => setPhoneNumber(e.target.value)}
-                          placeholder="+39 XXX XXX XXXX"
-                          className="mt-1"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Inserisci il tuo numero di telefono per ricevere il codice OTP via SMS
-                        </p>
-                      </div>
-                      <Button
-                        onClick={handleSendOtp}
-                        disabled={!phoneNumber.trim() || isLoadingOtp}
-                        className="w-full"
-                      >
-                        {isLoadingOtp ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Invio in corso...
-                          </>
-                        ) : (
-                          <>
-                            <MessageSquare className="mr-2 h-4 w-4" />
-                            Invia Codice OTP via SMS
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="otpCode">Codice OTP</Label>
-                    <Input
-                      id="otpCode"
-                      type="text"
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value)}
-                      placeholder="Inserisci il codice a 6 cifre"
-                      className="mt-1 text-center text-lg tracking-widest"
-                      maxLength={6}
-                    />
-                    <p className="text-xs text-gray-500 mt-2 text-center">
-                      {companySettings?.otpMethod === "email"
-                        ? "Inserisci il codice ricevuto via email"
-                        : "Inserisci il codice ricevuto via SMS"
-                      }</p>
+                    <span
+                      className="shrink-0 rounded-full bg-[#f5f5f7] px-3 py-1 text-xs font-medium text-[#424245]"
+                      data-testid="signing-progress"
+                    >
+                      {doneCount} di 3
+                    </span>
                   </div>
-                  {error && <p className="text-sm text-red-500">{error}</p>}
-                  {successMessage && <p className="text-sm text-green-500">{successMessage}</p>}
-                </div>
-              )}
-            </div>
-          )}
-
-          {contract.status !== "signed" && allSignaturesDone && (
-            <Card className="border border-gray-300 shadow-lg bg-white">
-              <CardHeader className="bg-gray-50 border-b border-gray-200 p-4 sm:p-6">
-                <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-                  <div className="flex items-center">
-                    <div className="bg-gray-100 p-2 rounded-full mr-3">
-                      <Signature className="h-6 w-6 text-gray-600" />
-                    </div>
-                    <div>
-                      <div className="text-xl sm:text-2xl font-bold text-gray-800">Processo di Firma Elettronica</div>
-                      <div className="text-sm font-normal text-gray-600">Segui i 3 passaggi</div>
-                    </div>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 sm:pt-8 px-4 sm:px-8 bg-white rounded-b-lg">
-                <div className="mb-8 sm:mb-10 bg-gray-50 p-6 rounded-lg border border-gray-200">
-                  <div className="text-center mb-4">
-                    <h3 className="text-lg font-bold text-gray-800 mb-2">Progresso Firma Digitale</h3>
-                    <div className="flex items-center justify-between text-sm text-gray-700 mb-3">
-                      <span className="font-semibold">Passaggio {signContractMutation.isPending ? '3' : (showOtpInput ? '2' : '1')} di 3</span>
-                      <span className="font-semibold">{signContractMutation.isPending ? '100%' : (showOtpInput ? '66%' : '33%')} completato</span>
-                    </div>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3 sm:h-4">
+                  <div className="mt-5 h-1 rounded-full bg-[#e8e8ed]">
                     <div
-                      className={`h-3 sm:h-4 rounded-full transition-all duration-700 ease-out ${
-                        signContractMutation.isPending ? 'bg-gray-700' : (showOtpInput ? 'bg-gray-600' : 'bg-gray-500')
-                      }`}
-                      style={{ width: signContractMutation.isPending ? '100%' : (showOtpInput ? '66%' : '33%') }}
-                    ></div>
-                  </div>
-                  {signContractMutation.isPending && (
-                    <div className="text-center text-sm text-gray-700 mt-3 font-semibold">
-                      Finalizzazione firma in corso...
-                    </div>
-                  )}
-                  <div className="flex justify-between mt-4 text-xs text-gray-600">
-                    <div className={`text-center ${!showOtpInput ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
-                      {companySettings?.otpMethod === "email" ? "Verifica Email" : "Verifica Telefono"}
-                    </div>
-                    <div className={`text-center ${showOtpInput && !signContractMutation.isPending ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
-                      Codice OTP
-                    </div>
-                    <div className={`text-center ${signContractMutation.isPending ? 'font-bold text-gray-800' : 'text-gray-500'}`}>
-                      Firma Finale
-                    </div>
+                      className="h-1 rounded-full bg-[#1d1d1f] transition-all duration-500"
+                      style={{ width: `${(doneCount / 3) * 100}%` }}
+                    />
                   </div>
                 </div>
 
-                <div className="max-w-lg mx-auto space-y-6 sm:space-y-8">
-                  <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
-                    <div className="flex items-center mb-4">
-                      <div className="bg-gray-700 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">
-                        1
-                      </div>
-                      <Label className="text-base font-bold text-gray-800">
-                        {companySettings?.otpMethod === "email" ? "Conferma la tua email" : "Conferma il tuo numero di telefono"}
-                      </Label>
-                    </div>
-                    <div className="space-y-3">
-                      {companySettings?.otpMethod === "email" ? (
-                        <div className="space-y-3">
-                          <div>
-                            <Label htmlFor="emailForOtp">Email di Verifica</Label>
-                            <Input
-                              id="emailForOtp"
-                              type="email"
-                              value={contract.sentToEmail || clientData.email || ""}
-                              readOnly
-                              className="h-12 text-base font-medium bg-gray-100 border border-gray-300 text-gray-800 cursor-not-allowed"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Il codice OTP verrà inviato a questa email
-                            </p>
-                          </div>
-                          <Button
-                            onClick={handleSendOtp}
-                            disabled={isLoadingOtp}
-                            className="w-full h-12 px-6 text-sm sm:text-base bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400"
-                          >
-                            {isLoadingOtp ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Invio...
-                              </>
-                            ) : (
-                              <>
-                                <Mail className="mr-2 h-4 w-4" />
-                                Invia Codice OTP via Email
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
-                            <div className="flex-1 relative">
-                              <Input
-                                id="phoneNumber"
-                                type="tel"
-                                value={phoneNumber}
-                                onChange={(e) => setPhoneNumber(e.target.value)}
-                                readOnly={showOtpInput}
-                                placeholder="+39 XXX XXX XXXX"
-                                className="h-12 text-base font-medium bg-white border border-gray-300 text-gray-800 focus:border-blue-500"
-                              />
-                            </div>
-                            <Button
-                              onClick={handleSendOtp}
-                              disabled={!phoneNumber.trim() || isLoadingOtp}
-                              className="h-12 px-6 text-sm sm:text-base whitespace-nowrap bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400"
-                            >
-                              {isLoadingOtp ? (
-                                <>
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Invio...
-                                </>
-                              ) : (
-                                <>
-                                  <MessageSquare className="mr-2 h-4 w-4" />
-                                  Invia Codice OTP via SMS
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
+                <ol className="divide-y divide-[#e8e8ed]">
+                  <SignStep
+                    index={1}
+                    state={step1}
+                    testId="sign-step-document"
+                    title={needsApprovalSignature ? "Firma nel documento (2 firme)" : "Firma nel documento"}
+                    description={
+                      allSignaturesDone
+                        ? "Firme apposte nel documento."
+                        : needsApprovalSignature
+                        ? "Nel documento qui sopra tocca “Clicca qui per firmare” in entrambi i riquadri: la firma del contratto e quella per l'approvazione specifica delle clausole."
+                        : "Nel documento qui sopra tocca “Clicca qui per firmare”: puoi firmare con il dito, con il mouse o scrivendo il tuo nome."
+                    }
+                  >
+                    <ul className="space-y-2">
+                      <SignatureCheckRow label="Firma del contratto" done={!!signatures.marketing} />
+                      {needsApprovalSignature && (
+                        <SignatureCheckRow
+                          label="Approvazione specifica delle clausole"
+                          done={!!signatures.clausole}
+                        />
                       )}
-                      {error && <p className="text-sm text-red-500">{error}</p>}
-                      {successMessage && <p className="text-sm text-green-500">{successMessage}</p>}
-                    </div>
-                  </div>
+                    </ul>
+                    {!allSignaturesDone && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={goToSignature}
+                        data-testid="button-go-to-signature"
+                        className="mt-4 h-10 rounded-full border-[#d2d2d7] px-5 text-sm font-medium text-[#1d1d1f] hover:bg-[#f5f5f7]"
+                      >
+                        <ArrowUp className="mr-2 h-4 w-4" />
+                        Vai al riquadro firma
+                      </Button>
+                    )}
+                  </SignStep>
 
-                  {showOtpInput && (
-                    <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
-                      <div className="flex items-center mb-4">
-                        <div className="bg-gray-700 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">
-                          2
-                        </div>
-                        <Label className="text-base font-bold text-gray-800">
-                          Inserisci il codice OTP
-                        </Label>
-                      </div>
-                      <div className="flex justify-center">
-                        <InputOTP
-                          maxLength={6}
-                          value={otpCode}
-                          onChange={setOtpCode}
-                          className="gap-2 sm:gap-3"
+                  <SignStep
+                    index={2}
+                    state={step2}
+                    testId="sign-step-otp"
+                    title="Verifica la tua identità"
+                    description={
+                      isEmailOtp
+                        ? "Riceverai un codice di 6 cifre via email."
+                        : "Riceverai un codice di 6 cifre via SMS."
+                    }
+                  >
+                    {!showOtpInput ? (
+                      <div className="space-y-3">
+                        {isEmailOtp ? (
+                          <div className="flex items-center gap-3 rounded-xl bg-[#f5f5f7] px-4 py-3">
+                            <Mail className="h-4 w-4 shrink-0 text-[#86868b]" />
+                            <span className="truncate text-sm font-medium text-[#1d1d1f]" data-testid="text-otp-email">
+                              {otpEmail}
+                            </span>
+                          </div>
+                        ) : (
+                          <Input
+                            id="phoneNumber"
+                            type="tel"
+                            value={phoneNumber}
+                            onChange={(e) => setPhoneNumber(e.target.value)}
+                            placeholder="+39 333 123 4567"
+                            className="h-12 rounded-xl border-[#d2d2d7] text-base"
+                          />
+                        )}
+                        <Button
+                          type="button"
+                          onClick={handleSendOtp}
+                          disabled={isLoadingOtp || (!isEmailOtp && !phoneNumber.trim())}
+                          data-testid="button-send-otp"
+                          className="h-11 w-full rounded-full bg-[#1d1d1f] text-sm font-medium text-white hover:bg-black disabled:bg-[#c7c7cc]"
                         >
-                          <InputOTPGroup className="gap-2 sm:gap-3">
-                            <InputOTPSlot index={0} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                            <InputOTPSlot index={1} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                            <InputOTPSlot index={2} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                            <InputOTPSlot index={3} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                            <InputOTPSlot index={4} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
-                            <InputOTPSlot index={5} className="h-14 w-12 sm:h-16 sm:w-14 text-xl border border-gray-300 bg-white" />
+                          {isLoadingOtp ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Invio in corso...
+                            </>
+                          ) : (
+                            <>
+                              {isEmailOtp ? <Mail className="mr-2 h-4 w-4" /> : <MessageSquare className="mr-2 h-4 w-4" />}
+                              Invia il codice
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-sm text-[#424245]">
+                          {isEmailOtp ? (
+                            <>Codice inviato a <span className="font-medium text-[#1d1d1f]">{otpEmail}</span>. Inseriscilo qui sotto.</>
+                          ) : (
+                            <>Codice inviato a <span className="font-medium text-[#1d1d1f]">{phoneNumber}</span>. Inseriscilo qui sotto.</>
+                          )}
+                        </p>
+                        <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode} data-testid="input-otp">
+                          <InputOTPGroup className="gap-1.5 sm:gap-2">
+                            {[0, 1, 2, 3, 4, 5].map((i) => (
+                              <InputOTPSlot
+                                key={i}
+                                index={i}
+                                className="h-12 w-9 rounded-lg border border-[#d2d2d7] bg-white text-lg font-semibold text-[#1d1d1f] first:rounded-l-lg last:rounded-r-lg sm:h-14 sm:w-12"
+                              />
+                            ))}
                           </InputOTPGroup>
                         </InputOTP>
+                        <button
+                          type="button"
+                          onClick={handleSendOtp}
+                          disabled={isLoadingOtp}
+                          className="text-sm font-medium text-[#424245] underline underline-offset-4 hover:text-[#1d1d1f] disabled:opacity-50"
+                        >
+                          {isLoadingOtp ? "Invio in corso..." : "Non è arrivato? Invia di nuovo"}
+                        </button>
                       </div>
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        {companySettings?.otpMethod === "email"
-                          ? "Inserisci il codice ricevuto via email"
-                          : "Inserisci il codice ricevuto via SMS"
-                        }</p>
-                    </div>
-                  )}
+                    )}
+                    {error && <p className="mt-3 text-sm text-red-600" data-testid="text-sign-error">{error}</p>}
+                  </SignStep>
 
-                  <div className="flex items-center justify-center my-6">
-                    <div className="flex-grow border-t border-gray-300"></div>
-                    <div className="mx-4 bg-gray-100 px-3 py-1 rounded">
-                      <span className="text-gray-700 font-semibold text-sm">CONSENSI E FIRMA</span>
-                    </div>
-                    <div className="flex-grow border-t border-gray-300"></div>
-                  </div>
-
-                  <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
-                    <div className="flex items-center mb-4">
-                      <div className="bg-gray-700 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold mr-3">
-                        3
-                      </div>
-                      <Label className="text-base font-bold text-gray-800">
-                        Consensi e Firma Finale
-                      </Label>
-                    </div>
-
-                    <div className="space-y-4 mb-6">
-                      <div className="flex items-start space-x-3 p-4 bg-white rounded-lg border border-gray-200">
+                  <SignStep
+                    index={3}
+                    state={step3}
+                    testId="sign-step-confirm"
+                    title="Consensi e firma finale"
+                    description="Accetta l'informativa privacy e conferma la firma."
+                  >
+                    <div className="space-y-3">
+                      <label
+                        htmlFor="privacy"
+                        className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#e8e8ed] p-4 hover:border-[#d2d2d7]"
+                      >
                         <Checkbox
                           id="privacy"
                           checked={consents.privacy}
-                          onCheckedChange={(checked) =>
-                            setConsents(prev => ({ ...prev, privacy: !!checked }))
-                          }
-                          className="mt-1 h-5 w-5"
+                          onCheckedChange={(checked) => setConsents(prev => ({ ...prev, privacy: !!checked }))}
+                          className="mt-0.5 h-5 w-5 border-[#86868b] data-[state=checked]:border-[#1d1d1f] data-[state=checked]:bg-[#1d1d1f]"
+                          data-testid="checkbox-privacy"
                         />
-                        <Label htmlFor="privacy" className="text-sm text-gray-700 leading-relaxed cursor-pointer font-medium">
-                          Ho letto e accetto l'{" "}
-                          <PrivacyPolicyLink
+                        <span className="text-sm leading-relaxed text-[#424245]">
+                          Ho letto e accetto l'<PrivacyPolicyLink
                             companyName={companySettings?.companyName}
                             text={companySettings?.privacyPolicyText}
                             url={companySettings?.privacyPolicyUrl}
                           />{" "}
                           e acconsento al trattamento dei dati personali
-                          <span className="text-red-500 ml-1 font-bold">*</span>
-                        </Label>
-                      </div>
+                          <span className="ml-1 text-red-500">*</span>
+                        </span>
+                      </label>
 
                       {companySettings?.marketingConsentEnabled !== false && (
-                      <div className="flex items-start space-x-3 p-4 bg-white rounded-lg border border-gray-200">
-                        <Checkbox
-                          id="marketing"
-                          checked={consents.marketing}
-                          onCheckedChange={(checked) =>
-                            setConsents(prev => ({ ...prev, marketing: !!checked }))
-                          }
-                          className="mt-1 h-5 w-5"
-                        />
-                        <Label htmlFor="marketing" className="text-sm text-gray-700 leading-relaxed cursor-pointer font-medium">
-                          Acconsento a ricevere comunicazioni commerciali e promozionali
-                        </Label>
-                      </div>
+                        <label
+                          htmlFor="marketing"
+                          className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#e8e8ed] p-4 hover:border-[#d2d2d7]"
+                        >
+                          <Checkbox
+                            id="marketing"
+                            checked={consents.marketing}
+                            onCheckedChange={(checked) => setConsents(prev => ({ ...prev, marketing: !!checked }))}
+                            className="mt-0.5 h-5 w-5 border-[#86868b] data-[state=checked]:border-[#1d1d1f] data-[state=checked]:bg-[#1d1d1f]"
+                          />
+                          <span className="text-sm leading-relaxed text-[#424245]">
+                            Acconsento a ricevere comunicazioni commerciali e promozionali
+                          </span>
+                        </label>
+                      )}
+
+                      <Button
+                        type="button"
+                        onClick={() => signContractMutation.mutate({ otpCode, consents, signatures })}
+                        disabled={
+                          !showOtpInput ||
+                          otpCode.length !== 6 ||
+                          !consents.privacy ||
+                          !allSignaturesDone ||
+                          signContractMutation.isPending
+                        }
+                        data-testid="button-sign-contract"
+                        className="mt-2 h-12 w-full rounded-full bg-[#1d1d1f] text-base font-semibold text-white hover:bg-black disabled:bg-[#c7c7cc]"
+                      >
+                        {signContractMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            Firma in corso...
+                          </>
+                        ) : (
+                          <>
+                            <Signature className="mr-2 h-5 w-5" />
+                            Firma il contratto
+                          </>
+                        )}
+                      </Button>
+                      {otpCode.length !== 6 && (
+                        <p className="text-center text-xs text-[#86868b]">Inserisci il codice di 6 cifre per firmare.</p>
                       )}
                     </div>
+                  </SignStep>
+                </ol>
 
-                    <Button
-                      onClick={() => {
-                        console.log("Click su pulsante firma");
-                        signContractMutation.mutate({ otpCode, consents, signatures });
-                      }}
-                      disabled={
-                        !showOtpInput ||
-                        otpCode.length !== 6 ||
-                        !consents.privacy ||
-                        !allSignaturesDone ||
-                        signContractMutation.isPending
-                      }
-                      className="w-full bg-gray-800 hover:bg-gray-900 text-white py-5 text-lg font-bold min-h-[60px] rounded-lg"
-                    >
-                      <Signature className="mr-3 h-6 w-6" />
-                      {signContractMutation.isPending ? (
-                        <div className="flex items-center">
-                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
-                          Firma in corso...
-                        </div>
-                      ) : "FIRMA IL DOCUMENTO"}
-                    </Button>
-                  </div>
-
-                  {signContractMutation.isPending && (
-                    <div className="text-center text-sm text-gray-600 mt-2">
-                      <div className="animate-pulse">
-                        Elaborazione firma digitale sicura...
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-center text-xs text-gray-500 space-x-2">
-                    <Shield className="h-4 w-4" />
-                    <span>
-                      Ogni passaggio viene registrato nel registro delle operazioni allegato al contratto firmato
-                    </span>
-                  </div>
+                <div className="flex items-start gap-2 border-t border-[#e8e8ed] bg-[#fbfbfd] px-5 py-4 text-xs leading-relaxed text-[#6e6e73] sm:px-7">
+                  <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>Ogni passaggio viene registrato nel registro delle operazioni allegato al contratto firmato.</span>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </section>
+            );
+          })()}
 
           {contract.status === "signed" && (
-            <Card className="border-green-200 shadow-lg">
-              <CardContent className="pt-6 text-center">
-                <div className="animate-in fade-in duration-500">
-                  <CheckCircle className="mx-auto h-20 w-20 text-green-500 mb-6" />
-                  <h3 className="text-3xl font-bold text-gray-900 mb-4">
-                    Contratto Firmato con Successo!
-                  </h3>
-                  <p className="text-lg text-gray-600 mb-6">
-                    Il documento è stato firmato digitalmente il{" "}
-                    {new Date(contract.signedAt).toLocaleDateString('it-IT', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-sm text-green-800 mb-4">
-                    <p className="font-medium mb-3 text-lg">Processo Completato</p>
-                    <ul className="text-left space-y-2">
-                      <li className="flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                        Riceverai una copia del contratto firmato via email
-                      </li>
-                      <li className="flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                        Il documento è conservato in modo sicuro nei nostri archivi
-                      </li>
-                      <li className="flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                        La firma elettronica ha piena validità legale
-                      </li>
-                    </ul>
-                  </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-blue-800 font-medium">
-                      Controlla la tua email per la copia del contratto firmato
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <section
+              className="rounded-2xl border border-[#d2d2d7] bg-white px-6 py-10 text-center shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+              data-testid="signed-panel"
+            >
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600">
+                <Check className="h-7 w-7 text-white" strokeWidth={3} />
+              </div>
+              <h3 className="mt-5 text-[22px] font-semibold tracking-tight text-[#1d1d1f]">Contratto firmato</h3>
+              {contract.signedAt && (
+                <p className="mt-2 text-sm text-[#6e6e73]">
+                  Firmato il{" "}
+                  {new Date(contract.signedAt).toLocaleDateString("it-IT", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              )}
+              <ul className="mx-auto mt-6 max-w-sm space-y-2.5 text-left text-sm text-[#424245]">
+                <li className="flex items-start gap-2.5">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  Riceverai via email una copia del contratto firmato.
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  Il contratto firmato è conservato insieme al registro delle operazioni.
+                </li>
+              </ul>
+            </section>
           )}
         </>
         )
