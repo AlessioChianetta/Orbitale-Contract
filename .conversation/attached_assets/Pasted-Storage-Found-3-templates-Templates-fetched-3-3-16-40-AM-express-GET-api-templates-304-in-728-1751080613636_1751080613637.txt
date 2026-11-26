@@ -1,0 +1,57 @@
+Storage: Found 3 templates
+Templates fetched: 3
+3:16:40 AM [express] GET /api/templates 304 in 728ms :: [{"id":3,"name":"Turbo e Orbitale","descript…
+🔄 Richiesta invio immediato contratto modificato
+📧 Email di destinazione: chianettaalessio@gmail.com
+📋 ID contratto: 14
+🔗 Codice contratto: Ud3r-Uq0i5ikZBKL
+🔄 Tentativo di invio email...
+📧 Email destinatario: chianettaalessio@gmail.com
+👤 Nome cliente: Sardo
+📋 Codice contratto: Ud3r-Uq0i5ikZBKL
+⚙️ Configurazione SMTP:
+  - SMTP_HOST: smtp.gmail.com
+  - SMTP_PORT: 465
+  - SMTP_SECURE: true
+  - SMTP_USER: ✅ Configurato
+  - SMTP_PASS: ✅ Configurato
+🔗 URL contratto: http://localhost:5000/client/contract/Ud3r-Uq0i5ikZBKL?email=chianettaalessio%40gmail.com
+📤 Tentativo di invio in corso...
+📮 Opzioni email: {
+  from: '"Turbo Contract" <orbitaleale@gmail.com>',
+  to: 'chianettaalessio@gmail.com',
+  subject: 'Nuovo Contratto da Firmare - Turbo Contract'
+}
+🔄 Verifica connessione SMTP...
+❌ ERRORE nell'invio email:
+  - Messaggio: Missing credentials for "PLAIN"
+  - Codice: EAUTH
+  - Comando: API
+  - Response: undefined
+  - Stack completo: Error: Missing credentials for "PLAIN"
+    at SMTPConnection._formatError (/home/runner/workspace/node_modules/nodemailer/lib/smtp-connection/index.js:809:19)
+    at SMTPConnection.login (/home/runner/workspace/node_modules/nodemailer/lib/smtp-connection/index.js:454:38)
+    at /home/runner/workspace/node_modules/nodemailer/lib/smtp-transport/index.js:375:32
+    at SMTPConnection.<anonymous> (/home/runner/workspace/node_modules/nodemailer/lib/smtp-connection/index.js:215:17)
+    at Object.onceWrapper (node:events:632:28)
+    at SMTPConnection.emit (node:events:518:28)
+    at SMTPConnection._actionEHLO (/home/runner/workspace/node_modules/nodemailer/lib/smtp-connection/index.js:1371:14)
+    at SMTPConnection._processResponse (/home/runner/workspace/node_modules/nodemailer/lib/smtp-connection/index.js:993:20)
+    at SMTPConnection._onData (/home/runner/workspace/node_modules/nodemailer/lib/smtp-connection/index.js:774:14)
+    at SMTPConnection._onSocketData (/home/runner/workspace/node_modules/nodemailer/lib/smtp-connection/index.js:195:44)
+    at TLSSocket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:191:23)
+🔐 Errore di autenticazione - verifica username/password SMTP
+❌ ERRORE nell'invio email durante modifica contratto:
+  - Errore: Failed to send contract email: Missing credentials for "PLAIN"
+  - Stack: Error: Failed to send contract email: Missing credentials for "PLAIN"
+    at sendContractEmail (/home/runner/workspace/server/services/email-service.ts:146:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:227:11)
+3:16:55 AM [express] PUT /api/contracts/14 200 in 1097ms :: {"id":14,"templateId":1,"sellerId":2,"cl…
+Storage: Found 3 templates
+3:16:56 AM [express] GET /api/contracts 200 in 729ms :: [{"id":14,"templateId":1,"sellerId":2,"clien…
+3:16:57 AM [express] GET /a

@@ -1,0 +1,79 @@
+/**
+ * Crea (o aggiorna) un'azienda cliente: dati fiscali, primo admin con
+ * password temporanea, eventuale venditore (anche lui con password
+ * temporanea), OTP via email, contratto HTML.
+ *
+ * Uso (sul VPS, dalla cartella del progetto):
+ *   npx tsx --require ./server/loadEnv.cjs scripts/onboard-company.ts onboarding/cliente.json --dry-run
+ *   npx tsx --require ./server/loadEnv.cjs scripts/onboard-company.ts onboarding/cliente.json
+ *
+ * Esempio di file: scripts/onboard-company.example.json (un template) o
+ * scripts/onboarding/vigliano/config.json (più template, ciascuno con il suo
+ * preset). I percorsi (htmlPath, logoPath, privacyPolicyTextPath) sono
+ * relativi al file JSON.
+ *
+ * Idempotente: rilanciato con lo stesso file non duplica nulla e non tocca
+ * la password dell'admin; se l'HTML del contratto è cambiato aggiorna il
+ * template (i contratti già creati restano come sono).
+ * La password temporanea viene stampata UNA volta sola, alla creazione:
+ * va comunicata alla cliente, che la cambia al primo accesso.
+ * Con --nuove-password genera password temporanee nuove anche per admin e
+ * venditore già esistenti (le precedenti smettono di funzionare).
+ */
+import { readFileSync } from "fs";
+import path from "path";
+import { onboardCompany } from "../server/onboarding";
+import { pool } from "../server/db";
+
+async function main() {
+  const args = process.argv.slice(2);
+  const dryRun = args.includes("--dry-run");
+  // Nuove password temporanee anche per gli account già esistenti
+  // (le vecchie non valgono più).
+  const resetPasswords = args.includes("--nuove-password");
+  const file = args.find((a) => !a.startsWith("--"));
+  if (!file) {
+    console.error("Uso: npx tsx --require ./server/loadEnv.cjs scripts/onboard-company.ts <config.json> [--dry-run] [--nuove-password]");
+    process.exit(2);
+  }
+  const abs = path.resolve(file);
+  const config = JSON.parse(readFileSync(abs, "utf8"));
+  const r = await onboardCompany(config, { baseDir: path.dirname(abs), dryRun, resetPasswords });
+
+  console.log("");
+  console.log(dryRun ? "=== PROVA (nessuna modifica salvata) ===" : "=== Fatto ===");
+  const id = (n: number, isNew: boolean) => (dryRun && isNew ? "nuovo" : `id ${n}`);
+  console.log(`Azienda: ${id(r.companyId, r.companyCreated)} ${r.companyCreated ? "(creata)" : "(già esistente, dati aggiornati)"}`);
+  const existingState = (pw: string | null) =>
+    pw || (dryRun && resetPasswords) ? "(già esistente, password nuova)" : "(già esistente, password invariata)";
+  const adminState = r.adminCreated ? "(creato)" : existingState(r.temporaryPassword);
+  console.log(`Admin:   ${id(r.adminId, r.adminCreated)} ${adminState} — username ${config.admin?.username}`);
+  if (r.temporaryPassword) {
+    console.log(`Password temporanea admin (da comunicare, cambio obbligatorio al primo accesso): ${r.temporaryPassword}`);
+  }
+  if (r.seller) {
+    const sellerState = r.seller.created ? "(creato)" : existingState(r.seller.temporaryPassword);
+    console.log(`Venditore: ${id(r.seller.id, r.seller.created)} ${sellerState} — username ${r.seller.username}`);
+    if (r.seller.temporaryPassword) {
+      console.log(`Password temporanea venditore (cambio obbligatorio al primo accesso): ${r.seller.temporaryPassword}`);
+    }
+  }
+  const label = { created: "creato", updated: "aggiornato", unchanged: "invariato" } as const;
+  for (const t of r.templates) {
+    console.log(`Template "${t.name}": ${id(t.id, t.action === "created")} (${label[t.action]})`);
+    console.log(`  Segnaposto: ${t.placeholders.length ? t.placeholders.join(", ") : "nessuno"}`);
+    if (t.preset) {
+      console.log(`  Preset "${t.preset.name}": ${id(t.preset.id, t.preset.action === "created")} (${label[t.preset.action]})`);
+    }
+  }
+  for (const w of r.warnings) console.log(`ATTENZIONE: ${w}`);
+  console.log("");
+  console.log("Passi successivi: la cliente accede, cambia password, compila Impostazioni Azienda → Configurazione Email e invia l'email di prova.");
+}
+
+main()
+  .catch((e) => {
+    console.error("ERRORE:", e?.issues ? JSON.stringify(e.issues, null, 2) : e?.message || e);
+    process.exitCode = 1;
+  })
+  .finally(() => pool.end().catch(() => {}));

@@ -1,0 +1,167 @@
+est-express@1.0.0 dev
+> NODE_ENV=development npx tsx --require ./server/loadEnv.cjs server/index.ts
+
+--- [loadEnv.cjs] Caricamento variabili d'ambiente (MODO CommonJS) ---
+[dotenv@17.0.0] injecting env (13) from .env – 🔐 encrypt with dotenvx: https://dotenvx.com
+#########################################################################
+## [loadEnv.cjs] OK: File .env caricato correttamente.                 ##
+#########################################################################
+--- [loadEnv.cjs] Variabili d'ambiente caricate: ---
+DATABASE_URL: Presente (lunghezza: 111)
+SESSION_SECRET: Presente (lunghezza: 88)
+SMTP_USER: Presente
+----------------------------------------------------
+--- [loadEnv.cjs] Caricamento variabili d'ambiente (MODO CommonJS) ---
+[dotenv@17.0.0] injecting env (13) from .env – 🔐 encrypt with dotenvx: https://dotenvx.com
+#########################################################################
+## [loadEnv.cjs] OK: File .env caricato correttamente.                 ##
+#########################################################################
+--- [loadEnv.cjs] Variabili d'ambiente caricate: ---
+DATABASE_URL: Presente (lunghezza: 111)
+SESSION_SECRET: Presente (lunghezza: 88)
+SMTP_USER: Presente
+----------------------------------------------------
+[DB] Drizzle logger (node-postgres) abilitato: true
+[DB] Istanza Drizzle (node-postgres) creata e configurata.
+[dotenv@17.0.0] injecting env (13) from .env – 🔐 encrypt with dotenvx: https://dotenvx.com
+4:36:28 PM [express] serving on port 5000
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+4:36:43 PM [express] GET /api/user 304 in 451ms :: {"id":2,"username":"orbitale","password":"0c66b40…
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "template_id", "seller_id", "client_data", "generated_content", "pdf_path", "status", "contract_code", "total_value", "sent_to_email", "signatures", "signed_at", "expires_at", "auto_renewal", "renewal_duration", "created_at", "updated_at" from "contracts" where "contracts"."seller_id" = $1 order by "contracts"."created_at" desc -- params: [2]
+Query: select "id", "template_id", "seller_id", "client_data", "generated_content", "pdf_path", "status", "contract_code", "total_value", "sent_to_email", "signatures", "signed_at", "expires_at", "auto_renewal", "renewal_duration", "created_at", "updated_at" from "contracts" where "contracts"."seller_id" = $1 order by "contracts"."created_at" desc -- params: [2]
+Query: select "id", "name", "description", "content", "custom_content", "payment_text", "predefined_bonuses", "payment_options", "is_active", "created_by", "created_at", "updated_at" from "contract_templates" order by "contract_templates"."created_at" desc
+4:36:44 PM [express] GET /api/contracts 304 in 1143ms :: [{"id":27,"templateId":3,"sellerId":2,"clie…
+Storage: Found 3 templates
+4:36:44 PM [express] GET /api/stats 304 in 1324ms :: {"totalContracts":27,"signedContracts":21,"pend…
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "template_id", "seller_id", "client_data", "generated_content", "pdf_path", "status", "contract_code", "total_value", "sent_to_email", "signatures", "signed_at", "expires_at", "auto_renewal", "renewal_duration", "created_at", "updated_at" from "contracts" where "contracts"."id" = $1 -- params: [27]
+Query: select "id", "name", "description", "content", "custom_content", "payment_text", "predefined_bonuses", "payment_options", "is_active", "created_by", "created_at", "updated_at" from "contract_templates" where "contract_templates"."id" = $1 -- params: [3]
+Query: update "contracts" set "template_id" = $1, "client_data" = $2, "generated_content" = $3, "total_value" = $4, "auto_renewal" = $5, "renewal_duration" = $6, "updated_at" = $7 where "contracts"."id" = $8 returning "id", "template_id", "seller_id", "client_data", "generated_content", "pdf_path", "status", "contract_code", "total_value", "sent_to_email", "signatures", "signed_at", "expires_at", "auto_renewal", "renewal_duration", "created_at", "updated_at" -- params: [3, "{\"societa\":\"Padoin\",\"sede\":\"roma\",\"indirizzo\":\"via padoin\",\"p_iva\":\"CHNLSS01R09F158D\",\"pec\":\"fdsfsd@pec.it\",\"email\":\"chianettaalessio@gmail.com\",\"cellulare\":\"234234234234\",\"codice_univoco\":\"CHNLSS01R09F158D\",\"cliente_nome\":\"padoin\",\"nato_a\":\"venezia\",\"residente_a\":\"Venezia\",\"indirizzo_residenza\":\"Via santino 44\",\"data_nascita\":\"2001-01-01\",\"bonus_list\":[],\"payment_plan\":[{\"rata_importo\":\"2000.00\",\"rata_scadenza\":\"28/06/2025\"}]}", "<div class=\"contract-content\">\n\n<h2>TERMINI E CONDIZIONI</h2>\n<p>Il presente contratto è regolato dalla legge italiana...</p>\n</div>", 200000, true, 12, "2025-06-28T16:36:55.143Z", 27]
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [27, "updated", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36", "109.116.200.89", "{\"updatedBy\":2,\"previousStatus\":\"draft\"}"]
+4:36:55 PM [express] PUT /api/contracts/27 200 in 1057ms :: {"id":27,"templateId":3,"sellerId":2,"cl…
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "template_id", "seller_id", "client_data", "generated_content", "pdf_path", "status", "contract_code", "total_value", "sent_to_email", "signatures", "signed_at", "expires_at", "auto_renewal", "renewal_duration", "created_at", "updated_at" from "contracts" where "contracts"."seller_id" = $1 order by "contracts"."created_at" desc -- params: [2]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "template_id", "seller_id", "client_data", "generated_content", "pdf_path", "status", "contract_code", "total_value", "sent_to_email", "signatures", "signed_at", "expires_at", "auto_renewal", "renewal_duration", "created_at", "updated_at" from "contracts" where "contracts"."seller_id" = $1 order by "contracts"."created_at" desc -- params: [2]
+4:36:56 PM [express] GET /api/contracts 200 in 1033ms :: [{"id":27,"templateId":3,"sellerId":2,"clie…
+Query: select "id", "name", "description", "content", "custom_content", "payment_text", "predefined_bonuses", "payment_options", "is_active", "created_by", "created_at", "updated_at" from "contract_templates" order by "contract_templates"."created_at" desc
+Storage: Found 3 templates
+4:36:57 PM [express] GET /api/stats 304 in 1885ms :: {"totalContracts":27,"signedContracts":21,"pend…
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["zs0UutNe6cPPGB4P"]
+4:37:21 PM [express] GET /api/user 401 in 1ms
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "company_name", "address", "city", "postal_code", "tax_id", "vat_id", "unique_code", "pec", "logo_url", "contract_title", "updated_at" from "company_settings" limit $1 -- params: [1]
+4:37:22 PM [express] GET /api/user 401 in 1ms
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["18AGXvVVmacNjZ6J"]
+Query: select "id", "company_name", "address", "city", "postal_code", "tax_id", "vat_id", "unique_code", "pec", "logo_url", "contract_title", "updated_at" from "company_settings" limit $1 -- params: [1]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [24, "viewed", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36", "109.116.200.89", "{\"accessMethod\":\"direct_link\",\"emailUsed\":null}"]
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+4:37:22 PM [express] GET /api/client/contracts/zs0UutNe6cPPGB4P 304 in 1024ms :: {"id":24,"templateI…
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [26, "viewed", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36", "109.116.200.89", "{\"accessMethod\":\"direct_link\",\"emailUsed\":null}"]
+4:37:23 PM [express] GET /api/client/contracts/18AGXvVVmacNjZ6J 304 in 1019ms :: {"id":26,"templateI…
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["pJnqm52k13PYbjmm"]
+4:37:30 PM [express] GET /api/user 304 in 441ms :: {"id":2,"username":"orbitale","password":"0c66b40…
+Query: select "id", "company_name", "address", "city", "postal_code", "tax_id", "vat_id", "unique_code", "pec", "logo_url", "contract_title", "updated_at" from "company_settings" limit $1 -- params: [1]
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [25, "viewed", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36", "109.116.200.89", "{\"accessMethod\":\"direct_link\",\"emailUsed\":null}"]
+4:37:31 PM [express] GET /api/client/contracts/pJnqm52k13PYbjmm 304 in 1307ms :: {"id":25,"templateI…

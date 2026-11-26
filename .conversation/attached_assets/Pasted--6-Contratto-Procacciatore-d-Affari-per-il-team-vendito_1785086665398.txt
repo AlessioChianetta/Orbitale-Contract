@@ -1,0 +1,35 @@
+#6 - Contratto Procacciatore d'Affari per il team venditori
+What & Why
+Serve un nuovo template contrattuale che i venditori firmano per entrare nel team: "Contratto Procacciatore d'Affari" (file CONTRATTO-PROCACCIATORE-AFFARI-ORBITALE_1785081003455.html, 20 articoli: provvigioni, maturazione, clawback, coda provvigionale, non concorrenza, ecc.).
+
+Il sistema oggi è costruito attorno al CLIENTE finale (azienda/privato): i campi anagrafici sono fissi in shared/client-fields.ts e i placeholder compilati dal motore sono quelli del cliente. Il contratto procacciatore è strutturalmente diverso — verificato:
+
+Placeholder completamente nuovi: {{azienda_ragione_sociale}}, {{azienda_piva}}, {{azienda_sede}} (dati del Fornitore, dalle impostazioni azienda), {{procacciatore_nome}}, {{procacciatore_piva}}, {{procacciatore_sede}} (chi firma), più parametri economici: {{data_decorrenza}}, {{ciclo_liquidazione}}, {{giorno_cutoff}}, {{giorni_pagamento}}, {{mesi_coda_provvigionale}}, {{giorni_preavviso}}.
+Nessun blocco modulare (niente <!-- BLOCK:SECTIONS -->): contratto piatto.
+Il flusso firma esistente (link con codice univoco, OTP email/SMS, audit trail, PDF sigillato) è riutilizzabile così com'è.
+Attenzione alle etichette hardcoded: la dashboard e le email ricavano il nome cliente da societa/cliente_nome (es. server/routes.ts:1899, 2384, 3006): con i nuovi campi mostrerebbero "—".
+Done looks like
+Esiste il template "Contratto Procacciatore d'Affari Orbitale" pronto all'uso (con categoria "Team" se il task categorie è già stato fatto).
+L'admin crea un contratto procacciatore inserendo: dati del procacciatore (nome, P.IVA, sede) e parametri economici (decorrenza, ciclo liquidazione, giorno cutoff, giorni pagamento, mesi coda provvigionale, giorni preavviso); i dati del Fornitore arrivano dalle impostazioni azienda.
+Il procacciatore riceve il link, vede il contratto completo e firma con OTP come i clienti; il PDF sigillato viene generato correttamente.
+In dashboard il contratto è riconoscibile: mostra il nome del procacciatore (non "—") e si distingue dai contratti cliente.
+Il form NON chiede i campi cliente irrilevanti (tipo cliente azienda/privato, referente, data di nascita, ecc.) quando il template è di tipo procacciatore.
+Out of scope
+Gestione provvigioni/rendiconti reali (il contratto le disciplina, ma non si costruisce il modulo di calcolo).
+Portale dedicato per i procacciatori.
+Modifiche al contratto cliente Orbitale (task separato).
+Steps
+Template procacciatore — Aggiungere il nuovo template (contenuto dal file caricato) con seed idempotente, senza sezioni modulari.
+Set di campi per tipo template — Introdurre il concetto di "tipo destinatario" del template (cliente vs procacciatore) e definire il set campi procacciatore condiviso client/server (validazione inclusa), mantenendo il comportamento attuale per i template cliente.
+Form di creazione — Quando il template è procacciatore, mostrare solo i campi pertinenti (anagrafica procacciatore + parametri economici) e compilare i dati Fornitore dalle impostazioni azienda.
+Compilazione e firma — Mappare i nuovi placeholder nel motore di compilazione (inclusa la validazione dei placeholder non risolti), verificare co-fill/OTP/PDF con il nuovo set campi.
+Etichette e liste — Estendere i fallback del nome visualizzato (dashboard, email, notifiche) per usare il nome del procacciatore quando presente.
+Verifica end-to-end — Creare un contratto procacciatore di prova e completare l'intero flusso: invio, apertura, firma OTP, PDF sigillato, audit trail.
+Relevant files
+attached_assets/CONTRATTO-PROCACCIATORE-AFFARI-ORBITALE_1785081003455.html
+shared/client-fields.ts
+shared/schema.ts
+server/routes.ts:1890-2400,3850-4230
+server/storage.ts:154-190
+client/src/components/contract-form.tsx
+client/src/pages/client-view.tsx

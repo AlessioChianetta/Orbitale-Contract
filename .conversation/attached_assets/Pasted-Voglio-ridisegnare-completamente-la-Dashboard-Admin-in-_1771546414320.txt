@@ -1,0 +1,173 @@
+Voglio ridisegnare completamente la Dashboard Admin in stile Premium Innovativo SaaS 2026.
+
+Obiettivo:
+interfaccia elegante, moderna, minimal, con percezione alta di valore.
+Niente stile Bootstrap, niente grigio piatto, niente linee pesanti.
+
+🎨 1. Background & Layout
+
+Usa background molto chiaro: #F6F7FB
+
+Card completamente bianche
+
+Border molto soft rgba(0,0,0,0.04)
+
+Shadow morbida: 0 8px 30px rgba(0,0,0,0.06)
+
+Border radius: 16px
+
+Spacing generoso (padding 24px–32px)
+
+La pagina deve respirare.
+
+🏆 2. Header Moderno
+
+Struttura:
+
+Titolo grande: “Dashboard”
+
+Sottotitolo leggero: “Gestione avanzata template e contratti”
+
+Badge “Admin” piccolo, soft background grigio chiaro
+
+CTA primaria “Nuovo Template” con:
+
+Gradiente leggero blu → viola
+
+Border radius 12px
+
+Shadow leggera
+
+Hover con leggera elevazione (translateY -2px)
+
+Transizione 0.2s ease
+
+Non deve sembrare un bottone standard.
+
+📊 3. KPI Cards Ridisegnate
+
+Le metriche devono:
+
+Avere numero grande (32px, bold)
+
+Label piccola uppercase, letter-spacing 0.5px
+
+Icona dentro cerchio con background soft
+
+Mini testo sotto tipo: “+12% questo mese”
+
+Stile card:
+
+Background bianco
+
+Radius 16px
+
+Padding 24px
+
+Shadow soft
+
+Nessun bordo forte
+
+Le KPI devono sembrare “blocchi premium”, non box admin.
+
+📋 4. Tabella → Lista Moderna
+
+Trasforma la tabella in lista moderna:
+
+Righe alte (padding 18–22px)
+
+Nessuna linea pesante
+
+Solo separatori sottilissimi
+
+Hover con background leggerissimo rgba(0,0,0,0.02)
+
+Riga interamente cliccabile
+
+Stato “Attivo”:
+
+Pill con background soft blue
+
+Testo blu
+
+Non blu pieno
+
+Azioni (edit / delete):
+
+Visibili solo on hover
+
+Icone leggere (stroke 1.5)
+
+Spacing maggiore tra icone
+
+💎 5. Micro-Interazioni Premium
+
+Aggiungere:
+
+Transizioni morbide 0.2s
+
+Leggera elevazione su hover card
+
+CTA con micro-animazione
+
+Focus ring elegante (blu soft)
+
+🧠 6. Design System Coerente
+
+Colori principali:
+
+Primary:
+
+#4F46E5
+
+Secondary accent:
+
+#7C3AED
+
+Success soft:
+
+background #ECFDF5
+
+text #059669
+
+Error soft:
+
+background #FEF2F2
+
+text #DC2626
+
+Text:
+
+Primary: #0F172A
+
+Secondary: #64748B
+
+🎯 7. Percezione Finale
+
+La dashboard deve sembrare:
+
+SaaS da 49€/mese minimo
+
+Prodotto premium
+
+Moderno
+
+Elegante
+
+Con spazio e gerarchia
+
+Niente stile admin generico.
+
+Ridisegna layout, spacing, colori e componenti mantenendo la struttura funzionale attuale ma migliorando completamente l’estetica.
+
+🔥 Extra (facoltativo ma consigliato)
+
+Aggiungi sopra la lista:
+
+Campo ricerca elegante
+
+Filtro per stato
+
+Dropdown ordinamento
+
+Con design coerente e minimal.

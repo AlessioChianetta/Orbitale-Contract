@@ -1,0 +1,45 @@
+#14 - Contratto Orbitale + pacchetti modulari
+What & Why
+Rifacimento del contratto di licenza "Sistema Orbitale" usando il testo nuovo che il cliente ha allegato (al posto/affianco del Partnership attuale) e separazione dei Pacchetti Servizi (capitolo 36 del Manuale: 36.1 SETTER AI, 36.2 DIPENDENTI AI AUTONOMI, 36.3 HUNTER, 36.4 EMAIL JOURNEY & NURTURING, 36.5 LAVORO QUOTIDIANO & CONSULENZE, 36.6 FORMAZIONE & CORSI, 36.7 CONTENT STUDIO, 36.8 VOCE AI, 36.9 PAGAMENTI & STRIPE, 36.10 TEAM & DIPENDENTI UMANI, 36.11 FAQ) in Sezioni Modulari riutilizzabili, così il venditore può scegliere a contratto quali pacchetti includere senza dover modificare l'HTML.
+
+Devono essere generati 3 file HTML/TS sorgente + un template "vuoto" pre-popolato a DB con i pacchetti già caricati come sezioni modulari (defaultEnabled = true), così basta cliccare "Importa" e tutto è già pronto. Va inoltre verificato che le sezioni modulari finiscano davvero nel contratto firmato dal cliente e nel PDF generato.
+
+Done looks like
+Nel template editor compaiono due nuovi pulsanti di import accanto a "Importa Template Partnership":
+"Importa Contratto Orbitale (completo)" → carica nel campo Corpo del Contratto l'HTML completo del nuovo contratto Sistema Orbitale con tutti gli 11 pacchetti già scritti dentro l'Articolo 36 (versione "tutto incluso").
+"Importa Contratto Orbitale (vuoto/modulare)" → carica nel campo Corpo del Contratto l'HTML del contratto senza i pacchetti, con il marker <!-- BLOCK:SECTIONS --> posizionato dove devono apparire i pacchetti, e popola automaticamente la lista Sezioni Modulari con gli 11 pacchetti (36.1 → 36.11) pronti da attivare/disattivare.
+I tre file sorgente esistono e sono usati dai pulsanti:
+file con il contratto completo (variante "tutto-in-uno");
+file con il contratto vuoto (solo clausole, niente pacchetti, con marker sezioni);
+file con i soli moduli (array di 11 ModularSection pronti, ognuno corrispondente a un sotto-paragrafo 36.x con titolo, descrizione breve e contenuto HTML preso/sintetizzato dal Manuale Capitolo 36).
+Esiste un seed/migrazione che inserisce nel DB un nuovo contractTemplates "Sistema Orbitale — Modulare" con: content = corpo vuoto + marker, sections = i 36.1…36.11 (defaultEnabled true, required false, order 0..10). Il seed è idempotente (se già presente, non duplica).
+Quando il venditore crea un contratto da quel template, scegliendo quali pacchetti includere, le sezioni scelte:
+vengono effettivamente iniettate nel generatedContent salvato in DB,
+sono visibili nel documento che il cliente apre dal link,
+compaiono nel PDF firmato finale, nell'ordine corretto, dentro l'Articolo 36.
+Il contratto Partnership esistente continua a funzionare (nessuna regressione).
+Out of scope
+Cambi di prezzo, livelli di accesso o termini economici diversi da quelli indicati nei testi forniti.
+Nuovi campi sul modello contractTemplates o contracts (si usa quanto già esiste: content, sections, selectedSectionIds, generatedContent).
+UI per riordinare i pacchetti durante la creazione del contratto se non già esistente (si usa quella attuale delle Sezioni Modulari).
+Traduzione in altre lingue.
+Steps
+Estrazione contenuti dagli allegati — Leggere integralmente il testo del nuovo contratto Sistema Orbitale (file Pasted-...1776599785787.txt, 549 righe) e il Capitolo 36 del Manuale (MANUALE-COMPLETO_(13)_1776599893239.md, sezioni 36.1 → 36.11). Strutturare i contenuti per Articolo (Premesse, Definizioni, Oggetto, Articolo 3 servizi base, ecc.) tenendo separati i pacchetti 36.x che andranno nei moduli.
+File sorgente "contratto completo" — Creare un nuovo modulo TS che esporta una funzione tipo getOrbitalContractFullHtml() con l'HTML completo del nuovo contratto (stesso stile/inline-styles del Partnership esistente), inclusi gli 11 pacchetti 36.1–36.11 scritti dentro l'Articolo 36. Mantenere le variabili mustache già supportate ({{societa}}, {{cliente_nome}}, {{p_iva}}, {{sede}}, {{payment_plan}}, ecc.) e il blocco ripetibile <!-- BLOCK:BONUS_LIST -->.
+File sorgente "contratto vuoto/modulare" — Creare getOrbitalContractEmptyHtml(): stesso contratto del punto 2 ma con l'Articolo 36 sostituito dal marker <!-- BLOCK:SECTIONS --> (e una breve riga introduttiva tipo "I pacchetti servizi inclusi nella presente licenza sono i seguenti:"). Tutto il resto del contratto rimane identico.
+File sorgente "moduli pacchetti" — Creare getOrbitalServicePackages(): ModularSection[] che ritorna gli 11 pacchetti come ModularSection (id stabili tipo pkg_setter_ai, pkg_dipendenti_autonomi, …, pkg_faq), titolo = "36.x — NOME", description breve, content HTML formattato coerente con lo stile del contratto, defaultEnabled: true, required: false, order da 0 a 10. Tipizzato con lo schema in shared/sections.ts.
+Pulsanti di import nel template editor — Aggiungere due pulsanti accanto a "Importa Template Partnership" nel tab Contenuto di template-editor.tsx. Il primo fa form.setValue("content", getOrbitalContractFullHtml()). Il secondo fa form.setValue("content", getOrbitalContractEmptyHtml()) e form.setValue("sections", getOrbitalServicePackages()), mostrando un toast con il numero di pacchetti caricati.
+Seed DB del template "Sistema Orbitale — Modulare" — Aggiungere uno seed/bootstrap server-side (idempotente per name) che, all'avvio o tramite uno script tsx, inserisce in contractTemplates un record con content = getOrbitalContractEmptyHtml(), sections = getOrbitalServicePackages(), customContent e paymentText ragionevoli/vuoti, isActive = true. Se esiste già un template con quel nome non sovrascrive (a meno di flag esplicito).
+Verifica end-to-end del flusso modulare — Dal template appena creato: creare un contratto di prova selezionando un sottoinsieme di pacchetti, controllare che generatedContent contenga le sezioni scelte iniettate al posto del marker, aprire il link cliente e confermare che le vedi, firmare e generare il PDF, verificare che le stesse sezioni compaiano nel PDF firmato finale. Sistemare eventuali bug di rendering (es. CSS inline mancanti) trovati durante il test.
+Smoke test del Partnership esistente — Confermare che il pulsante e il flusso "Importa Template Partnership" continuano a funzionare invariati.
+Relevant files
+client/src/components/template-editor.tsx:556-640
+client/src/data/partnership-contract-template.ts
+client/src/components/professional-contract-document.tsx
+shared/sections.ts
+shared/schema.ts:18-60
+server/routes.ts
+server/storage.ts
+server/services/pdf-generator-new.ts
+attached_assets/Pasted--h2-style-font-size-18px-font-weight-bold-color-1e293b-_1776599785787.txt
+attached_assets/MANUALE-COMPLETO_(13)_1776599893239.md

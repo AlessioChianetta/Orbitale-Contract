@@ -1,0 +1,42 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development npx tsx --require ./server/loadEnv.cjs server/index.ts
+
+--- [loadEnv.cjs] Caricamento variabili d'ambiente (MODO CommonJS) ---
+[dotenv@17.0.0] injecting env (12) from .env – 🔐 encrypt with dotenvx: https://dotenvx.com
+#########################################################################
+## [loadEnv.cjs] OK: File .env caricato correttamente.                 ##
+#########################################################################
+--- [loadEnv.cjs] Variabili d'ambiente caricate: ---
+DATABASE_URL: Presente (lunghezza: 111)
+SESSION_SECRET: Presente (lunghezza: 88)
+SMTP_USER: Presente
+----------------------------------------------------
+--- [loadEnv.cjs] Caricamento variabili d'ambiente (MODO CommonJS) ---
+[dotenv@17.0.0] injecting env (12) from .env – 🔐 encrypt with dotenvx: https://dotenvx.com
+#########################################################################
+## [loadEnv.cjs] OK: File .env caricato correttamente.                 ##
+#########################################################################
+--- [loadEnv.cjs] Variabili d'ambiente caricate: ---
+DATABASE_URL: Presente (lunghezza: 111)
+SESSION_SECRET: Presente (lunghezza: 88)
+SMTP_USER: Presente
+----------------------------------------------------
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/workspace/server/routes.ts:726:12: ERROR: The symbol "companySettings" has already been declared
+    at failureErrorWithLog (/home/runner/workspace/node_modules/tsx/node_modules/esbuild/lib/main.js:1476:15)
+    at /home/runner/workspace/node_modules/tsx/node_modules/esbuild/lib/main.js:755:50
+    at responseCallbacks.<computed> (/home/runner/workspace/node_modules/tsx/node_modules/esbuild/lib/main.js:622:9)
+    at handleIncomingPacket (/home/runner/workspace/node_modules/tsx/node_modules/esbuild/lib/main.js:677:12)
+    at Socket.readFromStdout (/home/runner/workspace/node_modules/tsx/node_modules/esbuild/lib/main.js:600:7)
+    at Socket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23)
+
+Node.js v20.19.3

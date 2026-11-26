@@ -1,0 +1,93 @@
+Compila i tuoi dati per sbloccare la firma
+Puoi scorrere e leggere tutto il contratto qui sotto. Per procedere con la firma e la verifica OTP, prima inserisci i tuoi dati nel modulo qui in alto.
+
+Sei un'azienda o un privato?
+Azienda
+Privato
+Dati Azienda/Società
+Nome società
+Nome della società
+Città sede legale
+Es. Milano
+
+PR
+Indirizzo
+Via, numero civico, CAP
+Codice Fiscale / P.IVA
+Codice Fiscale o Partita IVA
+Codice Univoco / SDI (opzionale)
+7 caratteri
+PEC (opzionale)
+pec@esempio.com
+Email
+b@gmail.com
+L'email dove ti è arrivato questo link.
+
+Cellulare
++39 333 123 4567
+Es. 333 123 4567 o +39 333 123 4567.
+
+Dati del referente
+Nome e cognome del referente
+Es. Mario Rossi
+Nato a
+Luogo di nascita
+Data di nascita
+
+gg/mm/aaaa
+Città di residenza
+Es. Milano
+
+PR
+Indirizzo di residenza
+Via, numero civico, CAP
+Mancano alcuni campi obbligatori:
+Nome società / Cognome e Nome
+Città sede legale / Città
+Indirizzo società / Indirizzo
+Codice Fiscale / P.IVA
+Cellulare
+Nome e cognome del referente
+… e altri 4
+Salva e prosegui alla firma
+I tuoi dati sono protetti e visibili solo all'azienda che ti ha inviato il contratto.
+Logo
+Orbitale di Chianetta Trovato Alessio
+Via torrente forno 30a Cap 98071 Capo D'orlando
+C.F. e P.I. CHNLSS01R09F158D
+Codice univoco:
+Pec: alessio.chianettatrovato@pec.fiscozen.it
+Contratto
+DATI DEL CLIENTE / COMMITTENTE
+Dati del cliente/committente
+Società	Con sede in
+Indirizzo	Codice fiscale/PIVA
+PEC	Email b@gmail.com
+Cellulare	Codice univoco
+Numero iscrizione al REA o al registro delle imprese
+In persona del suo legale rappresentante p.t.
+Signor./a.	Nato a
+Data di nascita	Residente a
+Indirizzo di residenza:
+PIANO PAGAMENTI
+Il prezzo totale di 4000.00 EUR + IVA sarà corrisposto con le seguenti modalità:
+
+Pagamento 1 di EUR 4000.00 + IVA entro il 19/04/2026
+VALIDITÀ DEL CONTRATTO
+Data di inizio: 01 ottobre 2026
+
+Data di scadenza: 01 dicembre 2027
+
+CLAUSOLA DI AUTORINNOVO
+Il presente contratto si intende tacitamente rinnovato per un periodo di 12 mesi salvo disdetta da comunicarsi con un preavviso di almeno 30 giorni prima della scadenza mediante raccomandata A/R o PEC.
+
+In assenza di comunicazione di disdetta nei termini previsti, il contratto si rinnoverà automaticamente alle medesime condizioni economiche e contrattuali per ulteriori 12 mesi.
+
+DICHIARAZIONI E FIRMA
+Con la sottoscrizione del presente contratto, il Cliente dichiara:
+
+di aver letto e compreso integralmente il contenuto del presente contratto;
+di accettare espressamente tutte le clausole e condizioni in esso contenute;
+di aver ricevuto tutte le informazioni necessarie prima della sottoscrizione;
+che i dati forniti sono veritieri e aggiornati.
+Firma disponibile dopo aver compilato i tuoi dati nel modulo in alto.

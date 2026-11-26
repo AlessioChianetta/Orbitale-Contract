@@ -1,0 +1,427 @@
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, numeric } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+import { modularSectionsArraySchema } from "./sections";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  role: text("role", { enum: ["admin", "seller"] }).notNull().default("seller"),
+  email: text("email").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  companyId: integer("company_id").notNull().references(() => companySettings.id),
+  // Gli utenti non si eliminano: si disattivano (login bloccato, contratti
+  // e template restano all'azienda). Colonna creata da ensureTenantSchema.
+  isActive: boolean("is_active").notNull().default(true),
+  // Password temporanea: al primo accesso l'utente deve cambiarla.
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const contractTemplates = pgTable("contract_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"), // Categoria assegnata dall'admin (es. "Clienti", "Team", "Test/Archivio")
+  // Destinatario del contratto: "cliente" (default) oppure "procacciatore"
+  // (contratto di ingresso nel team commerciale). Determina quali campi
+  // anagrafici chiedono il wizard e la pagina pubblica di compilazione.
+  recipientType: text("recipient_type").notNull().default("cliente"),
+  content: text("content").notNull(), // HTML content with placeholders
+  customContent: text("custom_content"), // Custom content before bonuses
+  paymentText: text("payment_text"), // Payment terms text
+  predefinedBonuses: jsonb("predefined_bonuses").default([]), // Array of predefined bonus items
+  paymentOptions: jsonb("payment_options").default({
+    allowInstallments: true,
+    maxInstallments: 36,
+    paymentFrequencies: ["monthly", "quarterly", "annual"]
+  }),
+  sections: jsonb("sections").default([]), // Array of modular sections: { id, title, content (HTML), defaultEnabled, required, order }
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const contracts = pgTable("contracts", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").notNull(),
+  sellerId: integer("seller_id").notNull(),
+  clientData: jsonb("client_data").notNull(), // All client info and form data
+  generatedContent: text("generated_content").notNull(), // Final HTML content
+  pdfPath: text("pdf_path"), // Path to generated PDF
+  status: text("status", {
+    enum: ["draft", "sent", "awaiting_client_data", "viewed", "signed", "expired"]
+  }).notNull().default("draft"),
+  contractCode: text("contract_code").notNull().unique(), // Unique code for client access
+  totalValue: integer("total_value"), // In cents
+  sentToEmail: text("sent_to_email"), // Email where contract was sent
+  signatures: jsonb("signatures"), // Stored signatures data
+  signedAt: timestamp("signed_at"),
+  expiresAt: timestamp("expires_at"),
+  contractStartDate: timestamp("contract_start_date"), // Data inizio contratto
+  contractEndDate: timestamp("contract_end_date"), // Data fine contratto
+  autoRenewal: boolean("auto_renewal").default(false), // Auto renewal setting
+  renewalDuration: integer("renewal_duration").default(12), // Duration in months
+  isPercentagePartnership: boolean("is_percentage_partnership").default(false), // New: Partnership type
+  partnershipPercentage: numeric("partnership_percentage", { precision: 5, scale: 2 }), // New: Revenue percentage (e.g., 15.50%)
+  selectedSectionIds: jsonb("selected_section_ids").default([]), // Array of section IDs selected for this contract
+  // Variabili-prodotto per il template Sistema Orbitale (e simili):
+  //  - accessLevel  → sostituisce {{livello_accesso}}
+  //  - monthlyFee   → sostituisce {{canone_mensile}} (formattato "EUR 297,00")
+  //  - activationFee→ sostituisce {{costo_attivazione}} (formattato come sopra)
+  // Sono nullable per retro-compatibilità con i contratti esistenti.
+  accessLevel: text("access_level"),
+  monthlyFee: numeric("monthly_fee", { precision: 12, scale: 2 }),
+  activationFee: numeric("activation_fee", { precision: 12, scale: 2 }),
+  coFillToken: text("co_fill_token"), // Token of co-fill session that created/owns this draft (nullable)
+  // Modalità di compilazione del contratto:
+  //  - "seller": flusso classico, il venditore compila tutti i dati cliente
+  //  - "client_fill": il cliente compila i propri dati e firma in autonomia
+  //    sul link, senza approvazione intermedia del venditore.
+  fillMode: text("fill_mode", { enum: ["seller", "client_fill"] }).notNull().default("seller"),
+  // Identificatore del lotto (creazione in blocco da template). Tutti i contratti
+  // generati nello stesso wizard condividono lo stesso batchId + batchLabel.
+  batchId: text("batch_id"),
+  batchLabel: text("batch_label"),
+  isArchived: boolean("is_archived").notNull().default(false),
+  contentManuallyEdited: boolean("content_manually_edited").default(false),
+  // Numero per azienda e anno (es. 2026-0001), assegnato alla creazione.
+  // Null per i contratti creati prima della numerazione (mostrano l'id).
+  contractNumber: text("contract_number"),
+  // Versione dell'impaginazione del documento (vedi shared/contract-document.ts):
+  // 1 = storica, 2 = fino al 20/10/2026, 3 = attuale (C.F. e P.I. separati).
+  // Il default del DB resta 2; i nuovi contratti ricevono CURRENT_DOCUMENT_LAYOUT dal codice.
+  documentLayout: integer("document_layout").notNull().default(2),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  contractId: integer("contract_id").notNull(),
+  action: text("action").notNull(), // created, sent, viewed, signed, etc.
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  metadata: jsonb("metadata"), // Additional context data
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+export const otpCodes = pgTable("otp_codes", {
+  id: serial("id").primaryKey(),
+  contractId: integer("contract_id").notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  code: text("code").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  isUsed: boolean("is_used").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const companySettings = pgTable("company_settings", {
+  id: serial("id").primaryKey(),
+  companyName: text("company_name").notNull(),
+  address: text("address").notNull(),
+  city: text("city").notNull(),
+  postalCode: text("postal_code").notNull(),
+  taxId: text("tax_id").notNull(),
+  vatId: text("vat_id").notNull(),
+  uniqueCode: text("unique_code").notNull(),
+  pec: text("pec").notNull(),
+  logoUrl: text("logo_url"),
+  contractTitle: text("contract_title").default("Contratto FAST TRACK VENDITE").notNull(),
+  // OTP Settings
+  otpMethod: text("otp_method", { enum: ["email", "twilio"] }).default("email").notNull(),
+  twilioAccountSid: text("twilio_account_sid"),
+  twilioAuthToken: text("twilio_auth_token"),
+  twilioVerifyServiceSid: text("twilio_verify_service_sid"),
+  twilioWhatsappFrom: text("twilio_whatsapp_from"),
+  // SMTP Settings (per-tenant transactional email)
+  smtpHost: text("smtp_host"),
+  smtpPort: integer("smtp_port"),
+  smtpUser: text("smtp_user"),
+  smtpPass: text("smtp_pass"),
+  smtpSecure: boolean("smtp_secure"),
+  emailFromAddress: text("email_from_address"),
+  emailFromName: text("email_from_name"),
+  // Azienda del proprietario della piattaforma: solo lei riceve i template
+  // Orbitale/Procacciatore. Non modificabile dalle Impostazioni Azienda.
+  isOwner: boolean("is_owner").notNull().default(false),
+  // Dicitura IVA accanto ai prezzi del contratto: "plus_vat" (+ IVA),
+  // "vat_included" (IVA inclusa), "none" (nessuna, es. regime forfettario).
+  priceVatMode: text("price_vat_mode", { enum: ["plus_vat", "vat_included", "none"] }).notNull().default("plus_vat"),
+  // Informativa privacy dell'azienda (titolare del trattamento), mostrata
+  // sulla pagina di firma: testo e/o link.
+  privacyPolicyText: text("privacy_policy_text"),
+  privacyPolicyUrl: text("privacy_policy_url"),
+  // Consenso facoltativo "comunicazioni commerciali" sulla pagina di firma.
+  marketingConsentEnabled: boolean("marketing_consent_enabled").notNull().default(true),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Relations
+export const usersRelations = relations(users, ({ one, many }) => ({
+  company: one(companySettings, {
+    fields: [users.companyId],
+    references: [companySettings.id],
+  }),
+  createdTemplates: many(contractTemplates),
+  contracts: many(contracts),
+}));
+
+export const contractTemplatesRelations = relations(contractTemplates, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [contractTemplates.createdBy],
+    references: [users.id],
+  }),
+  contracts: many(contracts),
+}));
+
+export const contractsRelations = relations(contracts, ({ one, many }) => ({
+  template: one(contractTemplates, {
+    fields: [contracts.templateId],
+    references: [contractTemplates.id],
+  }),
+  seller: one(users, {
+    fields: [contracts.sellerId],
+    references: [users.id],
+  }),
+  auditLogs: many(auditLogs),
+  otpCodes: many(otpCodes),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  contract: one(contracts, {
+    fields: [auditLogs.contractId],
+    references: [contracts.id],
+  }),
+}));
+
+export const otpCodesRelations = relations(otpCodes, ({ one }) => ({
+  contract: one(contracts, {
+    fields: [otpCodes.contractId],
+    references: [contracts.id],
+  }),
+}));
+
+export const companySettingsRelations = relations(companySettings, ({ many }) => ({
+  users: many(users),
+}));
+
+export const contractPresets = pgTable("contract_presets", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companySettings.id, { onDelete: "cascade" }),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  visibility: text("visibility", { enum: ["personal", "shared"] }).notNull().default("personal"),
+  templateId: integer("template_id").references(() => contractTemplates.id, { onDelete: "set null" }),
+  selectedSectionIds: jsonb("selected_section_ids").$type<string[]>().default([]).notNull(),
+  bonusList: jsonb("bonus_list").$type<Array<{ bonus_descrizione: string }>>().default([]).notNull(),
+  paymentPlan: jsonb("payment_plan").$type<Array<{ rata_importo?: string | number; rata_scadenza?: string }>>().default([]).notNull(),
+  rataList: jsonb("rata_list").$type<Array<{ rata_importo?: string | number; rata_scadenza?: string }>>().default([]).notNull(),
+  totalValue: numeric("total_value", { precision: 12, scale: 2 }),
+  isPercentagePartnership: boolean("is_percentage_partnership").notNull().default(false),
+  partnershipPercentage: numeric("partnership_percentage", { precision: 5, scale: 2 }),
+  autoRenewal: boolean("auto_renewal").notNull().default(false),
+  renewalDuration: integer("renewal_duration").notNull().default(12),
+  defaultDurationMonths: integer("default_duration_months"),
+  fillMode: text("fill_mode", { enum: ["seller", "client_fill"] }).notNull().default("seller"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const contractPresetsRelations = relations(contractPresets, ({ one }) => ({
+  template: one(contractTemplates, {
+    fields: [contractPresets.templateId],
+    references: [contractTemplates.id],
+  }),
+  creator: one(users, {
+    fields: [contractPresets.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const presetItemSchema = z.object({
+  bonus_descrizione: z.string().optional(),
+  rata_importo: z.union([z.string(), z.number()]).optional(),
+  rata_scadenza: z.string().optional(),
+}).passthrough();
+
+export const insertContractPresetSchema = createInsertSchema(contractPresets).omit({
+  id: true,
+  companyId: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  name: z.string().min(1, "Nome richiesto").max(120),
+  description: z.string().max(500).nullish(),
+  visibility: z.enum(["personal", "shared"]).default("personal"),
+  templateId: z.number().int().positive().nullish(),
+  selectedSectionIds: z.array(z.string()).default([]),
+  bonusList: z.array(z.object({ bonus_descrizione: z.string() }).passthrough()).default([]),
+  paymentPlan: z.array(z.object({ rata_importo: z.string().optional(), rata_scadenza: z.string().optional() }).passthrough()).default([]),
+  rataList: z.array(z.object({ rata_importo: z.union([z.number(), z.string()]).optional(), rata_scadenza: z.string().optional() }).passthrough()).default([]),
+  totalValue: z.union([z.string(), z.number()]).nullish().transform((v) => v === undefined || v === null || v === "" ? null : String(v)),
+  partnershipPercentage: z.union([z.string(), z.number()]).nullish().transform((v) => v === undefined || v === null || v === "" ? null : String(v)),
+  renewalDuration: z.number().int().min(1).max(60).default(12),
+  defaultDurationMonths: z.number().int().min(1).max(120).nullish(),
+});
+
+export type ContractPreset = typeof contractPresets.$inferSelect;
+export type InsertContractPreset = z.infer<typeof insertContractPresetSchema>;
+
+export const coFillSessions = pgTable("co_fill_sessions", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  companyId: integer("company_id").notNull().references(() => companySettings.id),
+  sellerId: integer("seller_id").notNull().references(() => users.id),
+  contractId: integer("contract_id").references(() => contracts.id),
+  currentData: jsonb("current_data").default({}).notNull(),
+  status: text("status", { enum: ["active", "terminated", "expired"] }).notNull().default("active"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const coFillSessionsRelations = relations(coFillSessions, ({ one }) => ({
+  seller: one(users, { fields: [coFillSessions.sellerId], references: [users.id] }),
+  company: one(companySettings, { fields: [coFillSessions.companyId], references: [companySettings.id] }),
+}));
+
+// Insert schemas
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  isActive: true,
+  mustChangePassword: true,
+}).extend({
+  companyId: z.number().int().positive("Company ID is required"),
+});
+
+export const insertContractTemplateSchema = createInsertSchema(contractTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  paymentText: z.string().optional(),
+  sections: modularSectionsArraySchema.optional().default([]),
+  // Categoria libera ma bounded: stringa vuota normalizzata a null così
+  // "rimuovi categoria" via PUT {category: ""} funziona senza casi speciali.
+  category: z
+    .string()
+    .trim()
+    .max(60, "La categoria non può superare 60 caratteri")
+    .nullable()
+    .optional()
+    .transform((v) => (v === "" ? null : v)),
+  // Flag di archiviazione: boolean rigoroso, mai null via API. La colonna è
+  // nullable in DB, ma un NULL renderebbe ambigui i filtri isActive dei picker.
+  isActive: z.boolean().optional(),
+});
+
+export const insertContractSchema = createInsertSchema(contracts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  // Assegnati dal server alla creazione, mai dal client.
+  contractNumber: true,
+  documentLayout: true,
+}).extend({
+  renewalDuration: z.number().min(1).max(60).default(12),
+  partnershipPercentage: z.string().nullable().optional(),
+  selectedSectionIds: z.array(z.string()).nullable().optional(),
+  contractStartDate: z.union([z.string(), z.date()]).nullable().optional().transform((val) => {
+    if (typeof val === 'string') return new Date(val);
+    return val;
+  }),
+  contractEndDate: z.union([z.string(), z.date()]).nullable().optional().transform((val) => {
+    if (typeof val === 'string') return new Date(val);
+    return val;
+  }),
+  // Variabili-prodotto: accettano string o number e vengono normalizzate
+  // a stringa (Drizzle numeric === string lato app) per evitare problemi
+  // di precisione e per mantenere la stessa shape su Postgres.
+  accessLevel: z.string().trim().min(1).nullable().optional(),
+  // Canone mensile: se valorizzato, deve essere strettamente > 0
+  // (un canone "0" è quasi sempre un errore di compilazione e va
+  // segnalato anche quando arriva da chiamate API dirette).
+  monthlyFee: z.union([z.string(), z.number()]).nullable().optional().transform((v, ctx) => {
+    if (v === undefined || v === null || v === "") return null;
+    const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+    if (isNaN(n)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Canone mensile non valido" });
+      return z.NEVER;
+    }
+    if (n <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Il canone mensile deve essere maggiore di 0" });
+      return z.NEVER;
+    }
+    return n.toFixed(2);
+  }),
+  // Costo di attivazione: 0 è ammesso ("non previsto"), negativo no.
+  activationFee: z.union([z.string(), z.number()]).nullable().optional().transform((v, ctx) => {
+    if (v === undefined || v === null || v === "") return null;
+    const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
+    if (isNaN(n)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Costo di attivazione non valido" });
+      return z.NEVER;
+    }
+    if (n < 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Il costo di attivazione non può essere negativo" });
+      return z.NEVER;
+    }
+    return n.toFixed(2);
+  }),
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertOtpCodeSchema = createInsertSchema(otpCodes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({
+  id: true,
+  updatedAt: true,
+  isOwner: true,
+}).extend({
+  logoUrl: z.string().optional(),
+  privacyPolicyText: z.string().max(60000, "Informativa troppo lunga (max 60.000 caratteri)").nullable().optional(),
+  privacyPolicyUrl: z.union([
+    z.literal(""),
+    z.string().trim().regex(/^https?:\/\/\S+$/i, "Il link all'informativa deve iniziare con https://"),
+  ]).nullable().optional(),
+});
+
+// Types
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type ContractTemplate = typeof contractTemplates.$inferSelect;
+export type InsertContractTemplate = z.infer<typeof insertContractTemplateSchema>;
+export type Contract = typeof contracts.$inferSelect;
+export type InsertContract = z.infer<typeof insertContractSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type OtpCode = typeof otpCodes.$inferSelect;
+export type InsertOtpCode = z.infer<typeof insertOtpCodeSchema>;
+export type CompanySettings = typeof companySettings.$inferSelect;
+export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
+
+export const insertCoFillSessionSchema = createInsertSchema(coFillSessions).omit({
+  id: true,
+  createdAt: true,
+});
+export type CoFillSession = typeof coFillSessions.$inferSelect;
+export type InsertCoFillSession = z.infer<typeof insertCoFillSessionSchema>;
+
+export const signatureSchema = z.object({
+  contract: z.string().optional(),
+  privacy: z.string().optional(),
+  marketing: z.string().optional(),
+});

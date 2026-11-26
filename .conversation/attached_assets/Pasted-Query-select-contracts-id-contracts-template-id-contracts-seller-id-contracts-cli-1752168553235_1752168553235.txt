@@ -1,0 +1,37 @@
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."is_percentage_partnership", "contracts"."partnership_percentage", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["Li210zp7UFm9vz12"]
+5:28:07 PM [express] GET /api/user 200 in 346ms :: {"id":2,"username":"orbitale","password":"0c66b40…
+Query: select "id", "company_name", "address", "city", "postal_code", "tax_id", "vat_id", "unique_code", "pec", "logo_url", "contract_title", "updated_at" from "company_settings" limit $1 -- params: [1]
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [38, "viewed", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36", "93.65.253.188", "{\"accessMethod\":\"direct_link\",\"emailUsed\":null}"]
+5:28:08 PM [express] GET /api/client/contracts/Li210zp7UFm9vz12 200 in 1141ms :: {"id":38,"templateI…
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."is_percentage_partnership", "contracts"."partnership_percentage", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["Li210zp7UFm9vz12"]
+[ROUTES] Errore nell'inizializzazione Twilio Verify, usando OTP personalizzato: 888410
+Query: insert into "otp_codes" ("id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at") values (default, $1, $2, $3, $4, default, default) returning "id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at" -- params: [38, "3890566422", "888410", "2025-07-10T17:38:23.745Z"]
+[ROUTES] About to send OTP to 3890566422
+[ROUTES] Contact type: phone (SMS)
+[ROUTES] Method: Custom OTP
+[ROUTES] 📱 Numero modificato dal cliente: 3890566422
+[OTP Service] Invio OTP 888410 a 3890566422
+[DEBUG] NODE_ENV: development
+🔐 OTP Code for 3890566422: 888410
+🔐 [DEVELOPMENT] OTP per 3890566422: 888410
+[TWILIO] ✅ Servizio Twilio Verify inizializzato correttamente
+[OTP Service] 📱 Invio OTP via SMS tramite Twilio Verify...
+[TWILIO] 🔐 Tentativo di invio OTP via Twilio Verify...
+[TWILIO] 📱 Numero destinatario: 3890566422
+[TWILIO] 📱 Invio codice di verifica a: +393890566422
+[TWILIO] ✅ Codice di verifica inviato! SID: VE9409c7ad73277f04a9966a86807e1065
+[TWILIO] 📊 Status: pending
+[TWILIO] ✅ Codice di verifica Twilio inviato con successo!
+[OTP Service] ✅ OTP SMS inviato con successo!
+[ROUTES] OTP sending completed
+Query: insert into "audit_logs" ("id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp") values (default, $1, $2, $3, $4, $5, default) returning "id", "contract_id", "action", "user_agent", "ip_address", "metadata", "timestamp" -- params: [38, "otp_sent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36", "93.65.253.188", "{\"contact\":\"3890566422\",\"method\":\"sms\",\"twilioVerify\":false,\"hasPhone\":true,\"hasEmail\":true}"]
+5:28:24 PM [express] POST /api/client/contracts/Li210zp7UFm9vz12/send-otp 200 in 1777ms :: {"message…
+[DB] Nuova connessione al database (pg) stabilita dal pool.
+Query: select "id", "username", "password", "role", "email", "full_name", "created_at" from "users" where "users"."id" = $1 -- params: [2]
+Query: select "contracts"."id", "contracts"."template_id", "contracts"."seller_id", "contracts"."client_data", "contracts"."generated_content", "contracts"."pdf_path", "contracts"."status", "contracts"."contract_code", "contracts"."total_value", "contracts"."sent_to_email", "contracts"."signatures", "contracts"."signed_at", "contracts"."expires_at", "contracts"."auto_renewal", "contracts"."renewal_duration", "contracts"."is_percentage_partnership", "contracts"."partnership_percentage", "contracts"."created_at", "contracts"."updated_at", "contract_templates"."id", "contract_templates"."name", "contract_templates"."description", "contract_templates"."content", "contract_templates"."custom_content", "contract_templates"."payment_text", "contract_templates"."predefined_bonuses", "contract_templates"."payment_options", "contract_templates"."is_active", "contract_templates"."created_by", "contract_templates"."created_at", "contract_templates"."updated_at" from "contracts" left join "contract_templates" on "contracts"."template_id" = "contract_templates"."id" where "contracts"."contract_code" = $1 -- params: ["Li210zp7UFm9vz12"]
+Query: select "id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at" from "otp_codes" where ("otp_codes"."contract_id" = $1 and "otp_codes"."code" = $2 and "otp_codes"."is_used" = $3) -- params: [38, "TWILIO_VERIFY", false]
+Query: select "id", "contract_id", "phone_number", "code", "expires_at", "is_used", "created_at" from "otp_codes" where ("otp_codes"."contract_id" = $1 and "otp_codes"."code" = $2 and "otp_codes"."is_used" = $3) -- params: [38, "140590", false]
+[ROUTES] Verifica OTP tradizionale: NON VALIDO
+5:28:49 PM [express] POST /api/client/contracts/Li210zp7UFm9vz12/sign 400 in 1171ms :: {"message":"I…

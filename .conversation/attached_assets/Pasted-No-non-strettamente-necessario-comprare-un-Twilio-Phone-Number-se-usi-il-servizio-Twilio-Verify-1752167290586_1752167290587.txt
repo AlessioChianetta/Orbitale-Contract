@@ -1,0 +1,58 @@
+No, non è strettamente necessario comprare un "Twilio Phone Number" se usi il servizio Twilio Verify per gli OTP.
+
+Questa è una delle comodità del servizio Verify. Cerco di spiegartelo in modo semplice.
+
+Quando hai creato il "Servizio Verify" seguendo i passaggi di prima, Twilio ha fatto una cosa per te in automatico: ha creato un "Contenitore di Mittenti" intelligente (chiamato Messaging Service).
+
+Di default, questo contenitore utilizza un pool di numeri di telefono gestiti direttamente da Twilio, scelti per garantire la massima velocità e probabilità di consegna nel paese del destinatario.
+
+Quindi, cosa vede il cliente finale?
+Se non fai nulla, il tuo cliente riceverà l'SMS da un numero generico o da un "short code" (un numero breve) che Twilio usa per questo tipo di comunicazioni. Funziona perfettamente, ma non è personalizzato.
+
+L'Opzione Migliore e Più Professionale (Senza Costi Fissi)
+Ora che hai il tuo servizio Verify, puoi renderlo professionale associandogli il tuo ID Mittente Alfanumerico gratuito (es. "MioSito") di cui parlavamo prima.
+
+Cosa devi fare:
+
+Registra il tuo ID Alfanumerico: Se non l'hai già fatto, vai in Messaging > Senders > Alphanumeric Sender IDs e registra gratuitamente il nome della tua azienda.
+
+Associalo al servizio Verify: Vai nelle impostazioni del tuo servizio Verify e aggiungi il tuo ID Alfanumerico al "pool di mittenti".
+
+In questo modo, il cliente riceverà l'OTP da "MioSito" e non da un numero sconosciuto.
+
+Riepilogo: Le tue opzioni
+Se usi...
+
+Devi comprare un numero?
+
+Cosa vede il cliente?
+
+Costi
+
+Solo Twilio Verify (Default)
+
+No
+
+Un numero generico di Twilio
+
+Solo il costo per ogni OTP inviato.
+
+Verify + ID Alfanumerico (Consigliato)
+
+No
+
+Il nome della tua azienda (es. "MioSito")
+
+Solo il costo per ogni OTP inviato.
+
+Verify + Tuo Numero Virtuale
+
+Sì
+
+Il numero di telefono che hai comprato
+
+Costo per OTP + costo fisso mensile del numero.
+
+
+Esporta in Fogli
+Conclusione: Per il tuo caso d'uso (solo OTP), la combinazione Twilio Verify + ID Alfanumerico gratuito è la soluzione più professionale ed economica. Non hai bisogno di acquistare un numero di telefono.

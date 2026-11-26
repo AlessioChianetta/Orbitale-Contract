@@ -1,0 +1,73 @@
+✏️✏️✏️ CLICK SU MODIFICA PAGAMENTO - Entrando in edit mode ✏️✏️✏️
+Console.js:61 📝 index da modificare: 0
+Console.js:61 💰 pagamento attuale: 
+{rata_importo: '2000.00', rata_scadenza: '28/06/2025'}
+Console.js:61 📋 paymentPlan completo prima della modifica: 
+[{…}]
+0
+: 
+{rata_importo: '2000.00', rata_scadenza: '28/06/2025'}
+length
+: 
+1
+[[Prototype]]
+: 
+Array(0)
+Console.js:61 ✅ Edit mode attivato - editingIndex: 0
+Console.js:61 🔄 useEffect PRINCIPALE triggerato!
+Console.js:61 📊 totalAmount: 2000
+Console.js:61 📅 paymentFrequency: annual
+Console.js:61 📝 editingIndex: 0
+Console.js:61 ⚠️ Se editingIndex non è null, NON dovrei rigenerare il piano!
+Console.js:61 🚫 BLOCCATO - Sono in edit mode, non rigenero il piano!
+Console.js:61 Templates loaded: 
+(3) [{…}, {…}, {…}]
+0
+: 
+{id: 3, name: 'Turbo e Orbitale', description: 'Turbo e Orbitale', content: '<div class="contract-content">\n\n<h2>TERMINI E COND…tto è regolato dalla legge italiana...</p>\n</div>', customContent: '<div style="line-height: 1.8; font-size: 16px; col…: 497€)</strong></span>\n    </li>\n  </ul>\n\n</div>', …}
+1
+: 
+{id: 2, name: 'Orbitale', description: 'Orbitale', content: '<div class="contract-content">\n\n<h2>TERMINI E COND…tto è regolato dalla legge italiana...</p>\n</div>', customContent: '<div style="line-height: 1.8; font-size: 16px; col…: 497€)</strong></span>\n    </li>\n  </ul>\n\n</div>', …}
+2
+: 
+{id: 1, name: 'Turbo', description: 'Turbo Ristorante', content: '<div class="contract-content">\n<h1>CONTRATTO DI {{…tto è regolato dalla legge italiana...</p>\n</div>', customContent: '<div style="line-height: 1.8; font-size: 16px; col…2.997€)</strong></span>\n    </li>\n  </ul>\n\n</div>', …}
+length
+: 
+3
+[[Prototype]]
+: 
+Array(0)
+Console.js:61 Templates loaded: 
+(3) [{…}, {…}, {…}]
+0
+: 
+{id: 3, name: 'Turbo e Orbitale', description: 'Turbo e Orbitale', content: '<div class="contract-content">\n\n<h2>TERMINI E COND…tto è regolato dalla legge italiana...</p>\n</div>', customContent: '<div style="line-height: 1.8; font-size: 16px; col…: 497€)</strong></span>\n    </li>\n  </ul>\n\n</div>', …}
+1
+: 
+{id: 2, name: 'Orbitale', description: 'Orbitale', content: '<div class="contract-content">\n\n<h2>TERMINI E COND…tto è regolato dalla legge italiana...</p>\n</div>', customContent: '<div style="line-height: 1.8; font-size: 16px; col…: 497€)</strong></span>\n    </li>\n  </ul>\n\n</div>', …}
+2
+: 
+{id: 1, name: 'Turbo', description: 'Turbo Ristorante', content: '<div class="contract-content">\n<h1>CONTRATTO DI {{…tto è regolato dalla legge italiana...</p>\n</div>', customContent: '<div style="line-height: 1.8; font-size: 16px; col…2.997€)</strong></span>\n    </li>\n  </ul>\n\n</div>', …}
+length
+: 
+3
+[[Prototype]]
+: 
+Array(0)
+Console.js:61 Templates loaded: 
+(3) [{…}, {…}, {…}]
+0
+: 
+{id: 3, name: 'Turbo e Orbitale', description: 'Turbo e Orbitale', content: '<div class="contract-content">\n\n<h2>TERMINI E COND…tto è regolato dalla legge italiana...</p>\n</div>', customContent: '<div style="line-height: 1.8; font-size: 16px; col…: 497€)</strong></span>\n    </li>\n  </ul>\n\n</div>', …}
+1
+: 
+{id: 2, name: 'Orbitale', description: 'Orbitale', content: '<div class="contract-content">\n\n<h2>TERMINI E COND…tto è regolato dalla legge italiana...</p>\n</div>', customContent: '<div style="line-height: 1.8; font-size: 16px; col…: 497€)</strong></span>\n    </li>\n  </ul>\n\n</div>', …}
+2
+: 
+{id: 1, name: 'Turbo', description: 'Turbo Ristorante', content: '<div class="contract-content">\n<h1>CONTRATTO DI {{…tto è regolato dalla legge italiana...</p>\n</div>', customContent: '<div style="line-height: 1.8; font-size: 16px; col…2.997€)</strong></span>\n    </li>\n  </ul>\n\n</div>', …}
+length
+: 
+3
+[[Prototype]]
+: 
+Array(0)

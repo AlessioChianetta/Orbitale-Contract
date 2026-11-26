@@ -1,0 +1,1232 @@
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { insertContractTemplateSchema } from "@shared/schema";
+import { z } from "zod";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Save,
+  X,
+  FileText,
+  Settings,
+  Gift,
+  Euro,
+  Sparkles,
+  Bold,
+  Italic,
+  List,
+  Pilcrow,
+  Eye,
+  Code,
+  CheckCircle,
+  AlertCircle,
+  Download,
+  GripVertical,
+  Users,
+} from "lucide-react";
+import BonusManager from "./bonus-manager";
+import AiContractChat from "./ai-contract-chat";
+import AiContractWizard from "./ai-contract-wizard";
+import ProfessionalContractDocument from "@/components/professional-contract-document";
+import { getPartnershipContractHtml } from "@/data/partnership-contract-template";
+import {
+  getOrbitalContractFullHtml,
+  getOrbitalContractEmptyHtml,
+  getOrbitalServicePackages,
+} from "@shared/orbital-template";
+import { getProcacciatoreContractHtml } from "@shared/procacciatore-template";
+import { PROCACCIATORE_PLACEHOLDER_LABELS } from "@shared/procacciatore-fields";
+import { resolveSelectedSections, parseSections, type ModularSection } from "@shared/sections";
+
+const templateFormSchema = insertContractTemplateSchema.omit({ createdBy: true });
+type TemplateForm = z.infer<typeof templateFormSchema>;
+
+interface TemplateEditorProps {
+  template?: any;
+  onClose: () => void;
+}
+
+function HtmlToolbar({
+  fieldId,
+  fieldName,
+  form,
+  disabled,
+}: {
+  fieldId: string;
+  fieldName: "customContent" | "paymentText" | "content";
+  form: any;
+  disabled: boolean;
+}) {
+  const insertTag = (openTag: string, closeTag: string, placeholder: string) => {
+    const textarea = document.getElementById(fieldId) as HTMLTextAreaElement;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const currentValue = form.getValues(fieldName) || "";
+    const selectedText = currentValue.substring(start, end);
+    const newText =
+      currentValue.substring(0, start) +
+      `${openTag}${selectedText || placeholder}${closeTag}` +
+      currentValue.substring(end);
+    form.setValue(fieldName, newText);
+  };
+
+  const appendText = (text: string) => {
+    const currentValue = form.getValues(fieldName) || "";
+    form.setValue(fieldName, currentValue + text);
+  };
+
+  return (
+    <div className="border-b border-[#E5E7EB]/60 px-3 py-2 bg-[#FAFBFC] flex items-center gap-1 flex-wrap">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => insertTag("<strong>", "</strong>", "testo")}
+        disabled={disabled}
+        className="h-7 w-7 p-0 rounded-lg text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] transition-all duration-200"
+        title="Grassetto"
+      >
+        <Bold className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => insertTag("<em>", "</em>", "testo")}
+        disabled={disabled}
+        className="h-7 w-7 p-0 rounded-lg text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] transition-all duration-200"
+        title="Corsivo"
+      >
+        <Italic className="h-3.5 w-3.5" />
+      </Button>
+      <div className="w-px h-4 bg-[#E5E7EB]/60 mx-1" />
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() =>
+          appendText("\n<ul>\n  <li>Elemento</li>\n</ul>\n")
+        }
+        disabled={disabled}
+        className="h-7 px-2 text-xs rounded-lg text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] transition-all duration-200"
+        title="Lista"
+      >
+        <List className="h-3.5 w-3.5 mr-1" />
+        Lista
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => appendText("\n<p>Nuovo paragrafo</p>\n")}
+        disabled={disabled}
+        className="h-7 px-2 text-xs rounded-lg text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] transition-all duration-200"
+        title="Paragrafo"
+      >
+        <Pilcrow className="h-3.5 w-3.5 mr-1" />
+        Paragrafo
+      </Button>
+    </div>
+  );
+}
+
+function HtmlEditorWithPreview({
+  fieldId,
+  fieldName,
+  form,
+  disabled,
+  rows = 8,
+  placeholder,
+}: {
+  fieldId: string;
+  fieldName: "customContent" | "paymentText" | "content";
+  form: any;
+  disabled: boolean;
+  rows?: number;
+  placeholder?: string;
+}) {
+  const [showPreview, setShowPreview] = useState(false);
+  const value = form.watch(fieldName) || "";
+
+  return (
+    <div className="border border-[#E5E7EB]/60 rounded-2xl overflow-hidden bg-[#FCFCFD] shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <div className="flex items-center justify-between">
+        <HtmlToolbar fieldId={fieldId} fieldName={fieldName} form={form} disabled={disabled} />
+        <div className="pr-3 flex items-center gap-1">
+          <div className="flex items-center bg-[#F1F5F9] rounded-full p-0.5">
+            <button
+              type="button"
+              onClick={() => setShowPreview(false)}
+              className={`flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${
+                !showPreview
+                  ? "bg-white text-[#0F172A] shadow-sm"
+                  : "text-[#64748B] hover:text-[#0F172A]"
+              }`}
+            >
+              <Code className="h-3 w-3" />
+              Codice
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPreview(true)}
+              className={`flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${
+                showPreview
+                  ? "bg-white text-[#0F172A] shadow-sm"
+                  : "text-[#64748B] hover:text-[#0F172A]"
+              }`}
+            >
+              <Eye className="h-3 w-3" />
+              Anteprima
+            </button>
+          </div>
+        </div>
+      </div>
+      {showPreview ? (
+        <div className="p-5 min-h-[200px] prose prose-sm max-w-none">
+          {value ? (
+            <div dangerouslySetInnerHTML={{ __html: value }} />
+          ) : (
+            <p className="text-[#94A3B8] italic">Nessun contenuto da visualizzare</p>
+          )}
+        </div>
+      ) : (
+        <Textarea
+          id={fieldId}
+          {...form.register(fieldName)}
+          rows={rows}
+          placeholder={placeholder}
+          className="border-0 rounded-none resize-none font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0 bg-[#FCFCFD] text-[#0F172A]"
+          disabled={disabled}
+        />
+      )}
+    </div>
+  );
+}
+
+function TabIntro({
+  icon: Icon,
+  title,
+  description,
+  accent = "indigo",
+}: {
+  icon: any;
+  title: string;
+  description: string;
+  accent?: "indigo" | "emerald" | "amber" | "violet" | "sky";
+}) {
+  const colors: Record<string, { bg: string; text: string; ring: string }> = {
+    indigo:  { bg: "bg-indigo-50",  text: "text-indigo-600",  ring: "ring-indigo-100" },
+    emerald: { bg: "bg-emerald-50", text: "text-emerald-600", ring: "ring-emerald-100" },
+    amber:   { bg: "bg-amber-50",   text: "text-amber-600",   ring: "ring-amber-100" },
+    violet:  { bg: "bg-violet-50",  text: "text-violet-600",  ring: "ring-violet-100" },
+    sky:     { bg: "bg-sky-50",     text: "text-sky-600",     ring: "ring-sky-100" },
+  };
+  const c = colors[accent];
+  return (
+    <div className={`flex items-start gap-3 rounded-2xl ${c.bg} ring-1 ${c.ring} p-4`}>
+      <div className={`shrink-0 rounded-xl bg-white/80 p-2 ${c.text}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <h2 className={`text-sm font-semibold ${c.text}`}>{title}</h2>
+        <p className="text-[12px] text-[#475569] mt-0.5 leading-relaxed">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function VariablePill({ code, label }: { code: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="group inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E5E7EB]/80 rounded-full text-xs font-medium text-[#475569] hover:border-[#4F46E5]/30 hover:text-[#4F46E5] hover:shadow-sm transition-all duration-200 cursor-pointer"
+    >
+      <code className="text-[11px]">{code}</code>
+      <span className="text-[#94A3B8]">·</span>
+      <span className="text-[10px] text-[#94A3B8] group-hover:text-[#4F46E5]/60">{label}</span>
+      {copied && (
+        <CheckCircle className="h-3 w-3 text-[#059669] ml-0.5" />
+      )}
+    </button>
+  );
+}
+
+export default function TemplateEditor({ template, onClose }: TemplateEditorProps) {
+  const { toast } = useToast();
+  const isEditing = !!template;
+  const [activeTab, setActiveTab] = useState("info");
+  const [aiTab, setAiTab] = useState("wizard");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [sectionPreview, setSectionPreview] = useState<Record<string, boolean>>({});
+
+  const form = useForm<TemplateForm>({
+    resolver: zodResolver(templateFormSchema),
+    defaultValues: {
+      name: template?.name || "",
+      description: template?.description || "",
+      recipientType: template?.recipientType === "procacciatore" ? "procacciatore" : "cliente",
+      content:
+        template?.content ||
+        `<div class="contract-content">
+
+<h2>TERMINI E CONDIZIONI</h2>
+<p>Il presente contratto è regolato dalla legge italiana...</p>
+</div>`,
+      customContent:
+        template?.customContent ||
+        `Il presente contratto include una serie di bonus esclusivi e servizi di valore aggiunto che potenziano significativamente l'offerta base, garantendo al cliente un pacchetto completo e una strategia di crescita personalizzata per massimizzare i risultati dell'investimento.
+
+Tutti i bonus inclusi sono stati progettati per eliminare le principali barriere che impediscono ai clienti di ottenere risultati immediati: mancanza di tempo, complessità tecnologica, incertezza sui risultati e necessità di supporto continuo. L'obiettivo è garantire un percorso di crescita guidato, sicuro e misurabile fin dal primo giorno.`,
+      paymentText:
+        template?.paymentText ||
+        `<p>Il pagamento sarà corrisposto mediante modalità che il Cliente/Committente avrà cura di accendere come soluzione sottoscritta nel contratto con conseguente pagamento dell'indicato importo secondo il piano prestabilito.</p>
+
+<p><strong>Modalità di pagamento:</strong></p>
+<ul>
+  <li>Pagamento in unica soluzione</li>
+  <li>Pagamento rateale secondo il piano concordato</li>
+</ul>
+
+<p><em>Resta inteso che in caso di inerzia del Cliente potrà essere emesso un rimborso entro 30 giorni dalla firma del contratto e avvenuto pagamento.</em></p>`,
+      isActive: template?.isActive ?? true,
+      predefinedBonuses: template?.predefinedBonuses || [],
+      sections: parseSections((template as { sections?: unknown })?.sections),
+      paymentOptions: template?.paymentOptions || {
+        allowInstallments: true,
+        maxInstallments: 36,
+        paymentFrequencies: ["monthly", "quarterly", "annual"],
+      },
+    },
+  });
+
+  const saveTemplateMutation = useMutation({
+    mutationFn: async (data: TemplateForm) => {
+      const url = isEditing ? `/api/templates/${template.id}` : "/api/templates";
+      const method = isEditing ? "PUT" : "POST";
+      return await apiRequest(method, url, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
+      toast({
+        title: isEditing ? "Template aggiornato" : "Template creato",
+        description: "Le modifiche sono state salvate con successo",
+      });
+      onClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore nel salvataggio",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: TemplateForm) => {
+    saveTemplateMutation.mutate(data);
+  };
+
+  const handleAiContractGenerated = (data: {
+    content: string;
+    customContent: string;
+    paymentText: string;
+    bonuses: Array<Record<string, unknown>>;
+    sections?: ModularSection[];
+    suggestedName?: string;
+  }) => {
+    if (data.content) form.setValue("content", data.content);
+    if (data.customContent) form.setValue("customContent", data.customContent);
+    if (data.paymentText) form.setValue("paymentText", data.paymentText);
+    if (data.bonuses && data.bonuses.length > 0) {
+      form.setValue("predefinedBonuses", data.bonuses);
+    }
+    if (Array.isArray(data.sections) && data.sections.length > 0) {
+      form.setValue("sections", data.sections);
+    }
+    if (data.suggestedName && !form.getValues("name")) {
+      form.setValue("name", data.suggestedName);
+    }
+    toast({
+      title: "Contratto AI applicato",
+      description:
+        "Il contenuto generato dall'AI è stato inserito nel template. Rivedi e personalizza prima di salvare.",
+    });
+    setActiveTab("content");
+  };
+
+  const isPending = saveTemplateMutation.isPending;
+
+  // Template rivolto al procacciatore d'affari: le tab "Pacchetti / Moduli" e
+  // "Bonus & Pagamenti" non hanno senso (niente pacchetti orbitali né
+  // BONUS_LIST) e le variabili disponibili sono quelle del procacciatore.
+  const recipientTypeValue = (form.watch("recipientType") as string) || "cliente";
+  // I modelli pronti (Partnership, Sistema Orbitale, Procacciatore) sono i
+  // contratti dell'azienda proprietaria: le altre aziende non li vedono.
+  const { data: ownCompany } = useQuery<{ isOwner?: boolean }>({ queryKey: ["/api/company-settings"] });
+  const showOwnerModels = ownCompany?.isOwner === true;
+  const isProcTpl = recipientTypeValue === "procacciatore";
+  useEffect(() => {
+    if (isProcTpl && (activeTab === "sections" || activeTab === "bonuspay")) {
+      setActiveTab("info");
+    }
+  }, [isProcTpl, activeTab]);
+
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] overflow-hidden flex flex-col p-0 rounded-[20px] shadow-[0_20px_60px_rgba(0,0,0,0.08)] border-0 bg-white gap-0">
+        <DialogHeader className="px-8 pt-7 pb-5 border-b border-[#F1F5F9]">
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-2xl font-semibold text-[#0F172A] tracking-tight">
+                {isEditing ? "Modifica Template" : "Nuovo Template"}
+              </DialogTitle>
+              <DialogDescription className="mt-1.5 text-[#64748B] text-sm">
+                {isEditing
+                  ? "Modifica il template di contratto esistente"
+                  : "Crea un nuovo template con l'aiuto dell'intelligenza artificiale"}
+              </DialogDescription>
+            </div>
+            <div className="flex items-center gap-3">
+              {form.watch("isActive") ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#ECFDF5] text-[#059669]">
+                  <CheckCircle className="h-3 w-3" />
+                  Attivo
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#FEF2F2] text-[#DC2626]">
+                  <AlertCircle className="h-3 w-3" />
+                  Disattivato
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onClose()}
+                className="p-2 rounded-xl text-[#94A3B8] hover:text-[#64748B] hover:bg-[#F8FAFC] transition-all duration-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex-1 flex flex-col overflow-hidden"
+        >
+          <div className="flex-1 flex overflow-hidden">
+            {/* AI SIDEBAR - LEFT */}
+            <div className="w-[480px] min-w-[420px] max-w-[40%] bg-[#F8F9FC] border-r border-[#E5E7EB]/50 flex flex-col overflow-hidden">
+              <div className="px-5 pt-5 pb-3">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="p-1.5 bg-gradient-to-br from-[#4F46E5]/10 to-[#7C3AED]/10 rounded-lg">
+                    <Sparkles className="h-4 w-4 text-[#4F46E5]" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-[#0F172A]">Assistente AI</h3>
+                </div>
+                <div className="flex items-center bg-[#EEEEF4] rounded-full p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setAiTab("wizard")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 ${
+                      aiTab === "wizard"
+                        ? "bg-white text-[#0F172A] shadow-sm"
+                        : "text-[#64748B] hover:text-[#0F172A]"
+                    }`}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Creazione Guidata
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiTab("chat")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 ${
+                      aiTab === "chat"
+                        ? "bg-white text-[#0F172A] shadow-sm"
+                        : "text-[#64748B] hover:text-[#0F172A]"
+                    }`}
+                  >
+                    <FileText className="h-3 w-3" />
+                    Chat Consulenza
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 pb-3 flex flex-col">
+                {aiTab === "wizard" ? (
+                  <AiContractWizard onContractGenerated={handleAiContractGenerated} />
+                ) : (
+                  <AiContractChat
+                    onInsertContent={(text) => {
+                      const current = form.getValues("customContent") || "";
+                      form.setValue("customContent", current ? current + "\n\n" + text : text);
+                      toast({
+                        title: "Testo inserito",
+                        description: "Il suggerimento AI è stato aggiunto al contenuto introduttivo.",
+                      });
+                    }}
+                    onInsertPaymentText={(text) => {
+                      form.setValue("paymentText", text);
+                      toast({
+                        title: "Termini di pagamento aggiornati",
+                        description: "Il testo AI è stato inserito nei termini di pagamento.",
+                      });
+                    }}
+                    onInsertBonuses={(bonuses) => {
+                      const current = (form.getValues("predefinedBonuses") as any[]) || [];
+                      form.setValue("predefinedBonuses", [...current, ...bonuses] as any);
+                      toast({
+                        title: "Bonus aggiunti",
+                        description: `${bonuses.length} bonus sono stati aggiunti al template.`,
+                      });
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* MAIN EDITOR - RIGHT */}
+            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+              <Tabs
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="flex-1 flex flex-col overflow-hidden"
+              >
+                <div className="px-8 pt-5 pb-0">
+                  <div className="inline-flex items-center bg-[#F1F5F9] rounded-full p-1">
+                    <TabsList className="bg-transparent h-auto p-0 gap-0.5">
+                      <TabsTrigger
+                        value="info"
+                        className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
+                      >
+                        <Settings className="h-3.5 w-3.5 mr-1.5" />
+                        1. Generali
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="content"
+                        className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
+                      >
+                        <FileText className="h-3.5 w-3.5 mr-1.5" />
+                        2. Testo Contratto
+                      </TabsTrigger>
+                      {!isProcTpl && (
+                        <TabsTrigger
+                          value="sections"
+                          className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
+                        >
+                          <List className="h-3.5 w-3.5 mr-1.5" />
+                          3. Pacchetti / Moduli
+                        </TabsTrigger>
+                      )}
+                      {!isProcTpl && (
+                        <TabsTrigger
+                          value="bonuspay"
+                          className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
+                        >
+                          <Gift className="h-3.5 w-3.5 mr-1.5" />
+                          4. Bonus & Pagamenti
+                        </TabsTrigger>
+                      )}
+                      <TabsTrigger
+                        value="preview"
+                        className="rounded-full px-4 py-2 text-xs font-medium data-[state=active]:bg-white data-[state=active]:text-[#0F172A] data-[state=active]:shadow-sm data-[state=inactive]:text-[#64748B] data-[state=inactive]:bg-transparent data-[state=inactive]:shadow-none border-0 transition-all duration-200"
+                      >
+                        <Eye className="h-3.5 w-3.5 mr-1.5" />
+                        {isProcTpl ? "3. Anteprima" : "5. Anteprima"}
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-8 py-6">
+                  <TabsContent value="info" className="mt-0 space-y-6">
+                    <TabIntro
+                      icon={Settings}
+                      accent="sky"
+                      title="Generali — chi e cosa"
+                      description="Dai un nome al template, scrivi una descrizione interna e decidi se è attivo. Queste informazioni servono solo a te e ai tuoi venditori, non finiscono nel contratto firmato."
+                    />
+                    <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      <h3 className="text-base font-semibold text-[#0F172A] mb-5 flex items-center gap-2">
+                        <Settings className="h-4 w-4 text-[#64748B]" />
+                        Configurazione Base
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="space-y-2">
+                          <Label htmlFor="name" className="text-[#0F172A] text-sm font-medium">Nome Template *</Label>
+                          <Input
+                            id="name"
+                            {...form.register("name")}
+                            placeholder="es. MASTERCLASS FINANZIAMENTO"
+                            disabled={isPending}
+                            className="rounded-xl border-[#E5E7EB] focus:ring-[#4F46E5]/20 focus:border-[#4F46E5] transition-all duration-200"
+                          />
+                          {form.formState.errors.name && (
+                            <p className="text-sm text-red-500">
+                              {form.formState.errors.name.message}
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="description" className="text-[#0F172A] text-sm font-medium">Descrizione</Label>
+                          <Input
+                            id="description"
+                            {...form.register("description")}
+                            placeholder="Breve descrizione del template"
+                            disabled={isPending}
+                            className="rounded-xl border-[#E5E7EB] focus:ring-[#4F46E5]/20 focus:border-[#4F46E5] transition-all duration-200"
+                          />
+                        </div>
+                      </div>
+                      <div className="h-px bg-[#F1F5F9] my-5" />
+                      <div className="p-4 bg-[#FAFBFC] rounded-xl border border-[#E5E7EB]/40 mb-5">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                          <div>
+                            <Label className="text-sm font-medium text-[#0F172A] flex items-center gap-1.5">
+                              <Users className="h-3.5 w-3.5 text-[#64748B]" />
+                              Destinatario del contratto
+                            </Label>
+                            <p className="text-xs text-[#94A3B8] mt-1 max-w-md">
+                              "Cliente" usa l'anagrafica del cliente/committente. "Procacciatore d'affari" usa
+                              l'anagrafica del procacciatore e i parametri economici dedicati (provvigioni,
+                              liquidazione), senza pacchetti né bonus.
+                            </p>
+                          </div>
+                          <Select
+                            value={recipientTypeValue}
+                            onValueChange={(v) => form.setValue("recipientType", v as any, { shouldDirty: true })}
+                            disabled={isPending}
+                          >
+                            <SelectTrigger
+                              className="w-full md:w-[240px] rounded-xl border-[#E5E7EB]"
+                              data-testid="select-recipient-type"
+                            >
+                              <SelectValue placeholder="Seleziona destinatario" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="cliente">Cliente / Committente</SelectItem>
+                              <SelectItem value="procacciatore">Procacciatore d'affari</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {isEditing && (template?.recipientType === "procacciatore") !== isProcTpl && (
+                          <p className="mt-3 text-xs text-amber-600 flex items-center gap-1.5" data-testid="warn-recipient-type-changed">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Attenzione: cambiare destinatario modifica i passaggi del wizard e le variabili attese.
+                            Assicurati che il corpo del contratto usi le variabili giuste prima di salvare.
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-[#FAFBFC] rounded-xl border border-[#E5E7EB]/40">
+                        <div>
+                          <Label htmlFor="isActive" className="text-sm font-medium text-[#0F172A]">
+                            Stato Template
+                          </Label>
+                          <p className="text-xs text-[#94A3B8] mt-1">
+                            I template disattivati non saranno disponibili per la creazione di nuovi
+                            contratti
+                          </p>
+                        </div>
+                        <Switch
+                          id="isActive"
+                          checked={form.watch("isActive") ?? true}
+                          onCheckedChange={(checked) => form.setValue("isActive", checked)}
+                          disabled={isPending}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="content" className="mt-0 space-y-6">
+                    <TabIntro
+                      icon={FileText}
+                      accent="indigo"
+                      title="Testo del contratto — il corpo che il cliente firma"
+                      description="Qui scrivi (o importi) l'HTML che diventa il PDF firmato. Puoi partire da un modello pronto, poi personalizzare. Il testo introduttivo è facoltativo e appare prima della sezione bonus."
+                    />
+
+                    {/* Quick start: import templates (solo azienda proprietaria) */}
+                    {showOwnerModels && (
+                    <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/40 to-violet-50/30 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-[#0F172A] flex items-center gap-2">
+                            <Download className="h-4 w-4 text-indigo-600" />
+                            Parti da un modello pronto
+                          </h3>
+                          <p className="text-[12px] text-[#64748B] mt-0.5">
+                            Sostituisce il contenuto attuale del corpo. Puoi sempre modificarlo dopo.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {!isProcTpl && (
+                        <>
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => {
+                            const html = getPartnershipContractHtml();
+                            form.setValue("content", html);
+                            form.setValue("sections", [], { shouldDirty: true });
+                            toast({
+                              title: "Template importato",
+                              description: "Il contratto di partnership è stato importato nel corpo del contratto.",
+                            });
+                          }}
+                          className="group text-left rounded-xl bg-white border border-[#E5E7EB] p-4 hover:border-indigo-300 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <FileText className="h-4 w-4 text-indigo-600" />
+                            <span className="text-sm font-semibold text-[#0F172A]">Partnership</span>
+                          </div>
+                          <p className="text-[11px] text-[#64748B] leading-relaxed">
+                            Contratto partnership classico, senza pacchetti modulari.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          data-testid="button-import-orbital-full"
+                          onClick={() => {
+                            const html = getOrbitalContractFullHtml();
+                            form.setValue("content", html);
+                            form.setValue("sections", [], { shouldDirty: true });
+                            toast({
+                              title: "Template importato",
+                              description: "Contratto Sistema Orbitale completo (con tutti i servizi inline) importato nel corpo.",
+                            });
+                          }}
+                          className="group text-left rounded-xl bg-white border border-[#E5E7EB] p-4 hover:border-indigo-300 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <FileText className="h-4 w-4 text-indigo-600" />
+                            <span className="text-sm font-semibold text-[#0F172A]">Sistema Orbitale — Completo</span>
+                          </div>
+                          <p className="text-[11px] text-[#64748B] leading-relaxed">
+                            Tutti gli 11 pacchetti scritti dentro il contratto. Niente da scegliere.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          data-testid="button-import-orbital-modular"
+                          onClick={() => {
+                            const html = getOrbitalContractEmptyHtml();
+                            const packages = getOrbitalServicePackages();
+                            form.setValue("content", html);
+                            form.setValue("sections", packages, { shouldDirty: true });
+                            toast({
+                              title: "Template modulare importato",
+                              description: `Corpo del contratto e ${packages.length} Pacchetti di Servizi caricati. Personalizza la selezione per ogni contratto.`,
+                            });
+                            setActiveTab("sections");
+                          }}
+                          className="group text-left rounded-xl bg-white border-2 border-indigo-200 p-4 hover:border-indigo-400 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed relative"
+                        >
+                          <span className="absolute top-2 right-2 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-600 text-white uppercase tracking-wide">
+                            Consigliato
+                          </span>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <List className="h-4 w-4 text-indigo-600" />
+                            <span className="text-sm font-semibold text-[#0F172A]">Sistema Orbitale — Modulare</span>
+                          </div>
+                          <p className="text-[11px] text-[#64748B] leading-relaxed">
+                            Corpo "vuoto" + 11 pacchetti che il venditore sceglie per ogni cliente.
+                          </p>
+                        </button>
+                        </>
+                        )}
+
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          data-testid="button-import-procacciatore"
+                          onClick={() => {
+                            form.setValue("content", getProcacciatoreContractHtml());
+                            form.setValue("sections", [], { shouldDirty: true });
+                            form.setValue("recipientType", "procacciatore" as any, { shouldDirty: true });
+                            toast({
+                              title: "Template procacciatore importato",
+                              description:
+                                "Corpo del contratto per procacciatore d'affari caricato. Il destinatario del template è stato impostato su \"Procacciatore\".",
+                            });
+                          }}
+                          className="group text-left rounded-xl bg-white border border-[#E5E7EB] p-4 hover:border-emerald-300 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <Users className="h-4 w-4 text-emerald-600" />
+                            <span className="text-sm font-semibold text-[#0F172A]">Procacciatore d'Affari</span>
+                          </div>
+                          <p className="text-[11px] text-[#64748B] leading-relaxed">
+                            Contratto di procacciamento con anagrafica del procacciatore e provvigioni.
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+                    )}
+
+                    {/* Body editor */}
+                    <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
+                          <Code className="h-4 w-4 text-[#64748B]" />
+                          Corpo del Contratto
+                        </h3>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#FEF2F2] text-[#DC2626] uppercase tracking-wide">
+                          Obbligatorio
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#94A3B8] mb-4">
+                        L'HTML che diventa il PDF firmato. Usa le variabili qui sotto per inserire dati cliente.
+                      </p>
+
+                      <details className="mt-2 mb-4 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]/50 overflow-hidden">
+                        <summary className="cursor-pointer px-4 py-2.5 text-xs font-medium text-[#475569] hover:bg-[#F1F5F9] select-none">
+                          Variabili e blocchi disponibili
+                        </summary>
+                        <div className="px-4 pb-4 pt-2">
+                          {isProcTpl ? (
+                            <div className="flex flex-wrap gap-2" data-testid="pills-procacciatore-variables">
+                              {Object.entries(PROCACCIATORE_PLACEHOLDER_LABELS).map(([key, label]) => (
+                                <VariablePill key={key} code={`{{${key}}}`} label={label} />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              <VariablePill code={"{{societa}}"} label="Nome società" />
+                              <VariablePill code={"{{cliente_nome}}"} label="Nome cliente" />
+                              <VariablePill code={"{{p_iva}}"} label="P.IVA" />
+                              <VariablePill code={"{{sede}}"} label="Sede legale" />
+                            </div>
+                          )}
+                          {!isProcTpl && (
+                            <p className="mt-3 text-[11px] text-[#94A3B8]">
+                              Blocchi ripetibili:{" "}
+                              <code className="text-[#64748B] bg-white px-1.5 py-0.5 rounded border border-[#E5E7EB]/60 text-[10px]">
+                                {"<!-- BLOCK:BONUS_LIST -->...<!-- END_BLOCK:BONUS_LIST -->"}
+                              </code>
+                            </p>
+                          )}
+                        </div>
+                      </details>
+
+                      <HtmlEditorWithPreview
+                        fieldId="content"
+                        fieldName="content"
+                        form={form}
+                        disabled={isPending}
+                        rows={22}
+                        placeholder="Inserisci il corpo principale del contratto con variabili e blocchi..."
+                      />
+                      {form.formState.errors.content && (
+                        <p className="text-sm text-red-500 mt-2">
+                          {form.formState.errors.content.message}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Optional intro */}
+                    <details className="rounded-2xl border border-[#E5E7EB]/60 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                      <summary className="cursor-pointer p-6 select-none hover:bg-[#FAFBFC]">
+                        <div className="inline-flex items-center gap-2 align-middle">
+                          <FileText className="h-4 w-4 text-[#64748B]" />
+                          <span className="text-base font-semibold text-[#0F172A]">Testo Introduttivo</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F1F5F9] text-[#64748B] uppercase tracking-wide">
+                            Facoltativo
+                          </span>
+                        </div>
+                        <p className="text-sm text-[#94A3B8] mt-1.5">
+                          Testo opzionale che appare nel contratto prima della sezione bonus. Clicca per modificarlo.
+                        </p>
+                      </summary>
+                      <div className="px-6 pb-6">
+                        <HtmlEditorWithPreview
+                          fieldId="customContent"
+                          fieldName="customContent"
+                          form={form}
+                          disabled={isPending}
+                          rows={6}
+                          placeholder="Descrivi i servizi e i vantaggi inclusi nel contratto..."
+                        />
+                      </div>
+                    </details>
+                  </TabsContent>
+
+                  <TabsContent value="sections" className="mt-0 space-y-6">
+                    <TabIntro
+                      icon={List}
+                      accent="violet"
+                      title="Pacchetti / Moduli — opzionali, scelti per ogni cliente"
+                      description="Blocchi di testo che il venditore può attivare o disattivare al momento di creare il contratto (es. servizi aggiuntivi, pacchetti, attività facoltative). Compaiono nel contratto solo se selezionati. Lascia vuoto se il template non ha parti opzionali."
+                    />
+                    <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      <div className="flex items-start justify-between gap-4 mb-1">
+                        <div>
+                          <h3 className="text-base font-semibold text-[#0F172A] flex items-center gap-2">
+                            <List className="h-4 w-4 text-[#64748B]" />
+                            Elenco moduli ({((form.watch("sections") as ModularSection[] | undefined) || []).length})
+                          </h3>
+                          <p className="text-sm text-[#94A3B8] mt-1">
+                            Trascina per riordinare. "Attiva di default" = preselezionato nel form contratto. "Obbligatoria" = sempre incluso, non disattivabile.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isPending}
+                          onClick={() => {
+                            const current = (form.watch("sections") as ModularSection[] | undefined) || [];
+                            const newSection: ModularSection = {
+                              id: `sec_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+                              title: "Nuova sezione",
+                              content: "<p>Contenuto della sezione...</p>",
+                              defaultEnabled: true,
+                              required: false,
+                              order: current.length,
+                            };
+                            form.setValue("sections", [...current, newSection], { shouldDirty: true });
+                          }}
+                          className="rounded-xl border-[#E5E7EB] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700"
+                          data-testid="button-add-section"
+                        >
+                          + Aggiungi Sezione
+                        </Button>
+                      </div>
+
+                      <div className="mt-5 space-y-4">
+                        {(((form.watch("sections") as ModularSection[] | undefined) || [])).length === 0 && (
+                          <div className="text-center py-10 text-sm text-[#94A3B8] border border-dashed border-[#E5E7EB] rounded-xl">
+                            Nessuna sezione modulare definita. Aggiungi sezioni opzionali per rendere il template più flessibile.
+                          </div>
+                        )}
+                        {(((form.watch("sections") as ModularSection[] | undefined) || [])).map((sec, index) => {
+                          const reindex = (arr: ModularSection[]): ModularSection[] =>
+                            arr.map((s, i) => ({ ...s, order: i }));
+                          const updateSection = (patch: Partial<ModularSection>) => {
+                            const current = ([...((form.watch("sections") as ModularSection[] | undefined) || [])]);
+                            current[index] = { ...current[index], ...patch };
+                            form.setValue("sections", reindex(current), { shouldDirty: true });
+                          };
+                          const removeSection = () => {
+                            const current = ([...((form.watch("sections") as ModularSection[] | undefined) || [])]);
+                            current.splice(index, 1);
+                            form.setValue("sections", reindex(current), { shouldDirty: true });
+                          };
+                          const moveSection = (dir: -1 | 1) => {
+                            const current = ([...((form.watch("sections") as ModularSection[] | undefined) || [])]);
+                            const to = index + dir;
+                            if (to < 0 || to >= current.length) return;
+                            [current[index], current[to]] = [current[to], current[index]];
+                            form.setValue("sections", reindex(current), { shouldDirty: true });
+                          };
+                          const reorderTo = (from: number, to: number) => {
+                            if (from === to || from < 0 || to < 0) return;
+                            const current = ([...((form.watch("sections") as ModularSection[] | undefined) || [])]);
+                            if (from >= current.length || to >= current.length) return;
+                            const [moved] = current.splice(from, 1);
+                            current.splice(to, 0, moved);
+                            form.setValue("sections", reindex(current), { shouldDirty: true });
+                          };
+                          const isPreviewing = !!sectionPreview[sec.id];
+                          return (
+                            <div
+                              key={sec.id}
+                              draggable={!isPending}
+                              onDragStart={(e) => {
+                                setDragIndex(index);
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = "move";
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                if (dragIndex !== null && dragIndex !== index) {
+                                  reorderTo(dragIndex, index);
+                                }
+                                setDragIndex(null);
+                              }}
+                              onDragEnd={() => setDragIndex(null)}
+                              className={`rounded-xl border border-[#E5E7EB] bg-[#FAFBFC] p-4 transition ${
+                                dragIndex === index ? "opacity-60 ring-2 ring-indigo-300" : ""
+                              }`}
+                              data-testid={`section-editor-${sec.id}`}
+                            >
+                              <div className="flex items-center gap-2 mb-3">
+                                <span
+                                  className="cursor-grab active:cursor-grabbing text-[#94A3B8] hover:text-[#475569] shrink-0"
+                                  title="Trascina per riordinare"
+                                  data-testid={`drag-handle-${sec.id}`}
+                                >
+                                  <GripVertical className="h-4 w-4" />
+                                </span>
+                                <Input
+                                  value={sec.title}
+                                  onChange={(e) => updateSection({ title: e.target.value })}
+                                  disabled={isPending}
+                                  placeholder="Titolo sezione"
+                                  className="flex-1 rounded-lg border-[#E5E7EB]"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={isPending}
+                                  onClick={() => moveSection(-1)}
+                                  className="h-8 w-8 p-0"
+                                  title="Sposta su"
+                                >
+                                  ↑
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={isPending}
+                                  onClick={() => moveSection(1)}
+                                  className="h-8 w-8 p-0"
+                                  title="Sposta giù"
+                                >
+                                  ↓
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={isPending}
+                                  onClick={removeSection}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  title="Elimina sezione"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                <Input
+                                  value={sec.description || ""}
+                                  onChange={(e) => updateSection({ description: e.target.value })}
+                                  disabled={isPending}
+                                  placeholder="Descrizione breve (opzionale)"
+                                  className="rounded-lg border-[#E5E7EB] text-sm"
+                                />
+                                <div className="flex items-center gap-4 pl-1">
+                                  <label className="flex items-center gap-2 text-xs text-[#475569]">
+                                    <Switch
+                                      checked={!!sec.defaultEnabled}
+                                      onCheckedChange={(v) => updateSection({ defaultEnabled: v })}
+                                      disabled={isPending || !!sec.required}
+                                    />
+                                    Attiva di default
+                                  </label>
+                                  <label className="flex items-center gap-2 text-xs text-[#475569]">
+                                    <Switch
+                                      checked={!!sec.required}
+                                      onCheckedChange={(v) =>
+                                        updateSection({ required: v, defaultEnabled: v ? true : sec.defaultEnabled })
+                                      }
+                                      disabled={isPending}
+                                    />
+                                    Obbligatoria
+                                  </label>
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-[#E5E7EB] overflow-hidden bg-white">
+                                <div className="flex items-center justify-end gap-1 px-2 py-1.5 bg-[#F8FAFC] border-b border-[#E5E7EB]">
+                                  <div className="flex items-center bg-white rounded-full p-0.5 border border-[#E5E7EB]">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSectionPreview((p) => ({ ...p, [sec.id]: false }))}
+                                      className={`flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-medium rounded-full transition ${
+                                        !isPreviewing ? "bg-indigo-50 text-indigo-700" : "text-[#64748B]"
+                                      }`}
+                                      data-testid={`section-code-${sec.id}`}
+                                    >
+                                      <Code className="h-3 w-3" />
+                                      Codice
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSectionPreview((p) => ({ ...p, [sec.id]: true }))}
+                                      className={`flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-medium rounded-full transition ${
+                                        isPreviewing ? "bg-indigo-50 text-indigo-700" : "text-[#64748B]"
+                                      }`}
+                                      data-testid={`section-preview-${sec.id}`}
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                      Anteprima
+                                    </button>
+                                  </div>
+                                </div>
+                                {isPreviewing ? (
+                                  <div
+                                    className="p-4 min-h-[140px] prose prose-sm max-w-none text-sm text-slate-700"
+                                    dangerouslySetInnerHTML={{ __html: sec.content || "<em>Nessun contenuto</em>" }}
+                                  />
+                                ) : (
+                                  <Textarea
+                                    value={sec.content}
+                                    onChange={(e) => updateSection({ content: e.target.value })}
+                                    disabled={isPending}
+                                    rows={6}
+                                    placeholder="Contenuto HTML della sezione..."
+                                    className="rounded-none border-0 font-mono text-xs focus-visible:ring-0"
+                                  />
+                                )}
+                              </div>
+                              {!sec.content || !sec.content.trim() ? (
+                                <p className="mt-2 text-xs text-amber-600 flex items-center gap-1.5" data-testid={`warn-empty-${sec.id}`}>
+                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  Attenzione: questa sezione non ha contenuto. Aggiungi del testo o rimuovila.
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="bonuspay" className="mt-0 space-y-6">
+                    <TabIntro
+                      icon={Gift}
+                      accent="amber"
+                      title="Bonus & Pagamenti — incentivi e termini economici"
+                      description="Bonus predefiniti che riempiono automaticamente il blocco BONUS_LIST nel contratto, e i termini di pagamento (rate, scadenze, modalità). Il prezzo specifico lo inserisce il venditore creando il singolo contratto."
+                    />
+                    <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      <h3 className="text-base font-semibold text-[#0F172A] mb-1 flex items-center gap-2">
+                        <Gift className="h-4 w-4 text-[#64748B]" />
+                        Bonus Predefiniti
+                      </h3>
+                      <p className="text-sm text-[#94A3B8] mb-4">
+                        Riempiono automaticamente il blocco <code className="text-[11px] bg-[#F1F5F9] px-1.5 py-0.5 rounded">BONUS_LIST</code> nel corpo del contratto.
+                      </p>
+                      <BonusManager
+                        bonuses={(form.watch("predefinedBonuses") as any[]) || []}
+                        onChange={(bonuses) => form.setValue("predefinedBonuses", bonuses as any)}
+                        disabled={isPending}
+                      />
+                    </div>
+
+                    <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                      <h3 className="text-base font-semibold text-[#0F172A] mb-1 flex items-center gap-2">
+                        <Euro className="h-4 w-4 text-[#64748B]" />
+                        Termini di Pagamento
+                      </h3>
+                      <p className="text-sm text-[#94A3B8] mb-4">
+                        Personalizza i termini di pagamento che appariranno nel contratto. Supporta
+                        formattazione HTML.
+                      </p>
+                      <HtmlEditorWithPreview
+                        fieldId="paymentText"
+                        fieldName="paymentText"
+                        form={form}
+                        disabled={isPending}
+                        rows={8}
+                        placeholder="Inserisci i termini di pagamento..."
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="preview" className="mt-0 h-full space-y-4">
+                    <TabIntro
+                      icon={Eye}
+                      accent="emerald"
+                      title="Anteprima — come apparirà al cliente"
+                      description="Vista live del contratto con tutti i moduli attivi di default, le variabili sostituite con esempi e i bonus inseriti. È l'aspetto finale del PDF firmato."
+                    />
+                    <div className="rounded-2xl border border-[#E5E7EB]/60 bg-[#F8FAFC] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] h-full overflow-y-auto">
+                      <div className="flex items-center gap-2 mb-4 px-2">
+                        <Eye className="h-4 w-4 text-[#64748B]" />
+                        <h3 className="text-sm font-semibold text-[#0F172A]">Anteprima Contratto</h3>
+                        <span className="ml-auto text-[10px] text-[#94A3B8] bg-[#F1F5F9] px-2 py-1 rounded-full">Live Preview</span>
+                      </div>
+                      <div className="bg-white rounded-xl border border-[#E5E7EB]/40 overflow-hidden">
+                        <ProfessionalContractDocument
+                          mode="preview"
+                          template={{
+                            name: form.watch("name") || "Nome Template",
+                            content: form.watch("content") || "",
+                            customContent: form.watch("customContent") || "",
+                            paymentText: form.watch("paymentText") || "",
+                            predefinedBonuses: (form.watch("predefinedBonuses") as any[]) || [],
+                            recipientType: recipientTypeValue,
+                          }}
+                          bonusList={
+                            ((form.watch("predefinedBonuses") as any[]) || []).map((bonus: any) => ({
+                              bonus_descrizione: bonus.description + (bonus.value ? ` (${bonus.value}${bonus.type === 'percentage' ? '%' : '€'})` : '')
+                            }))
+                          }
+                          sections={resolveSelectedSections(
+                            (form.watch("sections") as ModularSection[] | undefined) || [],
+                            null
+                          ).map((s) => ({ id: s.id, title: s.title, content: s.content }))}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </div>
+          </div>
+
+          {/* FOOTER */}
+          <div className="px-8 py-4 border-t border-[#F1F5F9] bg-white flex items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              disabled={isPending}
+              className="text-[#64748B] hover:text-[#0F172A] hover:bg-[#F8FAFC] rounded-xl px-5 transition-all duration-200"
+            >
+              Annulla
+            </Button>
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] hover:from-[#4338CA] hover:to-[#6D28D9] text-white rounded-xl px-6 py-2.5 shadow-[0_4px_14px_rgba(79,70,229,0.3)] hover:shadow-[0_6px_20px_rgba(79,70,229,0.4)] hover:-translate-y-0.5 transition-all duration-200 font-medium"
+            >
+              {isPending ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Salvataggio...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Save className="h-4 w-4" />
+                  {isEditing ? "Aggiorna Template" : "Crea Template"}
+                </span>
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

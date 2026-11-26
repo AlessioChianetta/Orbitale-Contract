@@ -20,3 +20,4 @@
 - [Page and signing speed](page-speed.md) — Express gzips/caches assets (nginx does not), lazy routes, Chromium warmed on send-otp, emails after sign response.
 - [Admin "Entra come venditore"](impersonation.md) — admin→seller switch: same company, active only, re-validated per request; sentByAdminId in audit metadata.
 - [Embedded SSO](embed-sso.md) — conorbitale.it iframes the app; signed one-time token; only SSO sessions get SameSite=None; re-apply after logIn.
+- [npm firewall blocks + data location](npm-firewall-blocks.md) — vite/proxy-addr versions blocked by Replit firewall; real data is on VPS, dev DB here is empty.

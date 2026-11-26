@@ -1,0 +1,77 @@
+Creare un'applicazione web MVP chiamata "Turbo Contract". L'applicazione permetterà a un Amministratore (es. Alessio) di creare e gestire template di contratti avanzati (con sezioni ripetibili come Bonus e Piani di Pagamento), e a un Venditore (es. Alessio o il suo team) di popolare dinamicamente questi campi per generare e inviare un contratto complesso per la firma elettronica legalmente valida.
+Tecnologie Principali:
+Frontend: HTML, CSS, JavaScript (preferibilmente React.js o Vue.js per l'interattività).
+Backend: Node.js con Express.js (o Python con Flask/Django).
+Database: PostgreSQL o MongoDB per salvare i dati di utenti, template, contratti e log di audit.
+Generazione PDF: Utilizzare una libreria come pdf-lib o jsPDF per creare i PDF partendo dai template.
+Servizio Email: Utilizzare un servizio come SendGrid o Nodemailer per inviare i link dei contratti e i codici OTP.
+Autenticazione: Implementare l'autenticazione degli utenti (Admin/Venditore) tramite JWT (JSON Web Tokens).
+Requisiti Legali e di Sicurezza:
+Standard di Firma Elettronica: Il processo di firma deve essere conforme ai principi del regolamento eIDAS per la Firma Elettronica Avanzata (FEA) o standard simili. Ciò richiede un'autenticazione forte del firmatario e l'integrità dei dati.
+Autenticazione a Due Fattori (2FA): L'azione finale della firma deve essere protetta da un codice OTP (One-Time Password) inviato al numero di cellulare verificato del cliente.
+Tracciabilità Audit (Audit Trail): Ogni azione sul documento (creazione, invio, visualizzazione, firma) deve essere registrata con timestamp, indirizzo IP e user agent. Questo è cruciale per la validità legale e la non ripudiabilità.
+Integrità del Documento: Una volta firmato, il documento PDF finale deve essere sigillato digitalmente per renderlo a prova di manomissione. Il report di audit (Audit Trail) deve essere allegato o integrato nel documento finale.
+Archiviazione Sicura: Tutti i dati sensibili e i documenti devono essere archiviati in modo sicuro.
+Struttura Funzionale (Caratteristiche dell'MVP):
+1. Area Admin - Gestione Template (Versione Avanzata)
+Qui l'Amministratore imposta i contratti "master".
+1.1. Ruolo Utente: Admin con login sicuro.
+1.2. Dashboard Template: Una schermata per elencare, creare, modificare ed eliminare i template dei contratti.
+1.3. Editor di Template Avanzato:
+Un editor di testo RTF (come TinyMCE o CKEditor).
+Variabili Semplici: L'Admin definisce placeholder per campi singoli: {{societa}}, {{sede}}, {{p_iva}}, {{cliente_nome}}, {{prezzo_totale}}, ecc.
+Variabili Complesse (Blocchi Ripetibili): L'Admin deve poter definire sezioni che possono essere popolate dinamicamente con più elementi. La sintassi potrebbe essere:
+Generated html
+<!-- BLOCK:BONUS_LIST -->
+<p>• {{bonus_descrizione}}</p>
+<!-- END_BLOCK:BONUS_LIST -->
+
+<!-- BLOCK:PAYMENT_PLAN -->
+<p>• Rata {{rata_numero}} di EUR {{rata_importo}} + IVA entro il {{rata_scadenza}}</p>
+<!-- END_BLOCK:PAYMENT_PLAN -->
+Use code with caution.
+Html
+Per ogni template, l'Admin salverà:
+nome_template (es. "MASTERCLASS FINANZIAMENTO")
+corpo_template (Il contenuto HTML con placeholder semplici e blocchi ripetibili).
+2. Area Venditore - Preparazione e Invio Contratto (Versione Avanzata)
+Questa è l'area principale di generazione contratti.
+2.1. Ruolo Utente: Venditore (o Admin che agisce come Venditore).
+2.2. Autenticazione: Login sicuro per il Venditore.
+2.3. Dashboard / "Sales List":
+Una tabella che mostra tutti i contratti generati dal venditore.
+Colonne: ID, Nome Venditore, Nome PDF, Nome Contratto, Email Destinatario, Stato (bozza, inviato, visualizzato, firmato, scaduto).
+Un pulsante "Aggiungi Nuovo Contratto".
+2.4. Form di Generazione Contratto Avanzato (Pagina "Aggiungi Nuovo Contratto"):
+Dropdown "Contract": Il venditore seleziona il template (es. "MASTERCLASS FINANZIAMENTO"). L'applicazione genera il form corrispondente.
+Sezione "Dati Cliente/Committente": Un form con campi di testo per tutte le variabili semplici (Società, Sede, P.IVA / Cod. Fiscale, PEC, Email, Cellulare, Signor./a, Nato a, etc.).
+Sezione "Bonus Inclusi" (Dinamica): Questa sezione corrisponde al blocco BONUS_LIST. L'interfaccia deve presentare una lista di campi di testo con un pulsante "[+] Aggiungi Bonus" che aggiunge dinamicamente una nuova riga di input.
+Sezione "Piano di Pagamento" (Dinamica): Questa sezione corrisponde al blocco PAYMENT_PLAN. Presenta una riga con i campi: Importo Rata (€), Scadenza Rata (formato data). Un pulsante "[+] Aggiungi Rata" aggiunge dinamicamente una nuova riga.
+Sezione "Prezzo Totale": Un campo per il prezzo totale (25000 nell'esempio).
+Sezione "Consensi": Campi radio o checkbox per Consenso Privacy e Consenso Promozioni Commerciali.
+Pulsante "Genera e Invia".
+2.5. Logica del Backend (Avanzata):
+Al click su "Genera e Invia":
+Il backend riceve i dati strutturati, incluse le liste di bonus e rate come array di oggetti.
+Prende il corpo_template corrispondente.
+Sostituisce i placeholder singoli (es. {{societa}} con il valore inserito).
+Processa i Blocchi Ripetibili: Trova il blocco (es. <!-- BLOCK:PAYMENT_PLAN -->), cicla attraverso l'array delle rate ricevuto dal form, e per ogni rata duplica il contenuto HTML del blocco, sostituendo le variabili ({{rata_numero}}, {{rata_importo}}, ecc.) con i dati specifici di quella rata. Fa lo stesso per i bonus.
+Genera il PDF finale dal contenuto HTML completo.
+Salva il contratto nel database con stato: 'inviato'.
+Crea un link unico e sicuro e lo invia via email al cliente, registrando l'azione nell'Audit Trail.
+3. Area Cliente - Visualizzazione e Firma
+3.1. Nessun Login Richiesto. L'accesso avviene tramite il link unico.
+3.2. Visualizzatore Documento: Il cliente visualizza il contratto PDF finalizzato, con tutte le sezioni, incluse le liste di bonus e il piano rateale, formattate correttamente. Il backend registra l'azione "visualizzato".
+3.3. Processo di Firma:
+Un pulsante chiaro "Procedi alla Firma".
+Al click, viene richiesto di confermare il numero di cellulare e viene inviato un codice OTP.
+Il cliente inserisce l'OTP e clicca "Firma il Documento".
+3.4. Logica del Backend per la Firma:
+Verifica l'OTP.
+Aggiorna lo stato del contratto a firmato nel database.
+Registra l'azione "firmato" nell'Audit Trail.
+Cruciale: Genera il PDF finale e sigillato. Questo processo include:
+Prendere il PDF del contratto originale.
+Creare una nuova pagina per l'Audit Trail (la tracciabilità).
+Aggiungere questa pagina di audit al PDF del contratto.
+Invia il documento finale firmato via email a tutte le parti coinvolte.

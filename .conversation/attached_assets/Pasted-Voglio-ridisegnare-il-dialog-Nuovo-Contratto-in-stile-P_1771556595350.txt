@@ -1,0 +1,152 @@
+Voglio ridisegnare il dialog “Nuovo Contratto” in stile Premium Innovativo SaaS 2026.
+
+Obiettivo:
+trasformare il form in un workflow guidato, moderno, elegante, con percezione alta di valore.
+
+🎨 1. Struttura Modale
+
+Modale large (max-width 1100px)
+
+Radius 20px
+
+Shadow profonda ma morbida (0 25px 80px rgba(0,0,0,0.15))
+
+Header con gradiente soft viola → blu
+
+Contenuto bianco puro
+
+Padding 32px
+
+🧭 2. Step Navigation in Alto
+
+Aggiungere progress bar con step:
+
+Selezione Template
+
+Dati Cliente
+
+Pagamento
+
+Durata
+
+Bonus
+
+Invio
+
+Step attivo evidenziato.
+Transizione fluida tra sezioni.
+
+Non deve sembrare un semplice scroll.
+
+🧠 3. Sezioni meno boxate
+
+Eliminare:
+
+Troppe card con border colorati
+
+Alert blu pesanti
+
+Background diversi per ogni sezione
+
+Usare:
+
+Titoli grandi
+
+Spacing per separare
+
+Linea sottile neutra
+
+Nessun background colorato forte
+
+Meno blocchi, più aria.
+
+✨ 4. Inputs più moderni
+
+Height 48px
+
+Radius 12px
+
+Border soft
+
+Focus con glow blu elegante
+
+Label sopra input (non placeholder)
+
+Transizioni smooth.
+
+🧩 5. “Modello Partnership Avanzato”
+
+Attualmente sembra una card qualsiasi.
+
+Rendilo:
+
+Toggle moderno stile iOS
+
+Card selezionabile con hover
+
+Stato attivo con border accent
+
+Micro animazione attivazione
+
+Deve sembrare un’opzione premium.
+
+📅 6. Durata Contratto
+
+Raggruppare le date in layout a 3 colonne pulite.
+
+Eliminare alert blu pesante.
+
+Se serve info, usare tooltip discreto.
+
+💰 7. Prezzo totale
+
+Metterlo più protagonista.
+
+Campo grande.
+Formato valuta elegante.
+Magari preview calcolo sotto.
+
+🎯 8. Footer sticky elegante
+
+Barra fissa in basso:
+
+Background bianco
+
+Border top soft
+
+Pulsante primario:
+
+Gradiente soft blu → viola
+
+Radius 14px
+
+Shadow leggera
+
+Hover elevate
+
+“Annulla” outline minimal.
+
+🎨 Palette
+
+Primary: #4F46E5
+Accent: #7C3AED
+Success: soft green
+Text primary: #0F172A
+Text secondary: #64748B
+
+Radius: 16–20px
+Shadow: morbida, mai pesante.
+
+🎯 Percezione finale
+
+Non deve sembrare un modulo amministrativo.
+
+Deve sembrare:
+
+Strumento professionale
+
+Console di creazione contratto
+
+Prodotto SaaS premium
+
+Meno box, più gerarchia, più aria.
