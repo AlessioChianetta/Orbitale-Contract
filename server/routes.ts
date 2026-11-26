@@ -235,15 +235,6 @@ setInterval(presenceCleanupOnce, 15_000).unref?.();
 import { chatContratto, guidedContractWizard, generateContractFromAI, type ChatMessage } from "./services/provider-factory";
 import rateLimit from "express-rate-limit";
 
-// Rate limit for public OTP endpoints (send + verify). 5 attempts per IP per 15 minutes.
-const otpRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Troppi tentativi. Riprova tra qualche minuto." },
-});
-
 // Limita il numero di submit di dati cliente sull'endpoint pubblico
 // (modalità "client_fill"): protegge dal flood verso lo storage e dalla
 // possibilità di spam-mare la notifica al venditore.
@@ -2681,7 +2672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send OTP for contract signing
-  app.post("/api/client/contracts/:code/send-otp", otpRateLimiter, async (req, res) => {
+  app.post("/api/client/contracts/:code/send-otp", async (req, res) => {
     try {
       const contract = await storage.getContractByCode(req.params.code);
       if (!contract) {
@@ -3029,7 +3020,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify OTP and sign contract
-  app.post("/api/client/contracts/:code/sign", otpRateLimiter, async (req, res) => {
+  app.post("/api/client/contracts/:code/sign", async (req, res) => {
     try {
       const { otpCode, consents, signatures } = req.body;
       // Tempi delle fasi della firma, scritti in una riga di log alla fine.
@@ -3069,7 +3060,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       //   - una volta scattato, il blocco dura 30 minuti dall'ultimo fallimento
       //     (il "lockout state" è derivato dal timestamp del tentativo che ha
       //     fatto raggiungere la soglia, non da un campo dedicato in DB).
-      // È additivo al rate-limit per IP già attivo (`otpRateLimiter`).
       const OTP_DETECTION_WINDOW_MS = 10 * 60 * 1000; // 10 min: rilevazione
       const OTP_LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 min: blocco
       const OTP_LOCKOUT_THRESHOLD = 5;
