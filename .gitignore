@@ -11,3 +11,4 @@ vite.config.ts.*
 # Dump del DB e cookie di sessione: dati reali, mai nel repository
 /DATABASE/*.sql
 /cookies.txt
+/.conversation/
